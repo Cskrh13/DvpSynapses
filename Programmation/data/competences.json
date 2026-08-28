@@ -66,10 +66,10 @@
       "Ne supprimer une relation de prérequis que si sa cible est absente et ne peut pas être résolue vers une compétence existante.",
       "Après fusion, vérifier l’unicité des identifiants et la validité de toutes les références de prérequis."
     ],
-    "compatibilite_cartographie": "Strictement compatible avec cartographie-competences-pulse.html : racine competences + domaines, niveaux TPS/PS/MS/GS/CP/CE1/CE2/CM1/CM2/6e, et champs intitule, discipline, domaine_id, prerequis_competences.",
+    "compatibilite_cartographie": "Compatible avec cartographie-competences-pulse.html : racine competences + domaines, niveaux TPS/PS/MS/GS/CP/CE1/CE2/CM1/CM2/6e/CPS, et champs intitule, discipline, domaine_id, prerequis_competences.",
     "regles_cartographie": [
       "Chaque compétence doit posséder un id unique.",
-      "Le niveau doit être l’un des niveaux reconnus par la cartographie : TPS, PS, MS, GS, CP, CE1, CE2, CM1, CM2 ou 6e.",
+      "Le niveau doit être l’un des niveaux reconnus par la cartographie : TPS, PS, MS, GS, CP, CE1, CE2, CM1, CM2, 6e ou CPS.",
       "Chaque compétence doit posséder intitule, discipline, domaine_id et prerequis_competences.",
       "La racine du fichier doit contenir les tableaux competences et domaines.",
       "Chaque identifiant de prerequis_competences doit pointer vers une compétence existante.",
@@ -112,10 +112,11 @@
         "CE2",
         "CM1",
         "CM2",
-        "6e"
+        "6e",
+        "CPS"
       ],
-      "nombre_competences": 2570,
-      "nombre_domaines": 30,
+      "nombre_competences": 2591,
+      "nombre_domaines": 33,
       "ids_uniques": true,
       "prerequis_valides": true
     },
@@ -151,6 +152,16 @@
       "entrees_eclatees": 268,
       "competences_creees_par_eclatement": 694,
       "compatibilite": "Les identifiants historiques sont conservés pour le premier objectif de chaque entrée éclatée ; les objectifs supplémentaires utilisent un suffixe __obj_XX."
+    },
+    "niveau_cps": {
+      "statut": "ajoute",
+      "source": "Santé publique France",
+      "competences": 21,
+      "categories": [
+        "Cognitives",
+        "Émotionnelles",
+        "Sociales"
+      ]
     }
   },
   "domaines": [
@@ -303,6 +314,21 @@
       "id": "objets_techniques_societe",
       "nom": "Les objets techniques au cœur de la société",
       "discipline": "Sciences et technologie"
+    },
+    {
+      "id": "cps_cognitives",
+      "nom": "Compétences psychosociales – cognitives",
+      "discipline": "Compétences psychosociales"
+    },
+    {
+      "id": "cps_emotionnelles",
+      "nom": "Compétences psychosociales – émotionnelles",
+      "discipline": "Compétences psychosociales"
+    },
+    {
+      "id": "cps_sociales",
+      "nom": "Compétences psychosociales – sociales",
+      "discipline": "Compétences psychosociales"
     }
   ],
   "competences": [
@@ -93726,6 +93752,426 @@
       "statut": "actif",
       "nom": "Coopérer au sein d’un collectif et assumer différents rôles : joueur, arbitre, observateur ou conseiller.",
       "competences_suivantes": []
+    },
+    {
+      "id": "cps_cognitives_conscience_soi_connaissance_soi",
+      "nom": "Connaissance de soi",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Connaissance de soi",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Connaissance de soi"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_cognitives_conscience_soi_pensee_critique",
+      "nom": "Savoir penser de façon critique",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Savoir penser de façon critique",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Savoir penser de façon critique"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_cognitives_conscience_soi_auto_evaluation",
+      "nom": "Capacité d’auto-évaluation positive",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité d’auto-évaluation positive",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Capacité d’auto-évaluation positive"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_cognitives_conscience_soi_attention_soi",
+      "nom": "Capacité d’attention à soi (ou pleine conscience)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité d’attention à soi (ou pleine conscience)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Capacité d’attention à soi (ou pleine conscience)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_cognitives_decisions_resolution_creative",
+      "nom": "Capacité à résoudre des problèmes de façon créative",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Prendre des décisions constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité à résoudre des problèmes de façon créative",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Capacité à résoudre des problèmes de façon créative"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_cognitives_decisions_choix_responsables",
+      "nom": "Capacité à faire des choix responsables",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Prendre des décisions constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité à faire des choix responsables",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_cognitives",
+      "objectifs": [
+        "Capacité à faire des choix responsables"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Cognitives"
+    },
+    {
+      "id": "cps_emotionnelles_maitrise_soi_impulsions",
+      "nom": "Capacité à gérer ses impulsions",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Capacité de maîtrise de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité à gérer ses impulsions",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Capacité à gérer ses impulsions"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_maitrise_soi_buts",
+      "nom": "Capacité à atteindre ses buts (définition, planification…)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Capacité de maîtrise de soi",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité à atteindre ses buts (définition, planification…)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Capacité à atteindre ses buts (définition, planification…)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_sociales_relations_liens",
+      "nom": "Développer des liens sociaux (aller vers l’autre, entrer en relation, nouer des amitiés…)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Développer des relations constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Développer des liens sociaux (aller vers l’autre, entrer en relation, nouer des amitiés…)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Développer des liens sociaux (aller vers l’autre, entrer en relation, nouer des amitiés…)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_relations_prosocial",
+      "nom": "Développer des attitudes et comportements prosociaux (acceptation, collaboration, coopération, entraide…)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Développer des relations constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Développer des attitudes et comportements prosociaux (acceptation, collaboration, coopération, entraide…)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Développer des attitudes et comportements prosociaux (acceptation, collaboration, coopération, entraide…)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_relations_ecoute_empathique",
+      "nom": "Capacité d’écoute empathique",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Développer des relations constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité d’écoute empathique",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Capacité d’écoute empathique"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_relations_communication_efficace",
+      "nom": "Communication efficace (valorisation, formulations claires…)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Développer des relations constructives",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Communication efficace (valorisation, formulations claires…)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Communication efficace (valorisation, formulations claires…)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_difficultes_demander_aide",
+      "nom": "Savoir demander de l’aide",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Résoudre des difficultés",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Savoir demander de l’aide",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Savoir demander de l’aide"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_difficultes_assertivite_refus",
+      "nom": "Capacité d’assertivité et de refus",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Résoudre des difficultés",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité d’assertivité et de refus",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Capacité d’assertivité et de refus"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_sociales_difficultes_conflits",
+      "nom": "Résoudre des conflits de façon constructive",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Résoudre des difficultés",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Résoudre des conflits de façon constructive",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_sociales",
+      "objectifs": [
+        "Résoudre des conflits de façon constructive"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Sociales"
+    },
+    {
+      "id": "cps_emotionnelles_stress_reguler",
+      "nom": "Réguler son stress au quotidien",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Gérer son stress",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Réguler son stress au quotidien",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Réguler son stress au quotidien"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_stress_coping",
+      "nom": "Capacité à faire face (coping) en situation d’adversité",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Gérer son stress",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Capacité à faire face (coping) en situation d’adversité",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Capacité à faire face (coping) en situation d’adversité"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_emotions_gerer",
+      "nom": "Gérer ses émotions (notamment les émotions difficiles : colère, anxiété, tristesse…)",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Réguler ses émotions",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Gérer ses émotions (notamment les émotions difficiles : colère, anxiété, tristesse…)",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Gérer ses émotions (notamment les émotions difficiles : colère, anxiété, tristesse…)"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_emotions_exprimer",
+      "nom": "Exprimer ses émotions de façon positive",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Réguler ses émotions",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Exprimer ses émotions de façon positive",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Exprimer ses émotions de façon positive"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_conscience_identifier",
+      "nom": "Identifier ses émotions et son stress",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de ses émotions et de son stress",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Identifier ses émotions et son stress",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Identifier ses émotions et son stress"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
+    },
+    {
+      "id": "cps_emotionnelles_conscience_comprendre",
+      "nom": "Comprendre les émotions et le stress",
+      "cycle": "Transversal",
+      "niveau": "CPS",
+      "domaine": "Compétences psychosociales",
+      "theme": "Avoir conscience de ses émotions et de son stress",
+      "source": "Santé publique France – Les compétences psychosociales",
+      "prerequis_competences": [],
+      "intitule": "Comprendre les émotions et le stress",
+      "discipline": "Compétences psychosociales",
+      "domaine_id": "cps_emotionnelles",
+      "objectifs": [
+        "Comprendre les émotions et le stress"
+      ],
+      "mots_cles": [],
+      "statut": "actif",
+      "competences_suivantes": [],
+      "categorie_cps": "Émotionnelles"
     }
   ]
 }
