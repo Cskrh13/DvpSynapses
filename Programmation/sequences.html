@@ -1435,6 +1435,33 @@ function normalizeProgression(x){
   p.periodes=p.periodes.map((per,i)=>({...per,numero:per.numero||i+1,competence_ids:Array.isArray(per.competence_ids)?per.competence_ids:[],sequence_ids:Array.isArray(per.sequence_ids)?per.sequence_ids:[]}));
   return p;
 }
+function normalizeProgressionInPlace(p){
+  if(!p) return p;
+  p.competences=Array.isArray(p.competences)?p.competences:[];
+  p.competences.forEach((c,i)=>{
+    c.id=c.id||c.competence_id||uid('brick');
+    c.ordre=i+1;
+    c.sequence_ids=Array.isArray(c.sequence_ids)?c.sequence_ids:[];
+    c.prerequis_ids=Array.isArray(c.prerequis_ids)?c.prerequis_ids:[];
+    c.periode=(c.periode===null||c.periode===undefined||c.periode==='')?null:(Number(c.periode)||null);
+  });
+  if(!Array.isArray(p.periodes)) p.periodes=[];
+  const byNum=new Map(p.periodes.map((per,i)=>[Number(per.numero)||i+1,per]));
+  p.periodes=[1,2,3,4,5].map(n=>{
+    const per=byNum.get(n)||{};
+    return {...per,numero:n,titre:per.titre||`Période ${n}`,competence_ids:Array.isArray(per.competence_ids)?per.competence_ids:[],sequence_ids:Array.isArray(per.sequence_ids)?per.sequence_ids:[],notes:per.notes||''};
+  });
+  // Une seule source de vérité : c.periode. Les colonnes de période sont dérivées.
+  p.periodes.forEach(per=>per.competence_ids=[]);
+  p.competences.forEach(c=>{
+    if(c.periode>=1 && c.periode<=5) p.periodes[c.periode-1].competence_ids.push(c.id);
+  });
+  p.periodes.forEach(per=>{
+    const ids=new Set(per.competence_ids);
+    per.sequence_ids=[...new Set(p.competences.filter(c=>ids.has(c.id)).flatMap(c=>c.sequence_ids||[]))];
+  });
+  return p;
+}
 function saveCurrentProgression(){const p=progressions.find(x=>x.id===currentProgressionId);if(p)saveProgressions(progressions);}
 function openProgressionResult(raw){const p=normalizeProgression(raw);if(!p)return;const idx=progressions.findIndex(x=>x.id===p.id);if(idx>=0)progressions[idx]=p;else progressions.push(p);currentProgressionId=p.id;saveProgressions(progressions);document.getElementById('prog-actions').style.display='';renderProgressionContent(p);renderProgSaved();}
 function competenceOptions(selected=''){return progressionCompetenceCatalogue().map(c=>`<option value="${escapeHTML(c.id)}" ${c.id===selected?'selected':''}>${escapeHTML(c.niveau?c.niveau+' · ':'')}${escapeHTML(c.intitule||c.id)}</option>`).join('');}
@@ -1456,7 +1483,19 @@ function removeCompetenceBrick(id){const p=progressions.find(x=>x.id===currentPr
 function moveBrick(id,dir){const p=progressions.find(x=>x.id===currentProgressionId);if(!p)return;const i=p.competences.findIndex(c=>c.id===id),j=i+dir;if(i<0||j<0||j>=p.competences.length)return;[p.competences[i],p.competences[j]]=[p.competences[j],p.competences[i]];p.competences.forEach((c,k)=>c.ordre=k+1);saveCurrentProgression();renderProgressionContent(p);}
 function assignCompetencePeriod(p,cid,period){p.periodes.forEach(per=>per.competence_ids=per.competence_ids.filter(x=>x!==cid));if(period)p.periodes.find(x=>x.numero===Number(period)).competence_ids.push(cid);const c=p.competences.find(x=>x.id===cid);if(c)c.periode=period?Number(period):null;}
 function renderProgressionContent(raw){
-  const p=normalizeProgression(raw),wrap=document.getElementById('prog-content');if(!p)return;
+  // Rendre l'objet réellement stocké dans progressions. L'ancienne version
+  // recréait un clone à chaque rendu : les saisies étaient perdues au prochain
+  // ajout de brique ou changement de période.
+  let p=progressions.find(x=>x.id===currentProgressionId);
+  if(!p){
+    p=normalizeProgression(raw);
+    if(!p)return;
+    const idx=progressions.findIndex(x=>x.id===p.id);
+    if(idx>=0) progressions[idx]=p; else progressions.push(p);
+    currentProgressionId=p.id;
+  }
+  p=normalizeProgressionInPlace(p);
+  const wrap=document.getElementById('prog-content');if(!wrap)return;
   wrap.innerHTML=`
     <div class="prog-hero cp-block"><p class="eyebrow">${escapeHTML(p.niveau)} · ${escapeHTML(getProgDomaineNom(p.domaine_id))}</p><input class="prog-title-input" id="prog-title" value="${escapeHTML(p.titre)}"><p class="field-hint">La chaîne ci-dessous est l'ordre logique des apprentissages. Elle n'est pas une chronologie de semaines.</p></div>
     <div id="prog-edit-zone" class="prog-editor">
@@ -1469,7 +1508,10 @@ function renderProgressionContent(raw){
   wrap.querySelectorAll('[data-remove-brick]').forEach(b=>b.onclick=()=>removeCompetenceBrick(b.dataset.removeBrick));
   wrap.querySelectorAll('[data-move-brick]').forEach(b=>b.onclick=()=>moveBrick(b.dataset.moveBrick,Number(b.dataset.dir)));
   wrap.querySelectorAll('[data-brick-select]').forEach(sel=>sel.onchange=()=>{const c=p.competences.find(x=>x.id===sel.dataset.brickSelect);if(c){c.competence_id=sel.value;c.titre=competenceLabel(sel.value);saveCurrentProgression();renderProgressionContent(p);}});
-  wrap.querySelectorAll('[data-brick-field]').forEach(el=>el.onchange=()=>{const c=p.competences.find(x=>x.id===el.dataset.brickField);if(c){c[el.dataset.field]=el.value;saveCurrentProgression();}});
+  wrap.querySelectorAll('[data-brick-field]').forEach(el=>el.onchange=()=>{
+    const c=p.competences.find(x=>x.id===el.dataset.brickField);
+    if(c){ c[el.dataset.field]=el.value; saveCurrentProgression(); renderProgressionContent(p); }
+  });
   wrap.querySelectorAll('[data-period-select]').forEach(sel=>sel.onchange=()=>{assignCompetencePeriod(p,sel.dataset.periodSelect,sel.value);saveCurrentProgression();renderProgressionContent(p);});
   wrap.querySelectorAll('[data-seq-check]').forEach(cb=>cb.onchange=()=>{const c=p.competences.find(x=>x.id===cb.dataset.seqCheck);if(c){c.sequence_ids=[...wrap.querySelectorAll(`[data-seq-check="${CSS.escape(c.id)}"]:checked`)].map(x=>x.value);const ids=new Set(c.sequence_ids);p.periodes.forEach(per=>per.sequence_ids=per.sequence_ids.filter(x=>!ids.has(x)));const per=p.periodes.find(x=>x.numero===c.periode);if(per)c.sequence_ids=[...new Set([...per.sequence_ids,...c.sequence_ids])];saveCurrentProgression();}});
   wrap.querySelectorAll('[data-period-note]').forEach(el=>el.onchange=()=>{const per=p.periodes.find(x=>x.numero===Number(el.dataset.periodNote));per.notes=el.value;saveCurrentProgression();});
@@ -1489,7 +1531,7 @@ function periodHTML(p,per){
   const cs=per.competence_ids.map(id=>p.competences.find(c=>c.id===id)).filter(Boolean);
   const seqs=[...new Set(cs.flatMap(c=>c.sequence_ids||[]).concat(per.sequence_ids||[]))].map(seqForId).filter(Boolean);
   return `<article class="period-editor"><header><span class="period-number">P${per.numero}</span><div><h3>${escapeHTML(per.titre||`Période ${per.numero}`)}</h3><span class="period-count">${cs.length} compétence(s) · ${seqs.length} séquence(s)</span></div></header><div class="period-body">
-    <div class="period-competences">${cs.length?cs.map((c,i)=>`<div class="period-competence"><span>${i+1}</span><div><strong>${escapeHTML(competenceLabel(c.competence_id,c.titre))}</strong><small>${escapeHTML(c.titre||'')}</small></div></div>`).join(''):'<div class="prog-empty">Aucune compétence affectée.</div>'}</div>
+    <div class="period-competences">${cs.length?cs.map((c,i)=>{const official=competenceLabel(c.competence_id,c.titre||'Compétence');const work=c.titre||'';return `<div class="period-competence"><span>${i+1}</span><div><strong>${escapeHTML(official)}</strong>${work&&work!==official?`<small>Libellé : ${escapeHTML(work)}</small>`:'<small>Compétence officielle</small>'}</div></div>`}).join(''):'<div class="prog-empty">Aucune compétence affectée.</div>'}</div>
     <div class="period-sequences"><h4>Séquences</h4>${seqs.length?seqs.map(s=>`<button class="period-sequence" data-focus-seq="${escapeHTML(s.id)}"><strong>${escapeHTML(s.titre)}</strong><span>${escapeHTML(s.periode ? 'Période ' + s.periode : 'Séquence')}</span></button>`).join(''):'<div class="field-hint">Les séquences apparaîtront ici lorsqu\'elles seront associées aux briques de compétence.</div>'}</div>
     <textarea class="period-note" data-period-note="${per.numero}" placeholder="Notes de programmation pour cette période…">${escapeHTML(per.notes||'')}</textarea>
   </div></article>`;
