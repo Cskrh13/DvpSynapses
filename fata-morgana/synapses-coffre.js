@@ -1,255 +1,433 @@
-/**
- * synapses-coffre.js
- * ---------------------------------------------------------------------------
- * Gestion du cycle de vie du coffre Synapses (.synapses) et du modèle de
- * données individuelles confidentielles (voir synthèse projet, §2, §3, §12).
- *
- * Règles de confidentialité STRICTES :
- *  - Les données individuelles ne sont JAMAIS écrites dans localStorage,
- *    dans l'URL, dans des paramètres d'URL, dans des logs console, ou
- *    envoyées à des outils de statistiques/analytics.
- *  - Elles n'existent qu'en mémoire JS (this._data), pour la durée de
- *    la session, et uniquement après déchiffrement explicite par
- *    l'enseignant (mot de passe).
- *  - purger() est la seule façon de faire disparaître ces données ; elle
- *    doit être appelée explicitement par l'utilisateur (bouton dédié)
- *    et idéalement aussi sur fermeture de page (voir coffre.html).
- *  - Le fichier .synapses chiffré (via synapses-crypto.js) est le SEUL
- *    support persistant autorisé pour ces données.
- *
- * Tout module métier (suivi-individuel.js, grille-analyse.js,
- * parcours-eleve.js, injection dans sequences.html, etc.) doit passer
- * par l'instance de Coffre exposée ici plutôt que de manipuler des
- * données élève directement.
- *
- * Dépend de synapses-crypto.js, qui doit être chargé avant ce fichier.
- * ---------------------------------------------------------------------------
- */
-(function (global) {
-  'use strict';
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!-- SYNAPSES-AUTHOR: Cskrh13 / Vincent | © 2026 -->
+<meta name="author" content="Cskrh13 / Vincent">
+<meta name="copyright" content="© 2026 Cskrh13 / Vincent — Synapses">
+<meta name="application-name" content="Synapses">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coffre confidentiel — Synapses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1E2A4A;
+  --navy-deep:#141d33;
+  --bg:#F6F5F1;
+  --panel:#FFFFFF;
+  --line:#DEDBD2;
+  --ink:#20242E;
+  --ink-soft:#5B5F6B;
+  --accent-sky:#2E5EAA;
+  --danger:#B5502E;
+  --ok:#2A7F72;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.5;}
+h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0 0 8px;letter-spacing:-0.01em;}
+button{font-family:inherit;cursor:pointer;}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-sky);font-weight:500;}
+header.site-header{background:var(--navy);color:#fff;padding:18px 24px;border-bottom:3px solid var(--accent-sky);}
+.header-inner{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:14px;}
+.brand-mark{width:38px;height:38px;border-radius:8px;background:linear-gradient(160deg,var(--accent-sky),#5486d6);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;color:#fff;flex-shrink:0;}
+main{max-width:960px;margin:0 auto;padding:32px 24px 80px;}
+.banner{background:#FFF7ED;border:1px solid #EFD9B8;color:#7A4A12;border-radius:var(--radius);padding:14px 18px;font-size:14px;margin-bottom:28px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-bottom:20px;}
+.card h2{font-size:19px;margin-bottom:4px;}
+.card p.hint{color:var(--ink-soft);font-size:13.5px;margin:4px 0 16px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+label{font-size:13px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:4px;}
+input[type=text],input[type=password],input[type=file],select,textarea{
+  font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);min-width:220px;
+}
+textarea{width:100%;min-height:60px;resize:vertical;}
+.field{margin-bottom:10px;}
+.btn{border:none;border-radius:7px;padding:10px 16px;font-size:14px;font-weight:600;transition:.15s;}
+.btn-primary{background:var(--accent-sky);color:#fff;}
+.btn-primary:hover{background:#254c8c;}
+.btn-outline{background:#fff;border:1px solid var(--line);color:var(--ink);}
+.btn-outline:hover{border-color:var(--accent-sky);color:var(--accent-sky);}
+.btn-danger{background:#fff;border:1px solid var(--danger);color:var(--danger);}
+.btn-danger:hover{background:var(--danger);color:#fff;}
+.status{font-size:13.5px;margin-top:10px;padding:8px 12px;border-radius:7px;display:none;}
+.status.ok{display:block;background:#EAF6F3;color:var(--ok);border:1px solid #BFE3DA;}
+.status.err{display:block;background:#FBEAE5;color:var(--danger);border:1px solid #F0C6B8;}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 10px;border-radius:99px;background:#EEF2FB;color:var(--accent-sky);font-weight:600;}
+.pill.closed{background:#F1F1EC;color:var(--ink-soft);}
+.help-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#EEF2FB;color:var(--accent-sky);font-size:10.5px;font-weight:700;margin-left:6px;cursor:help;vertical-align:middle;}
+.help-tip:focus-visible{outline:2px solid var(--accent-sky);outline-offset:2px;}
+.help-tip .help-box{position:absolute;left:50%;top:130%;transform:translateX(-50%);width:230px;background:var(--navy);color:#fff;font-size:12px;font-weight:400;line-height:1.45;padding:9px 11px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.18);z-index:40;display:none;text-align:left;}
+.help-tip .help-box::before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-bottom-color:var(--navy);}
+.help-tip.show .help-box{display:block;}
+h2 .help-tip,h3 .help-tip{margin-left:8px;}
+.force-mdp{margin-top:6px;max-width:260px;}
+.force-mdp .barre{height:6px;border-radius:4px;background:#EAE8E0;overflow:hidden;}
+.force-mdp .barre-remplie{height:100%;width:0%;border-radius:4px;transition:width .2s,background-color .2s;background:#B5502E;}
+.force-mdp .label{font-size:11.5px;margin-top:4px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+.force-mdp .conseils{font-size:11.5px;color:var(--ink-soft);margin-top:3px;}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px;}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:640px){.grid2{grid-template-columns:1fr;}}
+.disabled-overlay{opacity:.45;pointer-events:none;}
 
-  if (!global.SynapsesCrypto) {
-    throw new Error('synapses-coffre.js nécessite synapses-crypto.js (à charger avant ce script).');
+/* ===== suivi-individuel.js ===== */
+.si-loading,.si-error{padding:24px;color:var(--ink-soft);font-size:14px;}
+.si-error{color:var(--danger);}
+.si-layout{display:grid;grid-template-columns:240px 1fr;min-height:420px;}
+.si-sidebar{border-right:1px solid var(--line);padding:18px;background:#FAFAF7;}
+.si-sidebar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;}
+.si-sidebar-head h3{font-size:15px;margin:0;}
+.si-eleves-liste{display:flex;flex-direction:column;gap:4px;}
+.si-eleve-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:transparent;border:1px solid transparent;border-radius:7px;padding:8px 10px;font-size:13.5px;}
+.si-eleve-item:hover{background:#F0EFE9;}
+.si-eleve-item.active{background:#EEF2FB;border-color:var(--accent-sky);}
+.si-eleve-id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent-sky);font-weight:600;}
+.si-eleve-nom{color:var(--ink);}
+.si-fiche{padding:22px 24px;}
+.si-fiche-vide{color:var(--ink-soft);display:flex;align-items:center;justify-content:center;min-height:300px;}
+.si-fiche-entete{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line);}
+.si-fiche-id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent-sky);font-weight:600;letter-spacing:.04em;}
+.si-fiche-nom{font-size:20px;margin:2px 0 0;}
+.si-onglets-nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
+.si-onglet{background:none;border:none;padding:9px 14px;font-size:13.5px;font-weight:600;color:var(--ink-soft);border-bottom:2px solid transparent;}
+.si-onglet:hover{color:var(--ink);}
+.si-onglet.active{color:var(--accent-sky);border-bottom-color:var(--accent-sky);}
+.si-btn{border:none;border-radius:7px;padding:8px 14px;font-size:13.5px;font-weight:600;}
+.si-btn-primary{background:var(--accent-sky);color:#fff;}
+.si-btn-primary:hover{background:#254c8c;}
+.si-btn-danger-outline{background:#fff;border:1px solid var(--danger);color:var(--danger);}
+.si-btn-danger-outline:hover{background:var(--danger);color:#fff;}
+.si-form-observation{background:#FAFAF7;border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:18px;display:flex;flex-direction:column;gap:10px;}
+.si-form-row label,.si-form-row-pair label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+.si-form-row select,.si-form-row input{width:100%;}
+.si-form-row-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.si-form-row-pair select,.si-form-row-pair input{width:100%;margin-bottom:6px;}
+@media(max-width:640px){.si-form-row-pair{grid-template-columns:1fr;} .si-layout{grid-template-columns:1fr;}}
+.si-table{width:100%;border-collapse:collapse;font-size:13px;}
+.si-table th,.si-table td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);}
+.si-table th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+.si-empty{color:var(--ink-soft);font-size:13.5px;font-style:italic;}
+.si-hint{color:var(--ink-soft);font-size:12.5px;margin-top:10px;}
+.si-frise{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);padding-left:16px;}
+.si-frise-item{position:relative;padding:0 0 16px;}
+.si-frise-item::before{content:'';position:absolute;left:-21px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--accent-sky);}
+.si-frise-date{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
+.si-frise-type{font-weight:600;font-size:13.5px;}
+.si-frise-detail{font-size:13px;color:var(--ink-soft);}
+
+.synapses-footer {
+    margin-top: 40px;
+    padding: 18px 24px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+}
+.synapses-footer div:first-child {
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand-mark" style="font-size:16px;">RÉ</div>
+    <div>
+      <div class="eyebrow" style="color:#B9C6E5;">Portail non institutionnel</div>
+      <h1 style="color:#fff;font-size:20px;">Coffre confidentiel</h1>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <a href="../index.html" style="color:#fff;font-size:13.5px;font-weight:600;text-decoration:none;border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:8px 14px;white-space:nowrap;">← Portail</a>
+      <div id="etatCoffre"><span class="pill closed">Aucun coffre ouvert</span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="banner">
+    <strong>Confidentialité :</strong> les données saisies ici restent uniquement en mémoire de votre navigateur,
+    pour la durée de cette session. Rien n'est envoyé sur un serveur, ni écrit dans le stockage local du
+    navigateur. Elles ne persistent que si vous téléchargez explicitement un fichier <code>.synapses</code> chiffré
+    (par ex. sur une clé USB), et disparaissent immédiatement si vous cliquez sur « Détruire les données
+    confidentielles » ou si vous fermez cet onglet sans les enregistrer.
+  </div>
+
+  <!-- ============ Ouverture / création ============ -->
+  <section class="card" id="cardOuverture">
+    <h2>1. Créer ou ouvrir un coffre
+      <span class="help-tip" tabindex="0">?<span class="help-box">Un coffre regroupe les données confidentielles d'une classe ou d'un établissement (identité, besoins, observations, objectifs…). Créez-en un vide pour démarrer l'année, ou ouvrez un fichier <code>.synapses</code> existant pour continuer un coffre déjà commencé.</span></span>
+    </h2>
+    <p class="hint">Un coffre correspond en général à une classe ou un établissement pour une année scolaire.</p>
+
+    <div class="grid2">
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px;">Créer un nouveau coffre
+          <span class="help-tip" tabindex="0">?<span class="help-box">Ouvre un coffre vide en mémoire, sans mot de passe pour l'instant. Vous choisirez le mot de passe au moment de l'enregistrer (§3), avant de fermer l'onglet.</span></span>
+        </h3>
+        <div class="field">
+          <label for="nomEtab">Établissement / classe (optionnel)</label>
+          <input type="text" id="nomEtab" placeholder="ex : ULIS école Jean Moulin">
+        </div>
+        <button class="btn btn-primary" id="btnCreer">Créer un coffre vide</button>
+      </div>
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px;">Ouvrir un coffre existant
+          <span class="help-tip" tabindex="0">?<span class="help-box">Sélectionnez le fichier <code>.synapses</code> sur votre clé USB ou votre disque, puis saisissez son mot de passe. Le fichier est lu localement, jamais envoyé sur internet.</span></span>
+        </h3>
+        <div class="field">
+          <label for="fichierCoffre">Fichier .synapses — sur cet ordinateur</label>
+          <input type="file" id="fichierCoffre" accept=".synapses">
+        </div>
+        <div class="field">
+          <label for="mdpOuverture">Mot de passe</label>
+          <input type="password" id="mdpOuverture" placeholder="Mot de passe du coffre">
+        </div>
+        <button class="btn btn-outline" id="btnOuvrir">Ouvrir le coffre</button>
+        <p class="hint" style="margin-top:10px;">
+          🔒 Ce fichier est lu directement depuis votre disque par le navigateur : il n'est jamais envoyé au site ni à un serveur.<br>
+          ⚠️ Ne le placez jamais dans le dépôt GitHub du site — il deviendrait public dès la publication de la page, même chiffré.
+        </p>
+      </div>
+    </div>
+    <div class="status" id="statutOuverture"></div>
+  </section>
+
+  <!-- ============ Suivi individuel (élèves + grille d'analyse BARRY/S4C) ============ -->
+  <section class="card disabled-overlay" id="cardSuivi" style="padding:0;overflow:hidden;">
+    <div id="suiviIndividuelApp"></div>
+  </section>
+
+  <!-- ============ Export / purge ============ -->
+  <section class="card disabled-overlay" id="cardExport">
+    <h2>3. Enregistrer ou détruire
+      <span class="help-tip" tabindex="0">?<span class="help-box">Ces actions concernent les données actuellement en mémoire dans cet onglet. Pensez à enregistrer avant de fermer la page, sinon les données non exportées sont perdues.</span></span>
+    </h2>
+    <div class="grid2">
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px;">Enregistrer le coffre chiffré
+          <span class="help-tip" tabindex="0">?<span class="help-box">Chiffre l'ensemble du coffre avec le mot de passe saisi et télécharge un fichier <code>.synapses</code>. L'extension <code>.synapses</code> est ajoutée automatiquement si vous ne la précisez pas.</span></span>
+        </h3>
+        <div class="field"><label for="mdpExport">Mot de passe (choisissez-en un si nouveau coffre)</label>
+          <input type="password" id="mdpExport" placeholder="Mot de passe du coffre">
+          <div class="force-mdp" id="forceMdpExport" aria-live="polite">
+            <div class="barre"><div class="barre-remplie" id="forceMdpBarre"></div></div>
+            <div class="label" id="forceMdpLabel">&nbsp;</div>
+            <div class="conseils" id="forceMdpConseils"></div>
+          </div>
+        </div>
+        <div class="field"><label for="nomFichierExport">Nom du fichier</label>
+          <input type="text" id="nomFichierExport" placeholder="coffre">
+          <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">L'extension <code>.synapses</code> est ajoutée automatiquement.</div>
+        </div>
+        <button class="btn btn-primary" id="btnExporter">Télécharger le .synapses</button>
+        <p class="hint" style="margin-top:10px;">Le fichier est téléchargé dans votre dossier "Téléchargements" habituel — déplacez-le ensuite sur un support que vous seul contrôlez (clé USB, disque local). Ne le déposez jamais dans le dépôt GitHub du site.</p>
+      </div>
+      <div>
+        <h3 style="font-size:15px;margin-bottom:8px;color:var(--danger);">Zone de destruction
+          <span class="help-tip" tabindex="0">?<span class="help-box">Efface immédiatement les données confidentielles de la mémoire du navigateur. N'affecte pas un fichier <code>.synapses</code> déjà téléchargé — pensez à enregistrer avant si besoin.</span></span>
+        </h3>
+        <p class="hint">Efface toutes les données confidentielles de la mémoire du navigateur. Sans effet sur un éventuel fichier déjà téléchargé.</p>
+        <button class="btn btn-danger" id="btnPurger">Détruire les données confidentielles</button>
+      </div>
+    </div>
+    <div class="status" id="statutExport"></div>
+  </section>
+</main>
+
+<script src="synapses-crypto.js"></script>
+<script src="synapses-coffre.js"></script>
+<script src="suivi-individuel.js"></script>
+<script>
+/* =========================================================
+   SYNAPSES — AUTHOR MARKER
+   Project: Grand Planificateur pédagogique
+   Author: Cskrh13 / Vincent
+   Copyright: © 2026
+   Version: 0.9.0-test
+   Build: 2026-08-27
+   ========================================================= */
+
+const SYNAPSES_BUILD = {
+    project: "Synapses",
+    author: "Cskrh13",
+    year: 2026,
+    version: "0.9.0-test",
+    build: "2026-08-27"
+};
+
+(function(){
+  const coffre = new SynapsesCoffre.Coffre();
+
+  const $ = (id) => document.getElementById(id);
+
+  function setStatus(el, message, ok){
+    el.textContent = message;
+    el.className = 'status ' + (ok ? 'ok' : 'err');
   }
 
-  function nowIso() {
-    return new Date().toISOString();
+  function refreshLockState(){
+    const on = coffre.ouvert;
+    ['cardSuivi','cardExport'].forEach(id=>{
+      $(id).classList.toggle('disabled-overlay', !on);
+    });
+    $('etatCoffre').innerHTML = on
+      ? '<span class="pill">Coffre ouvert' + (coffre.donnees.etablissement ? ' — ' + coffre.donnees.etablissement : '') + '</span>'
+      : '<span class="pill closed">Aucun coffre ouvert</span>';
   }
 
-  function coffreVide(nomEtablissement) {
-    return {
-      version: 1,
-      creeLe: nowIso(),
-      modifieLe: nowIso(),
-      etablissement: nomEtablissement || '',
-      // Le référentiel public (programmes, BARRY, S4C, séances...) N'EST
-      // JAMAIS recopié ici : seules les données propres à l'élève y figurent.
-      eleves: []
-    };
+  const suivi = new SynapsesSuiviIndividuel.SuiviIndividuel(coffre, {
+    // coffre.html vit dans fata-morgana/, les référentiels publics dans Programmation/data/ :
+    // il faut donc remonter d'un niveau (../) pour les atteindre.
+    urlReferentielGeneral: '../Programmation/data/grille-analyse-generale.json',
+    urlReferentielDisciplinaire: '../Programmation/data/competences.json'
+  });
+
+  async function ouvrirSuivi(){
+    await suivi.mount($('suiviIndividuelApp'));
   }
 
-  /**
-   * Structure d'un élève, conforme au modèle logique §12 de la synthèse.
-   * L'identifiant Synapses (ex: "ELEVE-0042") est la clé utilisée par le
-   * moteur pédagogique ; l'identité réelle ne sert qu'à l'affichage local.
-   */
-  function eleveVide(identifiantSynapses, identite) {
-    return {
-      identifiantSynapses,
-      identite: identite || {}, // { nom, prenom, dateNaissance, classe, ... }
-      parcoursScolaire: {},
-      accompagnements: [],
-      domainesAnalyse: {
-        affectif: {},
-        social: {},
-        cognitif: {},
-        sensorimoteur: {},
-        mathematiques: {}, // s'appuie sur S4C (référentiel public)
-        francais: {}       // s'appuie sur S4C (référentiel public)
-      },
-      // Chaîne d'analyse §4 : situation observée -> points d'appui ->
-      // difficulté -> hypothèse de besoin -> adaptation -> apprentissage
-      // -> objectif -> nouvelle observation -> évaluation de l'efficacité.
-      observations: [],
-      besoins: [],
-      adaptations: [],
-      objectifs: [],
-      // Parcours longitudinal §9, §11 : chronologie pédagogique, pas une
-      // simple fiche de commentaires.
-      parcours: { seances: [], observations: [], progres: [], bilans: [] }
-    };
+  function fermerSuivi(){
+    $('suiviIndividuelApp').innerHTML = '';
   }
 
-  class Coffre {
-    constructor() {
-      this._data = null;  // état déchiffré, EN MÉMOIRE UNIQUEMENT
-      this._ouvert = false;
-    }
+  /* -------- Force du mot de passe du coffre -------- */
+  function evaluerForceMdp(mdp){
+    if (!mdp) return { score: 0, label: '', couleur: '#EAE8E0', largeur: '0%', conseils: '' };
 
-    get ouvert() {
-      return this._ouvert;
-    }
+    let score = 0;
+    if (mdp.length >= 8) score++;
+    if (mdp.length >= 12) score++;
+    if (/[a-z]/.test(mdp) && /[A-Z]/.test(mdp)) score++;
+    if (/[0-9]/.test(mdp)) score++;
+    if (/[^A-Za-z0-9]/.test(mdp)) score++;
 
-    /** Instantané en lecture seule de l'état courant (pour l'UI). */
-    get donnees() {
-      return this._data;
-    }
+    // Pénalité en cas de mot de passe trop court, quel que soit le reste.
+    if (mdp.length < 8) score = Math.min(score, 1);
 
-    /** Crée un nouveau coffre vide en mémoire. Rien n'est écrit sur disque
-     *  tant que exporter()/telecharger() n'est pas appelé explicitement. */
-    creer(nomEtablissement) {
-      this._data = coffreVide(nomEtablissement);
-      this._ouvert = true;
-      return this._data;
-    }
+    const paliers = [
+      { seuil: 0, label: 'Très faible', couleur: '#B5502E', largeur: '15%' },
+      { seuil: 1, label: 'Faible',      couleur: '#C97A3A', largeur: '35%' },
+      { seuil: 2, label: 'Moyen',       couleur: '#B5871E', largeur: '55%' },
+      { seuil: 3, label: 'Bon',         couleur: '#6B9E3F', largeur: '75%' },
+      { seuil: 4, label: 'Fort',        couleur: '#2A7F72', largeur: '90%' },
+      { seuil: 5, label: 'Très fort',   couleur: '#1E6B5F', largeur: '100%' }
+    ];
+    const palier = paliers[Math.min(score, paliers.length - 1)];
 
-    /**
-     * Ouvre un coffre à partir d'un fichier .synapses (File/Blob ou
-     * ArrayBuffer) et d'un mot de passe.
-     */
-    async ouvrir(fichier, motDePasse) {
-      const buffer = fichier instanceof ArrayBuffer ? fichier : await fichier.arrayBuffer();
-      const data = await global.SynapsesCrypto.decryptCoffre(motDePasse, new Uint8Array(buffer));
-      this._data = data;
-      this._ouvert = true;
-      return this._data;
-    }
+    const manques = [];
+    if (mdp.length < 12) manques.push('12 caractères ou plus');
+    if (!(/[a-z]/.test(mdp) && /[A-Z]/.test(mdp))) manques.push('majuscules et minuscules');
+    if (!/[0-9]/.test(mdp)) manques.push('un chiffre');
+    if (!/[^A-Za-z0-9]/.test(mdp)) manques.push('un caractère spécial');
+    const conseils = (score < 4 && manques.length) ? 'Pour renforcer : ' + manques.join(', ') + '.' : '';
 
-    /** Sérialise et chiffre le coffre courant ; renvoie un Blob prêt à être
-     *  téléchargé / enregistré sur une clé USB, etc. */
-    async exporter(motDePasse) {
-      this._assertOuvert();
-      this._data.modifieLe = nowIso();
-      const bytes = await global.SynapsesCrypto.encryptCoffre(motDePasse, this._data);
-      return new Blob([bytes], { type: 'application/octet-stream' });
-    }
+    return { score, label: palier.label, couleur: palier.couleur, largeur: palier.largeur, conseils };
+  }
 
-    /** Déclenche le téléchargement du coffre chiffré sous forme de .synapses. */
-    async telecharger(motDePasse, nomFichier) {
-      const blob = await this.exporter(motDePasse);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = nomFichier || 'coffre.synapses';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
+  function brancherForceMdp(inputId, barreId, labelId, conseilsId){
+    const input = $(inputId);
+    if (!input) return;
+    input.addEventListener('input', ()=>{
+      const r = evaluerForceMdp(input.value);
+      const barre = $(barreId), label = $(labelId), conseils = $(conseilsId);
+      barre.style.width = r.largeur;
+      barre.style.background = r.couleur;
+      label.textContent = input.value ? ('Force du mot de passe : ' + r.label) : '\u00A0';
+      conseils.textContent = r.conseils;
+    });
+  }
+  brancherForceMdp('mdpExport', 'forceMdpBarre', 'forceMdpLabel', 'forceMdpConseils');
 
-    /**
-     * Détruit explicitement toutes les données confidentielles en mémoire.
-     * À appeler sur clic du bouton "Détruire les données confidentielles"
-     * et, par sécurité, sur fermeture/déchargement de la page.
-     */
-    purger() {
-      if (this._data) {
-        // Écrasement best-effort des références avant suppression.
-        for (const k of Object.keys(this._data)) delete this._data[k];
+  /* -------- Extension .synapses par défaut -------- */
+  function assurerExtensionSynapses(nom){
+    nom = (nom || '').trim();
+    if (!nom) nom = 'coffre';
+    if (!/\.synapses$/i.test(nom)) nom += '.synapses';
+    return nom;
+  }
+  if ($('nomFichierExport')) {
+    $('nomFichierExport').addEventListener('blur', ()=>{
+      if ($('nomFichierExport').value.trim()) {
+        $('nomFichierExport').value = assurerExtensionSynapses($('nomFichierExport').value);
       }
-      this._data = null;
-      this._ouvert = false;
-    }
-
-    _assertOuvert() {
-      if (!this._ouvert || !this._data) {
-        throw new Error('Aucun coffre ouvert. Créez ou ouvrez un coffre au préalable.');
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // API métier — point d'entrée unique pour les futurs modules
-    // (suivi-individuel.js, grille-analyse.js, parcours-eleve.js, ...)
-    // ------------------------------------------------------------------
-
-    listerEleves() {
-      this._assertOuvert();
-      return this._data.eleves.map((e) => ({
-        identifiantSynapses: e.identifiantSynapses,
-        identite: e.identite
-      }));
-    }
-
-    ajouterEleve(identifiantSynapses, identite) {
-      this._assertOuvert();
-      if (this._data.eleves.some((e) => e.identifiantSynapses === identifiantSynapses)) {
-        throw new Error('Identifiant Synapses déjà utilisé : ' + identifiantSynapses);
-      }
-      const e = eleveVide(identifiantSynapses, identite);
-      this._data.eleves.push(e);
-      return e;
-    }
-
-    getEleve(identifiantSynapses) {
-      this._assertOuvert();
-      const e = this._data.eleves.find((e) => e.identifiantSynapses === identifiantSynapses);
-      if (!e) throw new Error('Élève introuvable : ' + identifiantSynapses);
-      return e;
-    }
-
-    supprimerEleve(identifiantSynapses) {
-      this._assertOuvert();
-      const idx = this._data.eleves.findIndex((e) => e.identifiantSynapses === identifiantSynapses);
-      if (idx === -1) throw new Error('Élève introuvable : ' + identifiantSynapses);
-      this._data.eleves.splice(idx, 1);
-    }
-
-    /** Enregistre une observation suivant la chaîne d'analyse (§4, §6). */
-    ajouterObservation(identifiantSynapses, observation) {
-      const e = this.getEleve(identifiantSynapses);
-      const obs = Object.assign(
-        {
-          date: nowIso(),
-          domaine: null,
-          competence: null,
-          situation: '',
-          pointsAppui: [],
-          difficulte: '',
-          besoin: '',
-          adaptationProposee: '',
-          adaptationUtilisee: '',
-          resultat: '',
-          autonomie: null,
-          priorite: null
-        },
-        observation
-      );
-      e.observations.push(obs);
-      return obs;
-    }
-
-    ajouterBesoin(identifiantSynapses, besoin) {
-      const e = this.getEleve(identifiantSynapses);
-      const b = Object.assign({ id: 'B-' + Date.now(), hypothese: '', priorite: null, evolution: [] }, besoin);
-      e.besoins.push(b);
-      return b;
-    }
-
-    ajouterAdaptation(identifiantSynapses, adaptation) {
-      const e = this.getEleve(identifiantSynapses);
-      const a = Object.assign({ id: 'A-' + Date.now(), libelle: '', proposee: true, utilisee: false, efficacite: null }, adaptation);
-      e.adaptations.push(a);
-      return a;
-    }
-
-    /** Les objectifs sont une conséquence de l'analyse (§8) : à créer
-     *  seulement après validation explicite de l'enseignant. */
-    ajouterObjectif(identifiantSynapses, objectif) {
-      const e = this.getEleve(identifiantSynapses);
-      const o = Object.assign({ id: 'O-' + Date.now(), libelle: '', statut: 'actif', historique: [] }, objectif);
-      e.objectifs.push(o);
-      return o;
-    }
-
-    ajouterEvenementParcours(identifiantSynapses, type, evenement) {
-      const e = this.getEleve(identifiantSynapses);
-      const cle = { seance: 'seances', observation: 'observations', progres: 'progres', bilan: 'bilans' }[type];
-      if (!cle) throw new Error('Type d\'événement de parcours inconnu : ' + type);
-      const ev = Object.assign({ date: nowIso() }, evenement);
-      e.parcours[cle].push(ev);
-      return ev;
-    }
+    });
   }
 
-  global.SynapsesCoffre = { Coffre, eleveVide, coffreVide };
-})(window);
+  /* -------- Info-bulles d'aide ("?") -------- */
+  document.querySelectorAll('.help-tip').forEach(tip=>{
+    let minuteur = null;
+    const ouvrir = ()=>{ minuteur = setTimeout(()=> tip.classList.add('show'), 1500); };
+    const fermer = ()=>{ clearTimeout(minuteur); tip.classList.remove('show'); };
+    tip.addEventListener('mouseenter', ouvrir);
+    tip.addEventListener('mouseleave', fermer);
+    tip.addEventListener('focus', ouvrir);
+    tip.addEventListener('blur', fermer);
+  });
+
+  $('btnCreer').addEventListener('click', async ()=>{
+    coffre.creer($('nomEtab').value.trim());
+    setStatus($('statutOuverture'), 'Nouveau coffre créé en mémoire. Pensez à l\'enregistrer (§3) avant de fermer l\'onglet.', true);
+    refreshLockState();
+    await ouvrirSuivi();
+  });
+
+  $('btnOuvrir').addEventListener('click', async ()=>{
+    const fichier = $('fichierCoffre').files[0];
+    const mdp = $('mdpOuverture').value;
+    if (!fichier) { setStatus($('statutOuverture'), 'Sélectionnez un fichier .synapses.', false); return; }
+    if (!mdp) { setStatus($('statutOuverture'), 'Saisissez le mot de passe du coffre.', false); return; }
+    try{
+      await coffre.ouvrir(fichier, mdp);
+      $('mdpOuverture').value = '';
+      setStatus($('statutOuverture'), 'Coffre ouvert avec succès (' + coffre.listerEleves().length + ' élève(s)).', true);
+      refreshLockState();
+      await ouvrirSuivi();
+    }catch(e){
+      setStatus($('statutOuverture'), e.message, false);
+    }
+  });
+
+  $('btnExporter').addEventListener('click', async ()=>{
+    const mdp = $('mdpExport').value;
+    if (!mdp) { setStatus($('statutExport'), 'Choisissez un mot de passe pour chiffrer le coffre.', false); return; }
+    const force = evaluerForceMdp(mdp);
+    if (force.score <= 1) {
+      const continuer = confirm('Ce mot de passe est ' + force.label.toLowerCase() + '. Un mot de passe faible protège moins bien les données confidentielles du coffre. Continuer quand même ?');
+      if (!continuer) return;
+    }
+    try{
+      await coffre.telecharger(mdp, assurerExtensionSynapses($('nomFichierExport').value.trim()));
+      setStatus($('statutExport'), 'Coffre chiffré et téléchargé. Conservez-le sur un support sûr (clé USB).', true);
+    }catch(e){
+      setStatus($('statutExport'), e.message, false);
+    }
+  });
+
+  $('btnPurger').addEventListener('click', ()=>{
+    if (!confirm('Détruire toutes les données confidentielles en mémoire ? Cette action est irréversible pour la session en cours.')) return;
+    coffre.purger();
+    ['mdpExport','nomFichierExport'].forEach(id=>$(id).value='');
+    fermerSuivi();
+    setStatus($('statutExport'), 'Données confidentielles détruites de la mémoire du navigateur.', true);
+    refreshLockState();
+  });
+
+  // Sécurité supplémentaire : purge best-effort si l'onglet se ferme sans export.
+  window.addEventListener('beforeunload', ()=>{ coffre.purger(); });
+
+  refreshLockState();
+})();
+</script>
+
+<footer class="synapses-footer">
+    <div>Synapses — Grand Planificateur pédagogique</div>
+    <div>© 2026 Cskrh13 / Vincent · v0.9.0-test · 27/08/2026</div>
+</footer>
+</body>
+</html>
