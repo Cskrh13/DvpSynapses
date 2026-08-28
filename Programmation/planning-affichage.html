@@ -279,7 +279,7 @@ function renderSemaine(){
           carte.addEventListener("click", ()=> ouvrirDrawer(niveau, iso, c, item));
         } else {
           carte.className = "creneau-card " + c.type;
-          carte.innerHTML = `<div class="creneau-heure">${c.debut}–${c.fin}</div><div class="creneau-titre">${PC.TYPES_CRENEAU[c.type].label}</div>`;
+          carte.innerHTML = `<div class="creneau-heure">${c.debut}–${c.fin}</div><div class="creneau-titre">${c.type==="autre" && c.libelle ? c.libelle : PC.TYPES_CRENEAU[c.type].label}</div>`;
         }
         groupe.appendChild(carte);
       });
