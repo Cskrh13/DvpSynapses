@@ -34,15 +34,7 @@ main{max-width:1250px;margin:auto;padding:26px 20px 50px}
 .step{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;text-align:left;color:var(--soft);font-weight:700}
 .step.active{border-color:var(--navy);background:var(--navy);color:#fff}.step.done{border-color:#9fb5a8;background:#f4faf6;color:var(--ok)}
 .step span{display:block;font-size:.72rem;font-weight:600;opacity:.8}
-.workspace{
-  display:block;
-  width:100%;
-  max-width:100%;
-}
-.workspace > #content{
-  width:100%;
-  max-width:100%;
-}
+.workspace{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
 .card h3{font-family:Georgia,serif;margin:0 0 10px;font-size:1.18rem}.card h4{margin:15px 0 8px}
 label{display:block;font-size:.78rem;font-weight:800;color:var(--soft);margin:11px 0 5px}
@@ -139,9 +131,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 .panier-item:last-child{border-bottom:0}
 
 /* Tableau de bord placé avant les étapes */
-.top-dashboard{width:100%;max-width:none;margin:24px 0 0;padding:0 22px;box-sizing:border-box}
-.top-dashboard-inner{width:100%;max-width:none;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
-.top-dashboard .card{width:100%;margin:0;box-sizing:border-box}
+.top-dashboard{max-width:1180px;margin:24px auto 0;padding:0 22px}
+.top-dashboard-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.top-dashboard .card{margin:0}
 @media(max-width:760px){.top-dashboard{padding:0 14px}.top-dashboard-inner{grid-template-columns:1fr}}
 
 </style>
@@ -871,7 +863,7 @@ const App = (() => {
   "objectif_commun": "…",
   "references_theoriques": "…",
   "objectifs_individuels": [
-    {"numero":1,"objectif":"…","criteres_reussite":"…"}
+    {"nom":"…","objectif":"…","criteres_reussite":"…"}
   ],
   "seances": [{
     "numero": 1,
@@ -888,9 +880,6 @@ const App = (() => {
     "criteres_reussite": "…",
     "materiel": ["…"],
     "duree_estimee_min": 45,
-    "objectifs_individuels": [
-      {"numero":1,"objectif":"…"}
-    ],
     "deroule": [{
       "phase":"Présentation",
       "temps":"5 min",
@@ -933,13 +922,9 @@ Objectif cœur de cible : ${sequence.objectif_coeur_de_cible||"à définir"}`;
         vigilance:r.vigilance||""
       }))
     ).filter(r=>r.adaptation||r.vigilance);
-    if(!rows.length)return `\nDONNÉES INDIVIDUELLES : aucune donnée individuelle chargée pour cette proposition.
-- Il n'existe donc aucune information permettant d'attribuer un besoin, une difficulté ou une adaptation à un élève réel.
-- Pour les élèves à BEP, propose néanmoins des aménagements pédagogiques génériques, explicites et directement utilisables, sans inventer de profil individuel, de diagnostic ou de difficulté personnelle.
-- Ces aménagements génériques doivent être intégrés dans les champs "amenagement" du déroulé et les points de vigilance pertinents dans "vigilance".
-- Si des objectifs individuels sont proposés malgré l'absence de données du coffre, repère-les uniquement par des numéros (1, 2, 3…) et formule-les comme des objectifs pédagogiques génériques à valider par l'enseignant.`;
+    if(!rows.length)return "\nDONNÉES INDIVIDUELLES : aucune donnée individuelle chargée pour cette proposition.";
     return "\nDONNÉES INDIVIDUELLES ANONYMISÉES :\n"+
-      rows.map((r,k)=>`- Élève ${k+1} / identifiant anonymisé ${r.identifiant} (séance ${r.seance})\n  Objectifs / adaptations : ${r.adaptation||"non renseigné"}\n  Informations de difficultés / points de vigilance : ${r.vigilance||"non renseigné"}`).join("\n");
+      rows.map(r=>`- ${r.identifiant} (séance ${r.seance})\n  Objectifs / adaptations : ${r.adaptation||"non renseigné"}\n  Informations de difficultés / points de vigilance : ${r.vigilance||"non renseigné"}`).join("\n");
   }
 
   function updatePrompt(){
@@ -958,14 +943,15 @@ Objectif cœur de cible : ${sequence.objectif_coeur_de_cible||"à définir"}`;
     const progressionRule = sequence.mode==="projet"
       ? `- Ce cadrage est un PROJET, pas une séquence construite autour d'une seule compétence : chaque séance doit mobiliser PLUSIEURS des compétences listées dans le contexte, si possible de domaines différents.
 - Indique dans "competence_cible" la compétence la plus centrale pour la séance, et liste les autres compétences du projet réellement mobilisées dans "competences_periph".
-- Assure-toi qu'à la fin de la progression, chaque compétence du projet ait été mobilisée dans au moins une séance.
+- Assure-toi qu'à la fin de l'enchaînement, chaque compétence du projet ait été mobilisée dans au moins une séance.
 - Les séances peuvent s'organiser autour d'une production ou d'un temps fort commun (exposition, spectacle, défi, sortie…) plutôt que suivre la seule logique diagnostique → évaluation.`
-      : `- Construis une progression cohérente : diagnostique → exploration → références → structuration → entraînement/systématisation → approfondissement → évaluation lorsque le nombre de séances le permet.`;
-    document.getElementById("atelier-prompt").textContent=`Tu es un conseiller pédagogique. Tu produis une proposition directement exploitable par un enseignant.
+      : `- Construis un enchaînement de séances cohérent : diagnostique → exploration → références → structuration → entraînement/systématisation → approfondissement → évaluation lorsque le nombre de séances le permet.`;
+    document.getElementById("atelier-prompt").textContent=`Tu es un conseiller pédagogique. Tu produis une proposition directement exploitable par un enseignant, sous la forme d'une SÉQUENCE composée de SÉANCES (pas d'une progression d'étapes de compétence).
 
 RÈGLES :
 - Respecte exactement la structure JSON ci-dessous.
 - Ne mets aucun texte avant ou après le JSON.
+- La clé racine du tableau doit s'appeler exactement "seances" (jamais "etapes"). Chaque séance est un objet numéroté par la clé "numero" (jamais "ordre").
 ${progressionRule}
 - Pour chaque séance, rédige des informations concrètes, pas des intitulés génériques.
 - Le déroulé doit expliciter ce que font les élèves et l'enseignant.
@@ -974,22 +960,18 @@ ${progressionRule}
 - N'invente pas de référence institutionnelle précise si elle n'est pas fournie.
 - L'objectif et les critères doivent être observables.
 - Les données individuelles sont anonymisées : ne demande ni nom, ni prénom, ni établissement, ni classe précise.
-- Lorsqu'un élève est fourni par le coffre, conserve uniquement son numéro/identifiant anonymisé dans la proposition.
-- Lorsqu'un élève à BEP dispose d'un objectif ou d'une adaptation chargée depuis le coffre, prends cette information en compte dans la séance concernée.
-- Pour chaque élève concerné, déduis des aménagements pédagogiques concrets à partir des informations réellement chargées.
-- Les conclusions issues des objectifs, adaptations et difficultés individuelles doivent apparaître à deux endroits : dans les champs "amenagement" des phases où elles sont utiles et dans le champ "vigilance" de la séance lorsqu'un point de vigilance doit être conservé sur l'ensemble de la séance.
-- Ne recopie pas mécaniquement les données individuelles : transforme-les en conséquences pédagogiques observables et opérationnelles.
-- Ajoute dans chaque séance un tableau/champ "objectifs_individuels" reliant les objectifs individuels aux élèves par leur numéro : {"numero":1,"objectif":"…"}. Ne crée pas de nom ou prénom.
-- Un objectif individuel doit reprendre ou décliner l'objectif de l'élève chargé depuis le coffre lorsqu'il existe ; il doit rester cohérent avec l'objectif de la séance.
-- Si aucune donnée individuelle n'est chargée, ne prétends pas connaître les besoins d'un élève réel. Tu peux seulement proposer des aménagements génériques pour des élèves à BEP, clairement présentés comme des propositions à valider par l'enseignant, et les faire apparaître dans "amenagement" et "vigilance".
+- Utilise les objectifs/adaptations pour proposer des aménagements concrets.
+- Utilise les informations de difficultés comme points de vigilance pédagogiques.
 - Ne pose aucun diagnostic médical ou psychologique et ne déduis aucun trouble.
 - Ne transforme jamais une proposition en décision automatique : l'enseignant garde la validation finale.
 
 CONTEXTE :
 ${contextPrompt()}${contexteIndividuelPrompt()}${task}
 
-FORMAT JSON EXACT :
-${schemaPrompt()}`;
+FORMAT JSON EXACT — rappel : la clé racine du tableau est "seances", chaque séance a une clé "numero" (pas "etapes" / "ordre") :
+${schemaPrompt()}
+
+RAPPEL FINAL : ta réponse doit contenir la clé "seances" (tableau de séances numérotées avec "numero"). N'utilise pas les clés "etapes" ou "ordre", qui appartiennent à un autre outil.`;
   }
 
   function copyPrompt(){
@@ -1031,7 +1013,7 @@ ${schemaPrompt()}`;
       setFields();renderSessions();renderDetails();
       return "Séquence intégrée : "+sequence.seances.length+" séances.";
     }
-    throw new Error("Le JSON doit contenir une propriété « seances ».");
+    throw new Error("Le JSON doit contenir une propriété « seances ». "+(Array.isArray(obj.etapes)?"Ce JSON contient « etapes » : c'est la réponse de l'atelier Progression (autre outil), pas celle du générateur de séquences. Recopiez le prompt ci-dessus dans un NOUVEAU chat, sans historique, pour obtenir une réponse avec « seances ».":""));
   }
 
   function importAI(){
