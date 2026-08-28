@@ -129,6 +129,13 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 .panier-domaine strong{display:block;font-size:.75rem;color:var(--soft);text-transform:uppercase;margin-bottom:4px}
 .panier-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
 .panier-item:last-child{border-bottom:0}
+
+/* Tableau de bord placé avant les étapes */
+.top-dashboard{max-width:1180px;margin:24px auto 0;padding:0 22px}
+.top-dashboard-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.top-dashboard .card{margin:0}
+@media(max-width:760px){.top-dashboard{padding:0 14px}.top-dashboard-inner{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -172,16 +179,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
     <p>Le créateur suit maintenant la logique des documents de référence : <strong>cadrage de la séquence → objectifs → progression → séances détaillées → validation</strong>. Chaque séance possède son déroulé, son analyse de tâche, ses aménagements et la posture de l’enseignant.</p>
   </section>
 
-  <div class="stepper" id="stepper">
-    <button class="step active" data-step="1" onclick="App.go(1)">1 · Cadrer<span>niveau, domaine, compétence</span></button>
-    <button class="step" data-step="2" onclick="App.go(2)">2 · Structurer<span>objectifs et élèves</span></button>
-    <button class="step" data-step="3" onclick="App.go(3)">3 · Organiser<span>progression des séances</span></button>
-    <button class="step" data-step="4" onclick="App.go(4)">4 · Détailler<span>déroulé de chaque séance</span></button>
-    <button class="step" data-step="5" onclick="App.go(5)">5 · Finaliser<span>aperçu, JSON, IA gratuite</span></button>
-  </div>
-
-  <div class="workspace">
-    <aside>
+  
+  <div class="top-dashboard">
+    <div class="top-dashboard-inner">
       <div class="card">
         <h3>Votre séquence</h3>
         <div id="selection-status" class="status">Commencez par sélectionner une compétence.</div>
@@ -196,8 +196,18 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
         </div>
         <p class="help">Vous pouvez revenir à une étape à tout moment. Les modifications restent dans cette page jusqu'à l'export.</p>
       </div>
-    </aside>
+    </div>
+  </div>
 
+  <div class="stepper" id="stepper">
+    <button class="step active" data-step="1" onclick="App.go(1)">1 · Cadrer<span>niveau, domaine, compétence</span></button>
+    <button class="step" data-step="2" onclick="App.go(2)">2 · Structurer<span>objectifs et élèves</span></button>
+    <button class="step" data-step="3" onclick="App.go(3)">3 · Organiser<span>progression des séances</span></button>
+    <button class="step" data-step="4" onclick="App.go(4)">4 · Détailler<span>déroulé de chaque séance</span></button>
+    <button class="step" data-step="5" onclick="App.go(5)">5 · Finaliser<span>aperçu, JSON, IA gratuite</span></button>
+  </div>
+
+  <div class="workspace">
     <section id="content">
       <!-- STEP 1 -->
       <div class="step-panel" data-panel="1">
@@ -320,9 +330,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
             <label>Prompt prêt à copier</label>
             <div id="atelier-prompt" class="prompt-box"></div>
             <div class="toolbar"><button class="btn ai" onclick="App.copyPrompt()">📋 Copier le prompt</button><span class="help">Puis collez-le dans votre chat gratuit préféré.</span></div>
-            <label>Réponse du modèle</label>
+            <label>Proposition de l’IA à analyser</label>
             <textarea id="atelier-response" rows="12" placeholder="Collez ici le JSON retourné par l’IA…"></textarea>
-            <div class="toolbar"><button class="btn" onclick="App.importAI()">Analyser et intégrer la proposition</button></div>
+            <div class="toolbar"><button class="btn" onclick="App.importAI()">Analyser, vérifier et intégrer la proposition</button></div>
             <div id="atelier-result"></div>
           </div>
         </div>
@@ -759,9 +769,38 @@ const App = (() => {
   }
   function loadPrivateStudents(i){
     if(!coffreOuvert()){alert("Ouvrez d’abord le coffre élèves.");return}
-    const s=sequence.seances[i]; s.adaptations_individuelles=s.adaptations_individuelles||[];
-    const ids=new Set(s.adaptations_individuelles.map(x=>x.identifiant).filter(Boolean));
-    coffre.listerEleves().forEach(e=>{if(!ids.has(e.identifiantSynapses))s.adaptations_individuelles.push({identifiant:e.identifiantSynapses,adaptation:"",vigilance:""})});
+    if(!sequence?.seances[i])return;
+    const eleves=coffre.listerEleves()||[];
+    const rows=eleves.map(e=>{
+      const objectifs=(e.objectifs||[])
+        .filter(o=>!o.statut || o.statut==="actif")
+        .map(o=>o.libelle||o.objectif||"")
+        .filter(Boolean);
+      const adaptations=(e.adaptations||[])
+        .map(a=>typeof a==="string"?a:(a.libelle||a.adaptation||""))
+        .filter(Boolean);
+      const obs=e.observations||[];
+      const adaptationsObs=obs.flatMap(o=>[o.adaptationUtilisee,o.adaptationProposee])
+        .map(a=>typeof a==="string"?a:(a?.libelle||a?.adaptation||""))
+        .filter(Boolean);
+      const difficultes=obs.map(o=>o.difficulte||o.difficultes||"").flat()
+        .map(d=>typeof d==="string"?d:(d?.libelle||d?.texte||""))
+        .filter(Boolean);
+
+      // L'adaptation est renseignée à partir des objectifs actifs et des adaptations connues.
+      const adaptation=[...objectifs,...adaptations,...adaptationsObs]
+        .filter((v,n,a)=>v && a.indexOf(v)===n).join("\n• ");
+      // Le point de vigilance reprend les informations de difficultés observées.
+      const vigilance=[...difficultes].filter((v,n,a)=>v && a.indexOf(v)===n).join("\n• ");
+
+      return {
+        identifiant:e.identifiantSynapses||e.id||"",
+        adaptation:adaptation ? "• "+adaptation : "",
+        vigilance:vigilance ? "• "+vigilance : ""
+      };
+    }).filter(r=>r.identifiant);
+
+    sequence.seances[i].adaptations_individuelles=rows;
     renderPrivateStudents(i);
   }
   function phaseField(si,pi,k,v){if(sequence?.seances[si]?.deroule?.[pi])sequence.seances[si].deroule[pi][k]=v}
@@ -873,6 +912,21 @@ Niveau/classe : ${sequence.classe||selected?.niveau||"à préciser"}
 Objectif cœur de cible : ${sequence.objectif_coeur_de_cible||"à définir"}`;
   }
 
+  function contexteIndividuelPrompt(){
+    if(!sequence)return "";
+    const rows=(sequence.seances||[]).flatMap((s,si)=>
+      (s.adaptations_individuelles||[]).map(r=>({
+        seance:si+1,
+        identifiant:r.identifiant||"ÉLÈVE-ANONYME",
+        adaptation:r.adaptation||"",
+        vigilance:r.vigilance||""
+      }))
+    ).filter(r=>r.adaptation||r.vigilance);
+    if(!rows.length)return "\nDONNÉES INDIVIDUELLES : aucune donnée individuelle chargée pour cette proposition.";
+    return "\nDONNÉES INDIVIDUELLES ANONYMISÉES :\n"+
+      rows.map(r=>`- ${r.identifiant} (séance ${r.seance})\n  Objectifs / adaptations : ${r.adaptation||"non renseigné"}\n  Informations de difficultés / points de vigilance : ${r.vigilance||"non renseigné"}`).join("\n");
+  }
+
   function updatePrompt(){
     if(!sequence)return;
     const action=document.getElementById("atelier-action").value;
@@ -904,9 +958,14 @@ ${progressionRule}
 - Prends en compte la surcharge cognitive, les aides visuelles, la manipulation, la verbalisation et la progressivité lorsqu'elles sont pertinentes.
 - N'invente pas de référence institutionnelle précise si elle n'est pas fournie.
 - L'objectif et les critères doivent être observables.
+- Les données individuelles sont anonymisées : ne demande ni nom, ni prénom, ni établissement, ni classe précise.
+- Utilise les objectifs/adaptations pour proposer des aménagements concrets.
+- Utilise les informations de difficultés comme points de vigilance pédagogiques.
+- Ne pose aucun diagnostic médical ou psychologique et ne déduis aucun trouble.
+- Ne transforme jamais une proposition en décision automatique : l'enseignant garde la validation finale.
 
 CONTEXTE :
-${contextPrompt()}${task}
+${contextPrompt()}${contexteIndividuelPrompt()}${task}
 
 FORMAT JSON EXACT :
 ${schemaPrompt()}`;
