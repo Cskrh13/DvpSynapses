@@ -394,13 +394,13 @@ ${schema}`;
           ? el('ul', {}, besoins.map((b) => el('li', {}, [
               `${b.domaineNom} — ${b.libelle} (×${b.occurrences}${b.priorite ? ', priorité ' + b.priorite : ''})`
             ])))
-          : el('p', { class: 'ga-empty' }, ['Aucun besoin enregistré pour l\'instant.']),
+          : el('p', { class: 'si-empty' }, ['Aucun besoin enregistré pour l\'instant.']),
         el('h3', {}, ['Adaptations compilées']),
         adaptations.length
           ? el('ul', {}, adaptations.map((a) => el('li', {}, [
               `${a.domaineNom} — ${a.libelle} (×${a.occurrences}${a.efficaciteMoyenne != null ? ', efficacité moy. ' + a.efficaciteMoyenne.toFixed(1) : ''})`
             ])))
-          : el('p', { class: 'ga-empty' }, ['Aucune adaptation enregistrée pour l\'instant.'])
+          : el('p', { class: 'si-empty' }, ['Aucune adaptation enregistrée pour l\'instant.'])
       ]);
     }
 
@@ -412,10 +412,10 @@ ${schema}`;
           ? el('ol', {}, parcours.map((e) => el('li', {}, [
               el('strong', {}, [`[${e.domaineNom}] ${e.objectif}`]),
               ` — ${e.statut} (${e.origine})`,
-              e.adaptationsAssociees.length ? el('div', { class: 'ga-hint' }, ['Adaptations utiles : ' + e.adaptationsAssociees.join(', ')]) : null,
+              e.adaptationsAssociees.length ? el('div', { class: 'si-hint' }, ['Adaptations utiles : ' + e.adaptationsAssociees.join(', ')]) : null,
               e.statut === 'à valider'
                 ? el('button', {
-                    class: 'ga-btn',
+                    class: 'si-btn',
                     onclick: () => {
                       this.coffre.ajouterObjectif(eleve.identifiantSynapses, { domaine: e.domaineId, libelle: e.objectif, statut: 'actif' });
                       alert('Objectif ajouté au parcours de ' + eleve.identifiantSynapses + '.');
@@ -423,13 +423,13 @@ ${schema}`;
                   }, ['Retenir cet objectif'])
                 : null
             ])))
-          : el('p', { class: 'ga-empty' }, ['Pas encore assez de données pour proposer un parcours.'])
+          : el('p', { class: 'si-empty' }, ['Pas encore assez de données pour proposer un parcours.'])
       ]);
     }
 
     _sectionAtelierIA(eleve, containerParent) {
       const prompt = this.moteur.genererPromptIA(eleve);
-      const promptBox = el('div', { class: 'ga-prompt-box' }, [prompt]);
+      const promptBox = el('div', { class: 'prompt-box' }, [prompt]);
       const reponseBox = el('textarea', { rows: 10, placeholder: 'Collez ici le JSON renvoyé par l\'IA…', class: 'ga-textarea' });
       const resultats = el('div', { class: 'ga-resultats-ia' });
 
@@ -447,17 +447,17 @@ ${schema}`;
 
       return el('div', { class: 'ga-section ga-atelier-ia' }, [
         el('h3', {}, ['Mobiliser une IA (anonymisée)']),
-        el('p', { class: 'ga-hint' }, [
+        el('p', { class: 'si-hint' }, [
           'Aucune clé API, aucun envoi automatique. Copiez le prompt ci-dessous (il ne contient ni nom ni identifiant élève), ' +
           'collez-le dans le chat IA gratuit de votre choix, puis collez sa réponse pour l\'examiner — rien n\'est ajouté au coffre sans validation.'
         ]),
         promptBox,
         el('div', { class: 'ga-toolbar' }, [
-          el('button', { class: 'ga-btn ga-btn-primary', onclick: () => navigator.clipboard?.writeText(prompt).then(() => alert('Prompt copié.')) }, ['📋 Copier le prompt anonymisé'])
+          el('button', { class: 'si-btn si-btn-primary', onclick: () => navigator.clipboard?.writeText(prompt).then(() => alert('Prompt copié.')) }, ['📋 Copier le prompt anonymisé'])
         ]),
         el('label', {}, ['Réponse de l\'IA (JSON)']),
         reponseBox,
-        el('button', { class: 'ga-btn', onclick: importer }, ['Examiner la réponse']),
+        el('button', { class: 'si-btn', onclick: importer }, ['Examiner la réponse']),
         resultats
       ]);
     }
@@ -466,7 +466,7 @@ ${schema}`;
       const wrap = el('div', {});
 
       const ligneValidable = (label, onValider) =>
-        el('li', {}, [label, ' ', el('button', { class: 'ga-btn ga-btn-small', onclick: onValider }, ['Retenir'])]);
+        el('li', {}, [label, ' ', el('button', { class: 'si-btn si-btn-small', onclick: onValider }, ['Retenir'])]);
 
       wrap.appendChild(el('h4', {}, ['Hypothèses de besoins proposées']));
       wrap.appendChild(props.hypothesesBesoins.length
@@ -474,7 +474,7 @@ ${schema}`;
             `[${h.domaine}] ${h.besoin}${h.justification ? ' — ' + h.justification : ''}`,
             () => { this.coffre.ajouterBesoin(eleve.identifiantSynapses, { domaine: h.domaine, libelle: h.besoin, hypothese: h.justification || '' }); alert('Besoin ajouté.'); }
           )))
-        : el('p', { class: 'ga-empty' }, ['Aucune.']));
+        : el('p', { class: 'si-empty' }, ['Aucune.']));
 
       wrap.appendChild(el('h4', {}, ['Adaptations suggérées']));
       wrap.appendChild(props.adaptationsSuggerees.length
@@ -482,7 +482,7 @@ ${schema}`;
             `[${a.domaine}] ${a.adaptation}${a.pourBesoin ? ' (pour : ' + a.pourBesoin + ')' : ''}`,
             () => { this.coffre.ajouterAdaptation(eleve.identifiantSynapses, { domaine: a.domaine, libelle: a.adaptation }); alert('Adaptation ajoutée.'); }
           )))
-        : el('p', { class: 'ga-empty' }, ['Aucune.']));
+        : el('p', { class: 'si-empty' }, ['Aucune.']));
 
       wrap.appendChild(el('h4', {}, ['Objectifs suggérés']));
       wrap.appendChild(props.objectifsSuggeres.length
@@ -490,16 +490,16 @@ ${schema}`;
             `[${o.domaine}] ${o.objectif}${o.criteresReussite ? ' — critères : ' + o.criteresReussite : ''}`,
             () => { this.coffre.ajouterObjectif(eleve.identifiantSynapses, { domaine: o.domaine, libelle: o.objectif, statut: 'actif' }); alert('Objectif ajouté.'); }
           )))
-        : el('p', { class: 'ga-empty' }, ['Aucun.']));
+        : el('p', { class: 'si-empty' }, ['Aucun.']));
 
       wrap.appendChild(el('h4', {}, ['Parcours proposé par l\'IA']));
       wrap.appendChild(props.parcoursPropose.length
         ? el('ol', {}, props.parcoursPropose
             .slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
             .map((p) => el('li', {}, [`[${p.domaine}] ${p.objectif}${p.pourquoiCetOrdre ? ' — ' + p.pourquoiCetOrdre : ''}`])))
-        : el('p', { class: 'ga-empty' }, ['Aucun.']));
+        : el('p', { class: 'si-empty' }, ['Aucun.']));
 
-      wrap.appendChild(el('p', { class: 'ga-hint' }, [
+      wrap.appendChild(el('p', { class: 'si-hint' }, [
         'Chaque élément doit être retenu individuellement : rien n\'est ajouté au coffre automatiquement.'
       ]));
       return wrap;
