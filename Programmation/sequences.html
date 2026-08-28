@@ -29,6 +29,8 @@
   --vocabulaire:#B5871E;
   --grammaire:#1E2A4A;
   --orthographe:#7A4A9E;
+  --ai:#6a4fc9;
+  --ai-soft:#eee9fb;
   --radius:10px;
   --radius-sm:6px;
 }
@@ -455,30 +457,64 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
   .print-seance-block th{background:#EEECE3;}
 }
 
-/* ---- Réseau de compétences ---- */
-.reseau-wrap{position:relative;}
-.reseau-grid{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;align-items:start;
-  position:relative;z-index:2;
+/* ---- Progression (remplace l'ancien Réseau de compétences) ---- */
+.btn.ai{background:var(--ai);border-color:var(--ai);color:#fff;}
+.btn.ai:hover{background:#5940b3;}
+.prog-selectors{
+  display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:22px;
 }
-.reseau-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
-.comp-node{background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);padding:16px;position:relative;}
-.comp-node::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:var(--radius) 0 0 var(--radius);background:var(--ccolor,var(--accent-sky));}
-.comp-node h4{font-size:15px;color:var(--navy);padding-left:8px;line-height:1.3;}
-.comp-node .cn-niveau{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-weight:normal;border:1px solid var(--line);border-radius:999px;padding:1px 7px;vertical-align:middle;}
-.comp-node .cn-obj{font-size:11.5px;color:var(--ink-soft);margin-top:6px;padding-left:8px;line-height:1.5;}
-.comp-node .cn-seqs{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
-.comp-node .cn-seq-item{
-  text-align:left;background:var(--panel-raised);border:1px solid var(--line);border-radius:8px;
-  padding:9px 11px;font-size:12.5px;color:var(--ink);
+.prog-selectors .field{margin-bottom:0;}
+.prog-saved{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;}
+.prog-saved-chip{
+  font-size:12.5px;font-weight:500;background:#fff;border:1px solid var(--line);border-radius:20px;
+  padding:7px 13px;color:var(--navy);
 }
-.comp-node .cn-seq-item:hover{border-color:var(--ccolor,var(--accent-sky));}
-.comp-node .cn-seq-item .csi-meta{display:block;margin-top:3px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);}
-.comp-node .cn-empty{font-size:12px;color:var(--ink-soft);padding-left:8px;font-style:italic;}
-.comp-node .cn-add{
-  margin-top:10px;margin-left:8px;font-size:12px;font-weight:600;color:var(--accent-sky);background:none;border:none;padding:0;
+.prog-saved-chip:hover{background:#F0EEE7;}
+.prog-empty{
+  text-align:center;padding:56px 20px;color:var(--ink-soft);
+  border:1px dashed var(--line);border-radius:var(--radius);background:var(--panel);
 }
-.comp-node .cn-add:hover{text-decoration:underline;}
+.prog-empty h4{color:var(--navy);margin-bottom:8px;font-size:16px;}
+.notice{padding:12px 14px;border-radius:10px;background:#fff8e9;border:1px solid #edd7a1;color:#705a25;font-size:13px;line-height:1.55;margin-bottom:16px;}
+.ai-panel{border-left:5px solid var(--ai);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-bottom:24px;}
+.ai-panel h4{font-size:15.5px;color:var(--navy);margin-bottom:12px;}
+.prompt-box{
+  font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.55;background:#151922;color:#eef2f8;
+  border-radius:10px;padding:14px;white-space:pre-wrap;max-height:360px;overflow:auto;margin-bottom:12px;
+}
+.ai-panel textarea{
+  width:100%;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:8px;min-height:120px;resize:vertical;margin:10px 0;
+}
+.ai-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.ai-toolbar .help{font-size:12.5px;color:var(--ink-soft);}
+.ai-result{margin-top:12px;font-size:13px;}
+.ai-result.ok{color:#2A7F72;font-weight:600;}
+.ai-result.err{color:#B5502E;font-weight:600;}
+
+.prog-timeline{display:flex;flex-direction:column;gap:0;}
+.prog-step{
+  display:grid;grid-template-columns:44px 1fr;gap:16px;position:relative;padding-bottom:26px;
+}
+.prog-step:last-child{padding-bottom:0;}
+.prog-step .ps-dot-col{display:flex;flex-direction:column;align-items:center;}
+.prog-step .ps-dot{
+  width:32px;height:32px;border-radius:50%;background:var(--accent-sky);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;flex-shrink:0;
+}
+.prog-step .ps-line{flex:1;width:2px;background:var(--line);margin-top:4px;}
+.prog-step:last-child .ps-line{display:none;}
+.prog-step .ps-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;}
+.prog-step .ps-card h4{font-size:15.5px;color:var(--navy);}
+.prog-step .ps-card .ps-desc{font-size:13.5px;color:var(--ink);margin-top:8px;line-height:1.6;}
+.prog-step .ps-meta-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;}
+.prog-step .ps-tag{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;
+  background:#EEECE3;color:var(--ink-soft);
+}
+.prog-step .ps-indic{margin-top:10px;font-size:12.5px;color:var(--ink-soft);}
+.prog-step .ps-indic strong{color:var(--navy);}
 .prereq-picker{display:flex;flex-direction:column;gap:8px;}
 .prereq-picker label{
   display:flex;align-items:flex-start;gap:8px;font-size:13px;font-family:'Inter',sans-serif;text-transform:none;
@@ -528,7 +564,7 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
         <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
         <button class="btn small" id="btn-coffre-toggle">Ouvrir le coffre</button>
       </div>
-      <button class="btn" id="btn-view-reseau">🕸 Réseau de compétences</button>
+      <button class="btn" id="btn-view-progression">📈 Progression</button>
       <a class="btn" href="../cartographie-competences.html" target="_blank" rel="noopener">🗺 Cartographie des compétences</a>
       <a class="btn" href="generateur-sequences-projet.html">🧩 Générateur de séquences</a>
       <a class="btn" href="planning-affichage.html">🗓 Planning</a>
@@ -654,27 +690,56 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
     </div>
   </section>
 
-  <!-- ===================== VUE 3 : RÉSEAU DE COMPÉTENCES ===================== -->
-  <section class="view" id="view-reseau">
-    <button class="cp-back" id="reseau-back">← Retour aux séquences</button>
+  <!-- ===================== VUE 3 : PROGRESSION ===================== -->
+  <section class="view" id="view-progression">
+    <button class="cp-back" id="progression-back">← Retour aux séquences</button>
     <div class="list-head">
       <div>
-        <p class="eyebrow">Cartographie pédagogique · non linéaire</p>
-        <h1>Réseau de compétences</h1>
-        <p>Le réseau est consulté depuis une séquence sélectionnée : on affiche son contexte de progression, sans transformer la page en liste exhaustive du référentiel.</p>
+        <p class="eyebrow">Ordre logique des apprentissages</p>
+        <h1>Progression</h1>
+        <p>Choisissez un niveau et un domaine pour générer la progression : la suite d'étapes, dans un ordre logique, qui mènent les élèves jusqu'à la maîtrise de la compétence visée. La progression peut être proposée par l'atelier IA gratuit, puis relue, corrigée, téléchargée ou imprimée.</p>
       </div>
-      <a class="btn on-panel" href="../cartographie-competences.html" target="_blank" rel="noopener">🗺 Voir la cartographie interactive</a>
     </div>
-    <div class="reseau-wrap" id="reseau-wrap">
-      <div class="reseau-grid" id="reseau-grid"></div>
-      <svg class="reseau-svg" id="reseau-svg">
-        <defs>
-          <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto">
-            <polygon points="0 0, 8 3.5, 0 7" fill="#2E5EAA"/>
-          </marker>
-        </defs>
-      </svg>
+
+    <div class="prog-selectors">
+      <div class="field">
+        <label for="prog-niveau">Niveau</label>
+        <select id="prog-niveau"></select>
+      </div>
+      <div class="field">
+        <label for="prog-domaine">Domaine</label>
+        <select id="prog-domaine"></select>
+      </div>
+      <button class="btn on-panel primary" id="btn-prog-generer">Générer la progression</button>
     </div>
+
+    <div class="prog-saved" id="prog-saved"></div>
+
+    <div class="ai-panel" id="prog-ai-panel" style="display:none;">
+      <h4>✨ Atelier IA gratuit — proposer la progression</h4>
+      <div class="notice">Aucune clé API n'est nécessaire. L'atelier prépare un prompt complet à copier dans un chat gratuit (Claude, ChatGPT…). Collez ensuite la réponse ci-dessous pour construire la progression. L'IA propose ; vous validez.</div>
+      <div class="prompt-box" id="prog-prompt"></div>
+      <div class="ai-toolbar">
+        <button class="btn ai" id="btn-prog-copy">📋 Copier le prompt</button>
+        <span class="help">Puis collez-le dans votre chat gratuit préféré.</span>
+      </div>
+      <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-top:16px;">Proposition de l'IA à analyser</label>
+      <textarea id="prog-response" placeholder="Collez ici le JSON retourné par l'IA…"></textarea>
+      <div class="ai-toolbar">
+        <button class="btn on-panel primary" id="btn-prog-import">Intégrer la proposition</button>
+        <button class="btn on-panel" id="btn-prog-ai-close">Fermer l'atelier</button>
+      </div>
+      <div class="ai-result" id="prog-ai-result"></div>
+    </div>
+
+    <div class="cp-head-actions" id="prog-actions" style="display:none;margin-bottom:18px;">
+      <button class="btn on-panel small" id="btn-prog-pdf">Télécharger le PDF</button>
+      <button class="btn on-panel small" id="btn-prog-json">Télécharger le JSON</button>
+      <button class="btn on-panel small" id="btn-prog-reopen-atelier">✨ Régénérer avec l'IA</button>
+      <button class="btn danger small" id="btn-prog-delete">Supprimer cette progression</button>
+    </div>
+
+    <div id="prog-content"></div>
   </section>
 
 </div>
@@ -1288,106 +1353,277 @@ document.getElementById('cp-back').addEventListener('click', backToList);
 /* ============================================================
    VUE 3 — RÉSEAU DE COMPÉTENCES
    ============================================================ */
-function openReseau(){
+/* ============================================================
+   VUE 3 — PROGRESSION (remplace l'ancien Réseau de compétences)
+   Ordre logique des apprentissages qui mènent à une compétence,
+   pour un couple (niveau, domaine) donné. Générée au choix à la
+   main ou via l'atelier IA gratuit (copier/coller de prompt,
+   sans clé API), sur le modèle du générateur de séquences.
+   ============================================================ */
+const STORE_PROG = "planif_progressions";
+function loadProgressions(){ try{ return JSON.parse(localStorage.getItem(STORE_PROG)) || []; }catch(e){ return []; } }
+function saveProgressions(list){ localStorage.setItem(STORE_PROG, JSON.stringify(list)); }
+let progressions = loadProgressions();
+let currentProgressionId = null;
+
+function progressionDomaines(){
+  // Le référentiel officiel (competences.json) prime s'il est chargé ; sinon on retombe
+  // sur les domaines locaux de l'application, pour que le sélecteur reste toujours utilisable.
+  if(COMPETENCE_DOMAINES.length) return COMPETENCE_DOMAINES.map(d=>({id:d.id, nom:d.nom}));
+  return Object.entries(DOMAINES).map(([id,d])=>({id, nom:d.nom}));
+}
+
+function fillProgressionSelectors(){
+  const selN = document.getElementById('prog-niveau');
+  selN.innerHTML = NIVEAUX.map(n=>`<option value="${n}">${n}</option>`).join('');
+  const selD = document.getElementById('prog-domaine');
+  selD.innerHTML = progressionDomaines().map(d=>`<option value="${d.id}">${escapeHTML(d.nom)}</option>`).join('');
+}
+
+function progressionKey(niveau, domaineId){ return niveau + "__" + domaineId; }
+function findProgression(niveau, domaineId){
+  return progressions.find(p=>p.niveau===niveau && p.domaine_id===domaineId);
+}
+
+function renderProgSaved(){
+  const wrap = document.getElementById('prog-saved');
+  if(!progressions.length){ wrap.innerHTML = ""; return; }
+  wrap.innerHTML = `<span style="font-size:12px;color:var(--ink-soft);align-self:center;">Progressions déjà générées :</span>` +
+    progressions.map(p=>`<button class="prog-saved-chip" data-open-prog="${p.id}">${escapeHTML(p.niveau)} · ${escapeHTML(getProgDomaineNom(p.domaine_id))} (${(p.etapes||[]).length} étapes)</button>`).join('');
+  wrap.querySelectorAll('[data-open-prog]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = progressions.find(x=>x.id===btn.getAttribute('data-open-prog'));
+      if(!p) return;
+      document.getElementById('prog-niveau').value = p.niveau;
+      document.getElementById('prog-domaine').value = p.domaine_id;
+      openProgressionResult(p);
+    });
+  });
+}
+
+function getProgDomaineNom(domaineId){
+  const found = progressionDomaines().find(d=>d.id===domaineId);
+  return (found && found.nom) || domaineId;
+}
+
+function openProgression(){
   document.getElementById('view-list').classList.remove('open');
   document.getElementById('view-seq').classList.remove('open');
-  document.getElementById('view-reseau').classList.add('open');
-  renderReseau();
+  document.getElementById('view-progression').classList.add('open');
+  fillProgressionSelectors();
+  renderProgSaved();
+  document.getElementById('prog-ai-panel').style.display = "none";
+  document.getElementById('prog-actions').style.display = "none";
+  document.getElementById('prog-content').innerHTML = "";
+  currentProgressionId = null;
   window.scrollTo({top:0});
 }
-function closeReseau(){
-  document.getElementById('view-reseau').classList.remove('open');
+function closeProgression(){
+  document.getElementById('view-progression').classList.remove('open');
   document.getElementById('view-list').classList.add('open');
   renderSeqGrid();
 }
-document.getElementById('btn-view-reseau').addEventListener('click', openReseau);
-document.getElementById('reseau-back').addEventListener('click', closeReseau);
+document.getElementById('btn-view-progression').addEventListener('click', openProgression);
+document.getElementById('progression-back').addEventListener('click', closeProgression);
 
-function renderReseau(){
-  const grid = document.getElementById('reseau-grid');
-  const svg = document.getElementById('reseau-svg');
-  grid.innerHTML = "";
-
-  if(!COMPETENCES.length){
-    grid.innerHTML = `<div class="empty-state"><h4>Référentiel de compétences en cours de chargement…</h4>
-      <p>Si ce message persiste, vérifiez que <code>data/competences.json</code> est accessible depuis cette page.</p></div>`;
-    return;
-  }
-
-  COMPETENCES.forEach(c=>{
-    const node = document.createElement('div');
-    node.className = "comp-node";
-    node.id = "cnode-" + c.id;
-    node.style.setProperty('--ccolor', colorForDomaine(c.domaine_id));
-    const intitule = c.intitule || (Array.isArray(c.objectifs) && c.objectifs[0]) || "";
-    const seqsForComp = state.sequences.filter(s=>(s.competence_id||s.domaine)===c.id);
-    const seqsHTML = seqsForComp.length ? seqsForComp.map(s=>{
-      const nb = state.seances.filter(x=>x.sequence_id===s.id).length;
-      return `<button class="cn-seq-item" data-open-seq="${s.id}">${escapeHTML(s.titre)}<span class="csi-meta">P${s.periode} · S${s.semaine_debut}–S${s.semaine_fin} · ${nb} séance${nb>1?'s':''}</span></button>`;
-    }).join('') : `<div class="cn-empty">Aucune séquence liée pour l'instant.</div>`;
-    node.innerHTML = `
-      <h4>${escapeHTML(getDomaineNom(c.domaine_id))}${c.niveau? ` <span class="cn-niveau">${escapeHTML(c.niveau)}</span>`:""}</h4>
-      <div class="cn-obj">${escapeHTML(intitule)}</div>
-      <div class="cn-seqs">${seqsHTML}</div>
-      <button class="cn-add" data-add-for="${c.id}">＋ Ajouter une séquence</button>
-    `;
-    grid.appendChild(node);
-  });
-
-  grid.querySelectorAll('[data-open-seq]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.getElementById('view-reseau').classList.remove('open');
-      openSeqDetail(btn.getAttribute('data-open-seq'));
-    });
-  });
-  grid.querySelectorAll('[data-add-for]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      openSeqForm(null);
-      fillCompetenceSelect(btn.getAttribute('data-add-for'));
-      fillPrereqPicker(btn.getAttribute('data-add-for'), []);
-    });
-  });
-
-  // Dessiner les flèches de pré-requis entre compétences (réseau non linéaire)
-  requestAnimationFrame(()=>{
-    const wrapRect = document.getElementById('reseau-wrap').getBoundingClientRect();
-    svg.setAttribute('width', wrapRect.width);
-    svg.setAttribute('height', wrapRect.height);
-    // retire les anciennes lignes (garde <defs>)
-    [...svg.querySelectorAll('path.reseau-edge')].forEach(p=>p.remove());
-
-    const edges = new Set();
-    state.sequences.forEach(s=>{
-      const targetId = s.competence_id || s.domaine;
-      (s.prerequis_competences||[]).forEach(fromId=>{
-        if(fromId && targetId && fromId!==targetId) edges.add(fromId+"→"+targetId);
-      });
-    });
-
-    edges.forEach(edgeKey=>{
-      const [fromId, toId] = edgeKey.split("→");
-      const fromEl = document.getElementById("cnode-"+fromId);
-      const toEl = document.getElementById("cnode-"+toId);
-      if(!fromEl || !toEl) return;
-      const fr = fromEl.getBoundingClientRect(), tr = toEl.getBoundingClientRect();
-      const x1 = fr.right - wrapRect.left, y1 = fr.top + fr.height/2 - wrapRect.top;
-      const x2 = tr.left - wrapRect.left, y2 = tr.top + tr.height/2 - wrapRect.top;
-      const midX = (x1+x2)/2;
-      const path = document.createElementNS("http://www.w3.org/2000/svg","path");
-      path.setAttribute("class","reseau-edge");
-      path.setAttribute("d", `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`);
-      path.setAttribute("fill","none");
-      path.setAttribute("stroke","#2E5EAA");
-      path.setAttribute("stroke-width","1.6");
-      path.setAttribute("stroke-dasharray","5,4");
-      path.setAttribute("marker-end","url(#arrowhead)");
-      path.setAttribute("opacity","0.75");
-      svg.appendChild(path);
-    });
-  });
+function progressionSchemaPrompt(){
+  return JSON.stringify({
+    niveau: "CE1",
+    domaine: "lecture",
+    competence_visee: "Intitulé clair de la compétence finale visée",
+    etapes: [
+      {
+        ordre: 1,
+        titre: "Intitulé court de l'apprentissage",
+        description: "Ce que l'élève apprend concrètement à cette étape, et pourquoi elle est nécessaire avant la suite.",
+        prerequis: "Ce qui doit déjà être acquis avant d'aborder cette étape (ou « aucun » si c'est le point de départ).",
+        indicateurs_maitrise: "Ce qui montre que l'étape est maîtrisée, formulé de façon observable."
+      }
+    ]
+  }, null, 2);
 }
-window.addEventListener('resize', ()=>{
-  if(document.getElementById('view-reseau').classList.contains('open')) renderReseau();
+
+function buildProgressionPrompt(niveau, domaineId){
+  const domaineNom = getProgDomaineNom(domaineId);
+  return `Tu es un conseiller pédagogique expert des programmes de l'école primaire française.
+
+TÂCHE :
+Construis la PROGRESSION, c'est-à-dire l'ordre logique des apprentissages qui permettent à un élève de ${niveau} d'accéder progressivement à la maîtrise du domaine « ${domaineNom} », étape par étape, de la plus élémentaire à la plus avancée.
+
+RÈGLES :
+- Respecte exactement la structure JSON ci-dessous.
+- Ne mets aucun texte avant ou après le JSON.
+- Ordonne les étapes du plus simple/élémentaire au plus complexe : chaque étape doit s'appuyer sur celles qui la précèdent.
+- Le nombre d'étapes doit être réaliste pour une année scolaire (entre 5 et 10 étapes).
+- Chaque étape doit être concrète et observable, pas un intitulé générique.
+- Précise pour chaque étape le prérequis réel (ou « aucun » pour la première étape).
+- Les indicateurs de maîtrise doivent être formulés de façon observable par l'enseignant.
+- Reste fidèle à un usage réaliste en classe de ${niveau}, sans complexité inutile.
+
+CONTEXTE :
+Niveau : ${niveau}
+Domaine : ${domaineNom}
+Cycle : Cycle 2 (CP, CE1, CE2) ou Cycle 3 (CM1, CM2, 6e) selon le niveau indiqué.
+
+FORMAT JSON EXACT :
+${progressionSchemaPrompt()}`;
+}
+
+function updateProgPrompt(){
+  const niveau = document.getElementById('prog-niveau').value;
+  const domaineId = document.getElementById('prog-domaine').value;
+  document.getElementById('prog-prompt').textContent = buildProgressionPrompt(niveau, domaineId);
+}
+
+document.getElementById('btn-prog-generer').addEventListener('click', ()=>{
+  const niveau = document.getElementById('prog-niveau').value;
+  const domaineId = document.getElementById('prog-domaine').value;
+  const existing = findProgression(niveau, domaineId);
+  if(existing){ openProgressionResult(existing); return; }
+  openAtelierProgression();
+});
+document.getElementById('btn-prog-reopen-atelier').addEventListener('click', openAtelierProgression);
+document.getElementById('btn-prog-ai-close').addEventListener('click', ()=>{
+  document.getElementById('prog-ai-panel').style.display = "none";
+});
+
+function openAtelierProgression(){
+  document.getElementById('prog-ai-panel').style.display = "";
+  document.getElementById('prog-ai-result').textContent = "";
+  document.getElementById('prog-ai-result').className = "ai-result";
+  document.getElementById('prog-response').value = "";
+  updateProgPrompt();
+  document.getElementById('prog-ai-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+document.getElementById('prog-niveau').addEventListener('change', ()=>{
+  if(document.getElementById('prog-ai-panel').style.display !== "none") updateProgPrompt();
+});
+document.getElementById('prog-domaine').addEventListener('change', ()=>{
+  if(document.getElementById('prog-ai-panel').style.display !== "none") updateProgPrompt();
+});
+
+document.getElementById('btn-prog-copy').addEventListener('click', ()=>{
+  const text = document.getElementById('prog-prompt').textContent;
+  navigator.clipboard?.writeText(text).then(()=> toast("Prompt copié.")).catch(()=> toast("Impossible de copier automatiquement : sélectionnez le texte manuellement."));
+});
+
+function extraireJSON(t){
+  let x = t.trim().replace(/```json/gi,"").replace(/```/g,"").trim();
+  const a = x.indexOf("{"), b = x.lastIndexOf("}");
+  if(a<0 || b<0) throw new Error("Aucun objet JSON trouvé dans le texte collé.");
+  return JSON.parse(x.slice(a, b+1));
+}
+
+function normaliserProgression(obj, niveau, domaineId){
+  const etapes = Array.isArray(obj.etapes) ? obj.etapes.map((e,i)=>({
+    ordre: Number(e.ordre) || (i+1),
+    titre: e.titre || `Étape ${i+1}`,
+    description: e.description || "",
+    prerequis: e.prerequis || "aucun",
+    indicateurs_maitrise: e.indicateurs_maitrise || ""
+  })).sort((a,b)=>a.ordre-b.ordre) : [];
+  if(!etapes.length) throw new Error("Le JSON doit contenir un tableau « etapes » non vide.");
+  const existing = findProgression(niveau, domaineId);
+  return {
+    id: existing ? existing.id : uid("prog"),
+    niveau,
+    domaine_id: domaineId,
+    competence_visee: obj.competence_visee || "",
+    etapes,
+    maj: new Date().toISOString()
+  };
+}
+
+document.getElementById('btn-prog-import').addEventListener('click', ()=>{
+  const resultEl = document.getElementById('prog-ai-result');
+  try{
+    const raw = document.getElementById('prog-response').value;
+    const obj = extraireJSON(raw);
+    const niveau = document.getElementById('prog-niveau').value;
+    const domaineId = document.getElementById('prog-domaine').value;
+    const prog = normaliserProgression(obj, niveau, domaineId);
+    const idx = progressions.findIndex(p=>p.id===prog.id);
+    if(idx>=0) progressions[idx] = prog; else progressions.push(prog);
+    saveProgressions(progressions);
+    resultEl.className = "ai-result ok";
+    resultEl.textContent = "Progression intégrée : " + prog.etapes.length + " étapes. Vous pouvez la relire ci-dessous.";
+    document.getElementById('prog-ai-panel').style.display = "none";
+    renderProgSaved();
+    openProgressionResult(prog);
+  }catch(e){
+    resultEl.className = "ai-result err";
+    resultEl.textContent = "Erreur : " + e.message;
+  }
+});
+
+function openProgressionResult(prog){
+  currentProgressionId = prog.id;
+  document.getElementById('prog-actions').style.display = "";
+  renderProgressionContent(prog);
+}
+
+function renderProgressionContent(prog){
+  const wrap = document.getElementById('prog-content');
+  const domaineNom = getProgDomaineNom(prog.domaine_id);
+  wrap.innerHTML = `
+    <div class="cp-block">
+      <p class="eyebrow">${escapeHTML(prog.niveau)} · ${escapeHTML(domaineNom)}</p>
+      <h3 style="font-size:20px;color:var(--navy);margin-top:6px;">${escapeHTML(prog.competence_visee || "Progression des apprentissages")}</h3>
+    </div>
+    <div class="prog-timeline">
+      ${prog.etapes.map(e=>`
+        <div class="prog-step">
+          <div class="ps-dot-col"><div class="ps-dot">${e.ordre}</div><div class="ps-line"></div></div>
+          <div class="ps-card">
+            <h4>${escapeHTML(e.titre)}</h4>
+            <div class="ps-desc">${escapeHTML(e.description)}</div>
+            <div class="ps-meta-row">
+              <span class="ps-tag">Prérequis : ${escapeHTML(e.prerequis || "aucun")}</span>
+            </div>
+            ${e.indicateurs_maitrise ? `<div class="ps-indic"><strong>Indicateurs de maîtrise :</strong> ${escapeHTML(e.indicateurs_maitrise)}</div>` : ""}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+document.getElementById('btn-prog-json').addEventListener('click', ()=>{
+  const prog = progressions.find(p=>p.id===currentProgressionId);
+  if(!prog) return;
+  downloadJSON("progression-" + slug(prog.niveau+"-"+getProgDomaineNom(prog.domaine_id)), prog);
+});
+
+document.getElementById('btn-prog-delete').addEventListener('click', ()=>{
+  if(!confirm("Supprimer cette progression ?")) return;
+  progressions = progressions.filter(p=>p.id!==currentProgressionId);
+  saveProgressions(progressions);
+  currentProgressionId = null;
+  document.getElementById('prog-actions').style.display = "none";
+  document.getElementById('prog-content').innerHTML = "";
+  renderProgSaved();
+  toast("Progression supprimée");
+});
+
+function progressionPrintHTML(prog){
+  const domaineNom = getProgDomaineNom(prog.domaine_id);
+  return `
+    <p class="print-eyebrow">${escapeHTML(prog.niveau)} · ${escapeHTML(domaineNom)} · Progression</p>
+    <h1>${escapeHTML(prog.competence_visee || "Progression des apprentissages")}</h1>
+    ${prog.etapes.map(e=>`
+      <div class="print-seance-block">
+        <h4>Étape ${e.ordre} — ${escapeHTML(e.titre)}</h4>
+        <p>${escapeHTML(e.description)}</p>
+        <p><strong>Prérequis :</strong> ${escapeHTML(e.prerequis || "aucun")}</p>
+        ${e.indicateurs_maitrise ? `<p><strong>Indicateurs de maîtrise :</strong> ${escapeHTML(e.indicateurs_maitrise)}</p>` : ""}
+      </div>
+    `).join('')}
+  `;
+}
+document.getElementById('btn-prog-pdf').addEventListener('click', ()=>{
+  const prog = progressions.find(p=>p.id===currentProgressionId);
+  if(!prog) return;
+  launchPrint(progressionPrintHTML(prog), "Progression — " + (prog.competence_visee || prog.niveau));
 });
 
 function renderSeqDetail(){
@@ -2327,11 +2563,9 @@ renderFilters();
 renderSeqGrid();
 updateCoffreWidget();
 
-/* Le référentiel de compétences est chargé une fois, au démarrage.
-   S'il n'était pas encore prêt quand la vue Réseau a été ouverte,
-   on la redessine dès que le chargement aboutit. */
+/* Le référentiel de compétences est chargé une fois, au démarrage. */
 chargerReferentielCompetences().then(()=>{
-  if(document.getElementById('view-reseau').classList.contains('open')) renderReseau();
+  if(document.getElementById('view-progression').classList.contains('open')) fillProgressionSelectors();
   openFromCartographyURL();
 });
 </script>
