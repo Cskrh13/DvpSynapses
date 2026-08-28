@@ -34,7 +34,15 @@ main{max-width:1250px;margin:auto;padding:26px 20px 50px}
 .step{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;text-align:left;color:var(--soft);font-weight:700}
 .step.active{border-color:var(--navy);background:var(--navy);color:#fff}.step.done{border-color:#9fb5a8;background:#f4faf6;color:var(--ok)}
 .step span{display:block;font-size:.72rem;font-weight:600;opacity:.8}
-.workspace{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
+.workspace{
+  display:block;
+  width:100%;
+  max-width:100%;
+}
+.workspace > #content{
+  width:100%;
+  max-width:100%;
+}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
 .card h3{font-family:Georgia,serif;margin:0 0 10px;font-size:1.18rem}.card h4{margin:15px 0 8px}
 label{display:block;font-size:.78rem;font-weight:800;color:var(--soft);margin:11px 0 5px}
@@ -131,9 +139,9 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 .panier-item:last-child{border-bottom:0}
 
 /* Tableau de bord placé avant les étapes */
-.top-dashboard{max-width:1180px;margin:24px auto 0;padding:0 22px}
-.top-dashboard-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
-.top-dashboard .card{margin:0}
+.top-dashboard{width:100%;max-width:none;margin:24px 0 0;padding:0 22px;box-sizing:border-box}
+.top-dashboard-inner{width:100%;max-width:none;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.top-dashboard .card{width:100%;margin:0;box-sizing:border-box}
 @media(max-width:760px){.top-dashboard{padding:0 14px}.top-dashboard-inner{grid-template-columns:1fr}}
 
 </style>
