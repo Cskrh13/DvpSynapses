@@ -871,7 +871,7 @@ const App = (() => {
   "objectif_commun": "…",
   "references_theoriques": "…",
   "objectifs_individuels": [
-    {"nom":"…","objectif":"…","criteres_reussite":"…"}
+    {"numero":1,"objectif":"…","criteres_reussite":"…"}
   ],
   "seances": [{
     "numero": 1,
@@ -888,6 +888,9 @@ const App = (() => {
     "criteres_reussite": "…",
     "materiel": ["…"],
     "duree_estimee_min": 45,
+    "objectifs_individuels": [
+      {"numero":1,"objectif":"…"}
+    ],
     "deroule": [{
       "phase":"Présentation",
       "temps":"5 min",
@@ -930,9 +933,13 @@ Objectif cœur de cible : ${sequence.objectif_coeur_de_cible||"à définir"}`;
         vigilance:r.vigilance||""
       }))
     ).filter(r=>r.adaptation||r.vigilance);
-    if(!rows.length)return "\nDONNÉES INDIVIDUELLES : aucune donnée individuelle chargée pour cette proposition.";
+    if(!rows.length)return `\nDONNÉES INDIVIDUELLES : aucune donnée individuelle chargée pour cette proposition.
+- Il n'existe donc aucune information permettant d'attribuer un besoin, une difficulté ou une adaptation à un élève réel.
+- Pour les élèves à BEP, propose néanmoins des aménagements pédagogiques génériques, explicites et directement utilisables, sans inventer de profil individuel, de diagnostic ou de difficulté personnelle.
+- Ces aménagements génériques doivent être intégrés dans les champs "amenagement" du déroulé et les points de vigilance pertinents dans "vigilance".
+- Si des objectifs individuels sont proposés malgré l'absence de données du coffre, repère-les uniquement par des numéros (1, 2, 3…) et formule-les comme des objectifs pédagogiques génériques à valider par l'enseignant.`;
     return "\nDONNÉES INDIVIDUELLES ANONYMISÉES :\n"+
-      rows.map(r=>`- ${r.identifiant} (séance ${r.seance})\n  Objectifs / adaptations : ${r.adaptation||"non renseigné"}\n  Informations de difficultés / points de vigilance : ${r.vigilance||"non renseigné"}`).join("\n");
+      rows.map((r,k)=>`- Élève ${k+1} / identifiant anonymisé ${r.identifiant} (séance ${r.seance})\n  Objectifs / adaptations : ${r.adaptation||"non renseigné"}\n  Informations de difficultés / points de vigilance : ${r.vigilance||"non renseigné"}`).join("\n");
   }
 
   function updatePrompt(){
@@ -967,8 +974,14 @@ ${progressionRule}
 - N'invente pas de référence institutionnelle précise si elle n'est pas fournie.
 - L'objectif et les critères doivent être observables.
 - Les données individuelles sont anonymisées : ne demande ni nom, ni prénom, ni établissement, ni classe précise.
-- Utilise les objectifs/adaptations pour proposer des aménagements concrets.
-- Utilise les informations de difficultés comme points de vigilance pédagogiques.
+- Lorsqu'un élève est fourni par le coffre, conserve uniquement son numéro/identifiant anonymisé dans la proposition.
+- Lorsqu'un élève à BEP dispose d'un objectif ou d'une adaptation chargée depuis le coffre, prends cette information en compte dans la séance concernée.
+- Pour chaque élève concerné, déduis des aménagements pédagogiques concrets à partir des informations réellement chargées.
+- Les conclusions issues des objectifs, adaptations et difficultés individuelles doivent apparaître à deux endroits : dans les champs "amenagement" des phases où elles sont utiles et dans le champ "vigilance" de la séance lorsqu'un point de vigilance doit être conservé sur l'ensemble de la séance.
+- Ne recopie pas mécaniquement les données individuelles : transforme-les en conséquences pédagogiques observables et opérationnelles.
+- Ajoute dans chaque séance un tableau/champ "objectifs_individuels" reliant les objectifs individuels aux élèves par leur numéro : {"numero":1,"objectif":"…"}. Ne crée pas de nom ou prénom.
+- Un objectif individuel doit reprendre ou décliner l'objectif de l'élève chargé depuis le coffre lorsqu'il existe ; il doit rester cohérent avec l'objectif de la séance.
+- Si aucune donnée individuelle n'est chargée, ne prétends pas connaître les besoins d'un élève réel. Tu peux seulement proposer des aménagements génériques pour des élèves à BEP, clairement présentés comme des propositions à valider par l'enseignant, et les faire apparaître dans "amenagement" et "vigilance".
 - Ne pose aucun diagnostic médical ou psychologique et ne déduis aucun trouble.
 - Ne transforme jamais une proposition en décision automatique : l'enseignant garde la validation finale.
 
