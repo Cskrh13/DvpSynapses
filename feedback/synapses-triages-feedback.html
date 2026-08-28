@@ -74,6 +74,13 @@
 <div class="layout">
   <h1>Synapses — Triage des retours de test</h1>
   <p class="subtitle">Consolidation des retours des deux équipes (CAPPEI/ASH · Professeurs des écoles) — v0.9.0-test</p>
+  <div class="card" style="background:var(--accent-bg);border-color:var(--accent);">
+    <p style="margin:0;font-size:12.5px;color:var(--accent);">
+      Les retours déposés ici sont <strong>partagés</strong> : toute personne qui ouvre cette page voit les mêmes données.
+      Aucun nom n'est demandé — seule l'équipe (CAPPEI/ASH ou PE) est enregistrée.
+      <span id="sync-status" class="muted"></span>
+    </p>
+  </div>
 
   <div class="card">
     <div class="section-title">Tableau de bord</div>
@@ -102,10 +109,6 @@
       <summary>+ Ajouter un retour</summary>
       <div style="margin-top:12px;">
         <div class="fields">
-          <div>
-            <label>Testeur / testeuse</label>
-            <input type="text" id="f-name" placeholder="Nom">
-          </div>
           <div>
             <label>Équipe</label>
             <select id="f-group">
@@ -176,7 +179,8 @@
             </select>
           </div>
         </div>
-        <button class="primary" onclick="addEntry()">Ajouter le retour</button>
+        <button class="primary" id="submit-btn" onclick="addEntry()">Déposer le retour</button>
+        <span id="submit-status" class="muted"></span>
       </div>
     </details>
   </div>
@@ -219,11 +223,8 @@
         </div>
       </div>
       <div class="row">
-        <button onclick="exportJSON()">Exporter JSON</button>
-        <label style="display:inline-block;">
-          <button onclick="document.getElementById('importFile').click()">Importer JSON</button>
-          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
-        </label>
+        <button onclick="loadAll()">Actualiser</button>
+        <button onclick="exportJSON()">Exporter JSON (sauvegarde)</button>
         <button onclick="exportCSV()">Exporter CSV</button>
       </div>
     </div>
@@ -238,31 +239,54 @@
 const PAGES = ["Portail / Référentiel","Cartographie des compétences","Séquences & séances","Planning — Gestion","Planning — Affichage","Générateur de séquences","Coffre confidentiel","Autre / transverse"];
 let sortKey = "dateSubmitted";
 let sortDir = -1;
-
-let data = [
-  {id:1, dateSubmitted:"2026-08-27", testerName:"", testerGroup:"CAPPEI", page:"Coffre confidentiel", category:"Suggestion",
-   desc:"Exemple : vérifier que le mot de passe du coffre est bien redemandé après une période d'inactivité.",
-   expected:"", browser:"", priority:"Haute", status:"Nouveau", assignee:"", notes:""}
-];
-let nextId = 2;
+let data = [];
+let storageOK = true;
 
 const filterPageSel = document.getElementById("filter-page");
 PAGES.forEach(p=>{
   const o = document.createElement("option"); o.textContent = p; filterPageSel.appendChild(o);
 });
 
-function uid(){ return nextId++; }
+function keyFor(id){ return "feedback:"+id; }
 
-function addEntry(){
+async function loadAll(){
+  const status = document.getElementById("sync-status");
+  status.textContent = " Chargement des retours partagés…";
+  try{
+    const list = await window.storage.list("feedback:", true);
+    const keys = (list && list.keys) ? list.keys : [];
+    const entries = [];
+    for(const k of keys){
+      try{
+        const res = await window.storage.get(k, true);
+        if(res && res.value){
+          entries.push(JSON.parse(res.value));
+        }
+      }catch(e){
+        console.error("Lecture impossible pour", k, e);
+      }
+    }
+    data = entries;
+    storageOK = true;
+    status.textContent = " Synchronisé — "+data.length+" retour(s) partagé(s).";
+  }catch(e){
+    storageOK = false;
+    status.textContent = " Stockage partagé indisponible — utilisez export/import JSON en secours.";
+    console.error(e);
+  }
+  render();
+}
+
+async function addEntry(){
   const desc = document.getElementById("f-desc").value.trim();
   if(!desc){
     alert("Merci de décrire au moins brièvement le retour avant de l'ajouter.");
     return;
   }
+  const id = Date.now()+"-"+Math.random().toString(36).slice(2,8);
   const entry = {
-    id: uid(),
+    id: id,
     dateSubmitted: new Date().toISOString().slice(0,10),
-    testerName: document.getElementById("f-name").value.trim(),
     testerGroup: document.getElementById("f-group").value,
     page: document.getElementById("f-page").value,
     category: document.getElementById("f-category").value,
@@ -274,20 +298,51 @@ function addEntry(){
     assignee: document.getElementById("f-assignee").value.trim(),
     notes: ""
   };
-  data.unshift(entry);
-  ["f-name","f-desc","f-expected","f-browser","f-assignee"].forEach(id=>document.getElementById(id).value="");
-  render();
+  const btn = document.getElementById("submit-btn");
+  const statusEl = document.getElementById("submit-status");
+  btn.disabled = true;
+  statusEl.textContent = "Envoi en cours…";
+  try{
+    const res = await window.storage.set(keyFor(id), JSON.stringify(entry), true);
+    if(!res) throw new Error("échec de l'enregistrement");
+    data.unshift(entry);
+    ["f-desc","f-expected","f-browser","f-assignee"].forEach(fid=>document.getElementById(fid).value="");
+    statusEl.textContent = "Retour déposé. Merci !";
+    render();
+  }catch(e){
+    statusEl.textContent = "Échec de l'envoi — réessayez, ou notez ce retour ailleurs.";
+    console.error(e);
+  }finally{
+    btn.disabled = false;
+    setTimeout(()=>{ statusEl.textContent=""; }, 4000);
+  }
 }
 
-function updateField(id, field, value){
+async function updateField(id, field, value){
   const e = data.find(d=>d.id===id);
-  if(e){ e[field]=value; render(); }
+  if(!e) return;
+  const previous = e[field];
+  e[field] = value;
+  render();
+  try{
+    const res = await window.storage.set(keyFor(id), JSON.stringify(e), true);
+    if(!res) throw new Error("échec");
+  }catch(err){
+    e[field] = previous;
+    alert("La mise à jour n'a pas pu être enregistrée. Réessayez.");
+    render();
+  }
 }
 
-function deleteEntry(id){
-  if(!confirm("Supprimer ce retour ?")) return;
-  data = data.filter(d=>d.id!==id);
-  render();
+async function deleteEntry(id){
+  if(!confirm("Supprimer ce retour pour tout le monde ?")) return;
+  try{
+    await window.storage.delete(keyFor(id), true);
+    data = data.filter(d=>d.id!==id);
+    render();
+  }catch(e){
+    alert("La suppression a échoué. Réessayez.");
+  }
 }
 
 function sortBy(key){
@@ -411,7 +466,7 @@ function renderTable(rows){
   rows.forEach(d=>{
     html += `<tr>
       <td>${escapeHtml(d.dateSubmitted)}</td>
-      <td><span class="group-tag">${d.testerGroup==="CAPPEI"?"CAPPEI/ASH":"PE"}</span>${d.testerName?"<br><span class='muted'>"+escapeHtml(d.testerName)+"</span>":""}</td>
+      <td><span class="group-tag">${d.testerGroup==="CAPPEI"?"CAPPEI/ASH":"PE"}</span></td>
       <td>${escapeHtml(d.page)}</td>
       <td><span class="tag ${tagClass('tag',d.category)}">${escapeHtml(d.category)}</span></td>
       <td class="desc-cell">${escapeHtml(d.desc)}${d.expected?`<div class="exp">${escapeHtml(d.expected)}</div>`:""}${d.browser?`<div class="exp">${escapeHtml(d.browser)}</div>`:""}</td>
@@ -439,28 +494,9 @@ function exportJSON(){
   URL.revokeObjectURL(url);
 }
 
-function importJSON(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    try{
-      const imported = JSON.parse(e.target.result);
-      if(!Array.isArray(imported)) throw new Error("format invalide");
-      data = imported;
-      nextId = Math.max(0, ...data.map(d=>d.id||0)) + 1;
-      render();
-    }catch(err){
-      alert("Le fichier importé n'est pas valide : "+err.message);
-    }
-  };
-  reader.readAsText(file);
-  event.target.value = "";
-}
-
 function exportCSV(){
-  const headers = ["date","équipe","testeur","page","catégorie","description","attendu_vs_réel","navigateur","priorité","statut","assigné_à"];
-  const rows = data.map(d=>[d.dateSubmitted,d.testerGroup,d.testerName,d.page,d.category,d.desc,d.expected,d.browser,d.priority,d.status,d.assignee]);
+  const headers = ["date","équipe","page","catégorie","description","attendu_vs_réel","navigateur","priorité","statut","assigné_à"];
+  const rows = data.map(d=>[d.dateSubmitted,d.testerGroup,d.page,d.category,d.desc,d.expected,d.browser,d.priority,d.status,d.assignee]);
   const csv = [headers, ...rows].map(r=>r.map(c=>'"'+String(c||"").replace(/"/g,'""')+'"').join(",")).join("\n");
   const blob = new Blob(["\ufeff"+csv], {type:"text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
@@ -470,7 +506,7 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-render();
+loadAll();
 </script>
 </body>
 </html>
