@@ -254,10 +254,12 @@
 
     /**
      * Réduit l'élève à un instantané STRICTEMENT anonyme : aucun nom, aucune
-     * identité, aucun identifiantSynapses. Seules les données d'analyse
-     * (domaine, situations, difficultés, besoins, adaptations, objectifs
-     * actifs) sont conservées, sans dates précises (juste l'ordre relatif).
-     * C'est cet objet, et lui seul, qui doit être transmis à un prompt IA.
+     * identité, aucun identifiantSynapses, et JAMAIS l'établissement/la classe
+     * (coffre.donnees.etablissement) — cette fonction ne les lit d'ailleurs
+     * jamais, par construction : elle ne reçoit que l'objet "eleve", pas le
+     * coffre. Seules les données d'analyse (domaine, situations, difficultés,
+     * besoins, adaptations, objectifs actifs) sont conservées, sans dates
+     * précises (juste l'ordre relatif).
      */
     anonymiser(eleve) {
       const observations = (eleve.observations || []).map((o) => ({
@@ -290,8 +292,15 @@
      * modèle exact de l'atelier IA de generateur-sequences-projet.html :
      * aucune clé API, aucun appel réseau — juste un texte que l'enseignant
      * transmet lui-même, hors de toute donnée nominative.
+     *
+     * @param {object} eleve
+     * @param {string} [dispositif] - type de dispositif d'école inclusive
+     *   (ex: "ULIS école"), donnée générique utile au contexte pédagogique.
+     *   IMPORTANT : n'accepte QUE ce libellé de dispositif, jamais l'objet
+     *   coffre ni son champ "etablissement" — voir le garde-fou dans
+     *   GrilleAnalyseUI._sectionAtelierIA(), qui ne lit jamais ce champ.
      */
-    genererPromptIA(eleve) {
+    genererPromptIA(eleve, dispositif) {
       const donnees = this.anonymiser(eleve);
       const schema = `{
   "hypothesesBesoins": [
@@ -308,10 +317,15 @@
   ]
 }`;
 
-      return `Tu es un conseiller pédagogique spécialisé dans l'école inclusive (dispositif ULIS). Tu analyses des observations totalement anonymisées d'un élève (aucun nom, aucune identité ne t'est communiqué et tu ne dois en demander aucune).
+      const dispositifTxt = (dispositif || '').trim();
+      const intro = dispositifTxt
+        ? `Tu es un conseiller pédagogique spécialisé dans l'école inclusive, dans le cadre d'un dispositif de type « ${dispositifTxt} ». Tu analyses des observations totalement anonymisées d'un élève (aucun nom, aucune identité, aucun établissement ni classe ne te sont communiqués et tu ne dois en demander aucun).`
+        : `Tu es un conseiller pédagogique spécialisé dans l'école inclusive. Tu analyses des observations totalement anonymisées d'un élève (aucun nom, aucune identité, aucun établissement ni classe ne te sont communiqués et tu ne dois en demander aucun).`;
+
+      return `${intro}
 
 RÈGLES :
-- Ne cherche jamais à identifier l'élève ni à demander des informations personnelles.
+- Ne cherche jamais à identifier l'élève, son établissement ou sa classe, ni à demander des informations personnelles.
 - Respecte exactement la structure JSON demandée, sans texte avant ou après.
 - Appuie-toi sur les observations et les besoins/adaptations déjà compilés pour proposer, en complément (pas en remplacement) : des hypothèses de besoins supplémentaires, des adaptations, des objectifs formulés de façon observable, et un parcours de compétences ordonné.
 - Toute proposition reste une suggestion : ne formule rien comme une certitude ou un diagnostic.
@@ -428,7 +442,13 @@ ${schema}`;
     }
 
     _sectionAtelierIA(eleve, containerParent) {
-      const prompt = this.moteur.genererPromptIA(eleve);
+      // GARDE-FOU : on ne lit ici QUE coffre.donnees.dispositif (donnée
+      // générique de contexte pédagogique). coffre.donnees.etablissement
+      // n'est JAMAIS lu dans cette section, ni transmis à genererPromptIA —
+      // pour des raisons de sécurité/confidentialité, il ne doit jamais
+      // atteindre un prompt IA.
+      const dispositif = this.coffre.donnees?.dispositif || '';
+      const prompt = this.moteur.genererPromptIA(eleve, dispositif);
       const promptBox = el('div', { class: 'prompt-box' }, [prompt]);
       const reponseBox = el('textarea', { rows: 10, placeholder: 'Collez ici le JSON renvoyé par l\'IA…', class: 'ga-textarea' });
       const resultats = el('div', { class: 'ga-resultats-ia' });
@@ -448,7 +468,7 @@ ${schema}`;
       return el('div', { class: 'ga-section ga-atelier-ia' }, [
         el('h3', {}, ['Mobiliser une IA (anonymisée)']),
         el('p', { class: 'si-hint' }, [
-          'Aucune clé API, aucun envoi automatique. Copiez le prompt ci-dessous (il ne contient ni nom ni identifiant élève), ' +
+          'Aucune clé API, aucun envoi automatique. Copiez le prompt ci-dessous (il précise le type de dispositif mais ne contient ni nom, ni identifiant élève, ni établissement, ni classe), ' +
           'collez-le dans le chat IA gratuit de votre choix, puis collez sa réponse pour l\'examiner — rien n\'est ajouté au coffre sans validation.'
         ]),
         promptBox,
