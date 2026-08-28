@@ -547,6 +547,9 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
     letter-spacing: .04em;
 }
 </style>
+<!-- Extraction de texte côté navigateur pour le fichier joint à l'atelier IA (PDF / Word) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
 
@@ -565,10 +568,8 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
         <button class="btn small" id="btn-coffre-toggle">Ouvrir le coffre</button>
       </div>
       <button class="btn" id="btn-view-progression">📈 Progression</button>
-      <a class="btn" href="../cartographie-competences.html" target="_blank" rel="noopener">🗺 Cartographie des compétences</a>
       <a class="btn" href="generateur-sequences-projet.html">🧩 Générateur de séquences</a>
       <a class="btn" href="planning-affichage.html">🗓 Planning</a>
-      <button class="btn" id="btn-export-competences">Exporter le référentiel</button>
       <button class="btn" id="btn-export-all">Exporter tout (JSON)</button>
       <button class="btn" id="btn-import-all">Importer un JSON</button>
       <input type="file" id="file-import" accept="application/json">
@@ -718,6 +719,12 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
     <div class="ai-panel" id="prog-ai-panel" style="display:none;">
       <h4>✨ Atelier IA gratuit — proposer la progression</h4>
       <div class="notice">Aucune clé API n'est nécessaire. L'atelier prépare un prompt complet à copier dans un chat gratuit (Claude, ChatGPT…). Collez ensuite la réponse ci-dessous pour construire la progression. L'IA propose ; vous validez.</div>
+      <div class="field">
+        <label for="prog-fichier">Joindre un document (PDF ou Word), facultatif</label>
+        <button type="button" class="btn on-panel small" id="prog-fichier-browse">📎 Charger un fichier depuis mon ordinateur…</button>
+        <input type="file" id="prog-fichier" accept=".pdf,.doc,.docx" style="display:none;">
+        <div id="prog-fichier-info" style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;">Aucun fichier chargé. Le texte extrait sera ajouté au prompt ci-dessous, pour que l'IA s'appuie sur ce document (programme, référentiel, extrait de manuel…).</div>
+      </div>
       <div class="prompt-box" id="prog-prompt"></div>
       <div class="ai-toolbar">
         <button class="btn ai" id="btn-prog-copy">📋 Copier le prompt</button>
@@ -1445,6 +1452,9 @@ function progressionSchemaPrompt(){
 
 function buildProgressionPrompt(niveau, domaineId){
   const domaineNom = getProgDomaineNom(domaineId);
+  const document_extrait = progFichierTexte
+    ? `\n\nDOCUMENT JOINT PAR L'ENSEIGNANT (« ${progFichierNom} », extrait, à utiliser comme source prioritaire pour construire la progression — programme officiel, manuel, référentiel…) :\n"""\n${progFichierTexte}\n"""`
+    : "";
   return `Tu es un conseiller pédagogique expert des programmes de l'école primaire française.
 
 TÂCHE :
@@ -1458,12 +1468,12 @@ RÈGLES :
 - Chaque étape doit être concrète et observable, pas un intitulé générique.
 - Précise pour chaque étape le prérequis réel (ou « aucun » pour la première étape).
 - Les indicateurs de maîtrise doivent être formulés de façon observable par l'enseignant.
-- Reste fidèle à un usage réaliste en classe de ${niveau}, sans complexité inutile.
+- Reste fidèle à un usage réaliste en classe de ${niveau}, sans complexité inutile.${progFichierTexte ? "\n- Appuie-toi en priorité sur le document joint ci-dessous : reste fidèle à son contenu, à son vocabulaire et à sa progression si elle y est déjà esquissée." : ""}
 
 CONTEXTE :
 Niveau : ${niveau}
 Domaine : ${domaineNom}
-Cycle : Cycle 2 (CP, CE1, CE2) ou Cycle 3 (CM1, CM2, 6e) selon le niveau indiqué.
+Cycle : Cycle 2 (CP, CE1, CE2) ou Cycle 3 (CM1, CM2, 6e) selon le niveau indiqué.${document_extrait}
 
 FORMAT JSON EXACT :
 ${progressionSchemaPrompt()}`;
@@ -1473,6 +1483,78 @@ function updateProgPrompt(){
   const niveau = document.getElementById('prog-niveau').value;
   const domaineId = document.getElementById('prog-domaine').value;
   document.getElementById('prog-prompt').textContent = buildProgressionPrompt(niveau, domaineId);
+}
+
+/* ---- Fichier joint (PDF / Word) : extraction de texte côté navigateur,
+   ajouté au contexte du prompt envoyé à l'atelier IA. ---- */
+let progFichierTexte = "";
+let progFichierNom = "";
+const PROG_FICHIER_MAX_CHARS = 12000;
+
+document.getElementById('prog-fichier-browse').addEventListener('click', ()=> document.getElementById('prog-fichier').click());
+document.getElementById('prog-fichier').addEventListener('change', async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const infoEl = document.getElementById('prog-fichier-info');
+  infoEl.textContent = "Lecture de « " + file.name + " »…";
+  try{
+    let texte = "";
+    const nomMin = file.name.toLowerCase();
+    if(nomMin.endsWith(".pdf")){
+      texte = await extraireTextePDF(file);
+    } else if(nomMin.endsWith(".docx")){
+      texte = await extraireTexteDocx(file);
+    } else if(nomMin.endsWith(".doc")){
+      infoEl.textContent = "Le format .doc (ancien Word binaire) ne peut pas être lu directement dans le navigateur. Enregistrez le fichier au format .docx ou .pdf, puis rechargez-le.";
+      document.getElementById('prog-fichier').value = "";
+      return;
+    } else {
+      infoEl.textContent = "Format non reconnu : chargez un fichier .pdf, .doc ou .docx.";
+      document.getElementById('prog-fichier').value = "";
+      return;
+    }
+    texte = texte.trim();
+    if(!texte){
+      infoEl.textContent = "Aucun texte n'a pu être extrait de ce fichier (document scanné en image, par exemple). Vous pouvez tout de même continuer sans lui.";
+      progFichierTexte = ""; progFichierNom = "";
+      return;
+    }
+    const tronque = texte.length > PROG_FICHIER_MAX_CHARS;
+    progFichierTexte = texte.slice(0, PROG_FICHIER_MAX_CHARS);
+    progFichierNom = file.name;
+    infoEl.innerHTML = `📎 <strong>${escapeHTML(file.name)}</strong> chargé — ${texte.length.toLocaleString('fr-FR')} caractères extraits${tronque ? " (tronqué à "+PROG_FICHIER_MAX_CHARS.toLocaleString('fr-FR')+" caractères pour le prompt)" : ""}. <button type="button" id="prog-fichier-retirer" style="background:none;border:none;color:var(--accent-sky);font-weight:600;cursor:pointer;padding:0;margin-left:6px;">Retirer</button>`;
+    document.getElementById('prog-fichier-retirer').addEventListener('click', ()=>{
+      progFichierTexte = ""; progFichierNom = "";
+      document.getElementById('prog-fichier').value = "";
+      infoEl.textContent = "Aucun fichier chargé. Le texte extrait sera ajouté au prompt ci-dessous, pour que l'IA s'appuie sur ce document (programme, référentiel, extrait de manuel…).";
+      updateProgPrompt();
+    });
+    updateProgPrompt();
+  }catch(err){
+    infoEl.textContent = "Erreur lors de la lecture du fichier : " + err.message;
+  }
+});
+
+async function extraireTextePDF(file){
+  if(!window.pdfjsLib) throw new Error("La bibliothèque de lecture PDF n'a pas pu se charger (connexion internet requise).");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+  let texte = "";
+  const nbPages = Math.min(pdf.numPages, 40);
+  for(let i=1; i<=nbPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    texte += content.items.map(it=>it.str).join(" ") + "\n\n";
+    if(texte.length > PROG_FICHIER_MAX_CHARS * 2) break;
+  }
+  return texte;
+}
+async function extraireTexteDocx(file){
+  if(!window.mammoth) throw new Error("La bibliothèque de lecture Word n'a pas pu se charger (connexion internet requise).");
+  const buffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({arrayBuffer: buffer});
+  return result.value || "";
 }
 
 document.getElementById('btn-prog-generer').addEventListener('click', ()=>{
@@ -2450,14 +2532,6 @@ function downloadJSON(pathSansExtension, data){
   a.click();
   URL.revokeObjectURL(a.href);
 }
-document.getElementById('btn-export-competences').addEventListener('click', ()=>{
-  // Une compétence = un champ d'apprentissage (lecture, ecriture, oral, vocabulaire, orthographe…)
-  // au sein d'une matière (discipline). On range chaque fiche dans data/competences/{matiere}/{champ}.json
-  COMPETENCES.forEach(c=>{
-    downloadJSON(`data/competences/${slug(c.discipline)}/${c.id}`, c);
-  });
-  toast("Référentiel de compétences exporté (" + COMPETENCES.length + " fichiers)");
-});
 document.getElementById('btn-export-all').addEventListener('click', ()=>{
   downloadJSON("programmation-complete", { sequences: state.sequences, seances: state.seances });
 });
