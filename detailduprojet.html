@@ -18,12 +18,15 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
 @media(max-width:760px){.grid{grid-template-columns:1fr}.hero{padding-top:52px}.section,.synapses-diagrams{padding:48px 20px}.section h2,.synapses-diagrams h2{font-size:29px}}
 
 /* ===== Qui porte le projet ===== */
+.project-grid{display:block;width:100%}
 .project-carrier{
   display:grid;
-  grid-template-columns:180px 1fr;
+  grid-template-columns:180px minmax(0,1fr);
   gap:28px;
   align-items:start;
-  margin-top:22px;
+  width:100%;
+  max-width:100%;
+  margin:22px 0 0;
 }
 .project-portrait{
   width:100%;
@@ -72,7 +75,7 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
 </nav></div></header>
 <main id="main">
 <section class="hero"><div class="hero-inner"><p class="eyebrow">Synapses · Grand Planificateur pédagogique</p><h1>Détails du projet</h1><p class="lead">Synapses est un projet personnel de conception d'outils pédagogiques visant à rendre les programmes plus lisibles, à relier les apprentissages entre eux et à explorer, avec prudence, la place que l'intelligence artificielle peut prendre dans l'Éducation nationale.</p><div class="hero-meta"><span class="pill">Projet non institutionnel</span><span class="pill">Programmes · compétences · progression</span><span class="pill">IA comme outil, pas comme pilote</span></div></div></section>
-<section class="section"><div class="section-head"><p class="eyebrow">Qui porte le projet ?</p><h2>À l'origine de Synapses</h2></div><div class="grid"><article class="card accent">
+<section class="section"><div class="section-head"><p class="eyebrow">Qui porte le projet ?</p><h2>À l'origine de Synapses</h2></div><div class="project-grid"><article class="card accent">
   <div class="project-carrier">
     <img class="project-portrait" src="Images/Portrait.jpg" loading="lazy" decoding="async" alt="Portrait de Vincent, porteur du projet Synapses">
     <div>
