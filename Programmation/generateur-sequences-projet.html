@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!-- SYNAPSES-AUTHOR: Cskrh13 / Vincent | © 2026 -->
+<meta name="author" content="Cskrh13 / Vincent">
+<meta name="copyright" content="© 2026 Cskrh13 / Vincent — Synapses">
+<meta name="application-name" content="Synapses">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générateur de séquences — création guidée</title>
+<style>
+:root{
+  --navy:#182543;--navy2:#26385e;--blue:#4a6fa8;--bg:#eef0ee;--card:#fff;
+  --line:#dfe3e8;--ink:#182543;--soft:#5b6472;--muted:#7a8290;
+  --accent:#c9622f;--accentSoft:#f7e6da;--ai:#6a4fc9;--aiSoft:#eee9fb;
+  --ok:#397957;--danger:#b64d42;--radius:14px;
+  --shadow:0 3px 14px rgba(24,37,67,.07);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.topbar{background:var(--navy);color:#fff;padding:18px 24px;position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,0,0,.12)}
+.topbar-inner{max-width:1250px;margin:auto;display:flex;gap:18px;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-badge{width:42px;height:42px;border-radius:11px;background:var(--blue);display:grid;place-items:center;font-weight:800}
+.brand h1{font-size:1.05rem;margin:0}.brand small{color:#b9c4d8}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.top-actions button{border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;padding:8px 12px;border-radius:999px}
+.top-actions button:hover{background:rgba(255,255,255,.1)}
+main{max-width:1250px;margin:auto;padding:26px 20px 50px}
+.hero h2{margin:0;font-family:Georgia,serif;font-size:2rem}.hero p{max-width:800px;color:var(--soft);margin-top:7px}
+.stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:22px 0}
+.step{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;text-align:left;color:var(--soft);font-weight:700}
+.step.active{border-color:var(--navy);background:var(--navy);color:#fff}.step.done{border-color:#9fb5a8;background:#f4faf6;color:var(--ok)}
+.step span{display:block;font-size:.72rem;font-weight:600;opacity:.8}
+.workspace{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.card h3{font-family:Georgia,serif;margin:0 0 10px;font-size:1.18rem}.card h4{margin:15px 0 8px}
+label{display:block;font-size:.78rem;font-weight:800;color:var(--soft);margin:11px 0 5px}
+input,select,textarea{width:100%;border:1px solid var(--line);background:#fbfcfc;border-radius:9px;padding:9px 11px;color:var(--ink)}
+textarea{resize:vertical;min-height:90px}input:focus,select:focus,textarea:focus{outline:2px solid rgba(74,111,168,.18);border-color:var(--blue)}
+.btn{border:0;border-radius:999px;padding:9px 14px;font-weight:800;background:var(--navy);color:#fff}
+.btn:hover{background:var(--navy2)}.btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.btn.ai{background:var(--ai)}.btn.ai:hover{background:#5940b3}.btn.danger{background:#fff;color:var(--danger);border:1px solid #d7a39d}
+.btn.small{padding:6px 10px;font-size:.8rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grow{flex:1}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.help{font-size:.8rem;color:var(--muted)}.status{font-size:.82rem;padding:8px 10px;border-radius:9px;background:#f5f7f8;color:var(--soft)}
+.status.ok{background:#edf8f1;color:var(--ok)}.status.ai{background:var(--aiSoft);color:#4b378d}
+.choice-list{max-height:390px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:8px}
+.choice{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}.choice:last-child{border-bottom:0}.choice:hover{background:#f5f7f8}.choice.selected{background:#edf2fa;border-left:4px solid var(--blue);padding-left:8px}
+.choice strong{font-size:.82rem}.choice div{font-size:.82rem}.tag{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef1f4;color:var(--soft);font-size:.68rem;font-weight:800;margin:2px}.tag.ai{background:var(--aiSoft);color:var(--ai)}.tag.accent{background:var(--accentSoft);color:var(--accent)}
+.empty{padding:25px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+.sequence-head{border-left:5px solid var(--accent);padding-left:14px}
+.sequence-title{font-family:Georgia,serif;font-size:1.55rem;margin:0}
+.seq-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.seq-grid .full{grid-column:1/-1}
+.session-list{display:flex;flex-direction:column;gap:10px}
+.session{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.session-head{display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center;padding:12px 14px;background:#f7f8f8}
+.session-num{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:900}
+.session-main{min-width:0}.session-main strong{display:block}.session-main small{color:var(--muted)}
+.session-body{padding:14px;display:none}.session.open .session-body{display:block}
+.session-actions{display:flex;gap:5px}.icon-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 8px;color:var(--soft)}
+.session-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.session-fields .full{grid-column:1/-1}
+.phase{border:1px solid var(--line);border-radius:10px;margin-top:10px;overflow:hidden}
+.phase-head{display:flex;justify-content:space-between;align-items:center;background:#f8f9f9;padding:8px 10px;font-weight:800}
+.phase-grid{display:grid;grid-template-columns:100px 1.1fr 1.7fr 1.2fr 1.5fr 1.3fr;gap:0;border-top:1px solid var(--line)}
+.phase-grid>div{padding:8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:.78rem}
+.phase-grid>div:nth-child(6n){border-right:0}.phase-grid input,.phase-grid textarea{font-size:.76rem;padding:6px;min-height:50px}
+.phase-grid.header{background:#f2f4f5;font-weight:800;color:var(--soft)}
+.objectives{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.student-row{display:grid;grid-template-columns:1fr 2fr 2fr auto;gap:8px;align-items:start;margin-bottom:7px}
+.meta-box{background:#f8f9f9;border-radius:10px;padding:10px}.meta-box strong{display:block;font-size:.75rem;color:var(--soft);text-transform:uppercase}
+.toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.preview{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px}
+.preview h3,.preview h4{font-family:Georgia,serif}
+details summary{cursor:pointer;font-weight:800}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:999px;padding:8px 12px;font-weight:800}.tabs button.active{background:var(--navy);color:#fff}
+.ai-panel{border-left:5px solid var(--ai)}.prompt-box{font-family:Consolas,monospace;font-size:.76rem;background:#151922;color:#eef2f8;border-radius:10px;padding:12px;white-space:pre-wrap;max-height:430px;overflow:auto}
+.proposition{border:1px solid #cfc4ef;background:#faf8ff;border-radius:10px;padding:12px;margin-top:9px}
+.notice{padding:11px 13px;border-radius:10px;background:#fff8e9;border:1px solid #edd7a1;color:#705a25;font-size:.82rem}
+footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
+.coffre-widget{display:flex;align-items:center;gap:8px;padding:4px 5px 4px 11px;border:1px solid rgba(255,255,255,.3);border-radius:999px}
+.badge-coffre{font-size:.72rem;color:#fff;white-space:nowrap}
+.badge-coffre.ouvert{color:#bfe3da}
+.private-box{border:1px solid #d8e5df;background:#f5faf7;border-left:4px solid var(--ok);border-radius:11px;padding:13px;margin:12px 0}
+.private-box h4{margin:0 0 5px;color:var(--ok)}
+.private-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.private-row{display:grid;grid-template-columns:1fr 1.5fr 1.5fr auto;gap:8px;align-items:start;margin:8px 0}
+.private-row textarea,.private-row input{min-height:44px}
+.private-note{font-size:.76rem;color:var(--muted);margin-top:5px}
+#print-area{display:none}
+@media print{
+  body *{visibility:hidden}
+  #print-area,#print-area *{visibility:visible}
+  #print-area{display:block;position:absolute;left:0;top:0;width:100%;background:#fff}
+  .topbar,footer{display:none!important}
+  @page{size:A4;margin:14mm 13mm}
+  .pdf-doc{font-family:Arial,sans-serif;color:#182543}
+  .pdf-doc h1{font-family:Georgia,serif;font-size:22px;border-left:5px solid #c9622f;padding-left:10px}
+  .pdf-doc h2{font-family:Georgia,serif;font-size:17px;color:#182543;margin-top:20px}
+  .pdf-doc h3{font-size:14px;color:#c9622f;border-bottom:1px solid #dfe3e8;padding-bottom:4px}
+  .pdf-meta{background:#f5f7f8;border:1px solid #dfe3e8;border-radius:8px;padding:8px 10px;font-size:11px}
+  .pdf-session{border:1px solid #dfe3e8;border-radius:9px;padding:11px;margin:12px 0;break-inside:avoid}
+  .pdf-session table{width:100%;border-collapse:collapse;font-size:9px}
+  .pdf-session th,.pdf-session td{border:1px solid #dfe3e8;padding:5px;vertical-align:top}
+  .pdf-session th{background:#f2f4f5;text-align:left}
+  .pdf-private{background:#f5faf7;border-left:4px solid #397957;padding:8px;margin:8px 0}
+}
+@media(max-width:900px){.workspace{grid-template-columns:1fr}.stepper{grid-template-columns:1fr 1fr}.phase-grid{grid-template-columns:1fr}.phase-grid.header{display:none}.phase-grid>div{border-right:0}.two,.seq-grid,.objectives,.session-fields{grid-template-columns:1fr}.student-row{grid-template-columns:1fr}.topbar{position:static}}
+
+.synapses-footer {
+    margin-top: 40px;
+    padding: 18px 24px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+}
+.synapses-footer div:first-child {
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><div class="brand-badge">RÉ</div><div><h1>Créateur de séquences</h1><small>Mode guidé · séquences et séances détaillées</small></div></div>
+    <div class="top-actions">
+      <div class="coffre-widget">
+        <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
+        <button type="button" onclick="App.toggleCoffre()">Ouvrir le coffre</button>
+      </div>
+      <button id="ref-status">Chargement du référentiel…</button>
+      <button onclick="App.exporterPDF('sequence')">PDF</button>
+      <button onclick="App.exporter()">Exporter</button>
+      <button onclick="document.getElementById('import-file').click()">Importer</button>
+      <input id="import-file" type="file" accept="application/json" hidden onchange="App.importer(event)">
+    </div>
+  </div>
+</header>
+
+<div class="modal-overlay" id="modal-coffre" style="display:none;position:fixed;inset:0;background:rgba(24,37,67,.5);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px">
+  <div class="card" style="max-width:480px;width:100%;margin:0;box-shadow:0 25px 70px rgba(0,0,0,.25)">
+    <h3>Ouvrir le coffre élèves</h3>
+    <label>Fichier .synapses</label>
+    <input type="file" id="coffre-file" accept=".synapses">
+    <label>Mot de passe</label>
+    <input type="password" id="coffre-password" placeholder="Mot de passe du coffre">
+    <p class="help">Le fichier est lu localement par votre navigateur et n'est pas envoyé au site.</p>
+    <div class="toolbar">
+      <button class="btn secondary" type="button" onclick="App.closeCoffre()">Annuler</button>
+      <button class="btn" type="button" onclick="App.openCoffre()">Ouvrir</button>
+    </div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+
+<main>
+  <section class="hero">
+    <h2>Construire une séquence sans se perdre</h2>
+    <p>Le créateur suit maintenant la logique des documents de référence : <strong>cadrage de la séquence → objectifs → progression → séances détaillées → validation</strong>. Chaque séance possède son déroulé, son analyse de tâche, ses aménagements et la posture de l’enseignant.</p>
+  </section>
+
+  <div class="stepper" id="stepper">
+    <button class="step active" data-step="1" onclick="App.go(1)">1 · Cadrer<span>niveau, domaine, compétence</span></button>
+    <button class="step" data-step="2" onclick="App.go(2)">2 · Structurer<span>objectifs et élèves</span></button>
+    <button class="step" data-step="3" onclick="App.go(3)">3 · Organiser<span>progression des séances</span></button>
+    <button class="step" data-step="4" onclick="App.go(4)">4 · Détailler<span>déroulé de chaque séance</span></button>
+    <button class="step" data-step="5" onclick="App.go(5)">5 · Finaliser<span>aperçu, JSON, IA gratuite</span></button>
+  </div>
+
+  <div class="workspace">
+    <aside>
+      <div class="card">
+        <h3>Votre séquence</h3>
+        <div id="selection-status" class="status">Commencez par sélectionner une compétence.</div>
+        <div id="selection-card" style="display:none;margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>Raccourcis</h3>
+        <div class="row">
+          <button class="btn secondary small" onclick="App.go(1)">Cadrage</button>
+          <button class="btn secondary small" onclick="App.go(3)">Séances</button>
+          <button class="btn ai small" onclick="App.go(5);App.openAtelier()">Atelier IA gratuit</button>
+        </div>
+        <p class="help">Vous pouvez revenir à une étape à tout moment. Les modifications restent dans cette page jusqu'à l'export.</p>
+      </div>
+    </aside>
+
+    <section id="content">
+      <!-- STEP 1 -->
+      <div class="step-panel" data-panel="1">
+        <div class="card">
+          <h3>1. Cadrer la séquence</h3>
+          <p class="help">Ne remplissez pas tout. Choisissez d’abord la compétence : le générateur prépare ensuite une structure que vous pourrez corriger.</p>
+          <div class="two">
+            <div><label>Niveau</label><select id="niveau" onchange="App.filterCompetences()"><option value="">Tous les niveaux</option></select></div>
+            <div><label>Domaine</label><select id="domaine" onchange="App.filterCompetences()"><option value="">Tous les domaines</option></select></div>
+          </div>
+          <label>Rechercher une compétence</label>
+          <input id="search" placeholder="Ex. comparer, lire, écrire, mesurer…" oninput="App.filterCompetences()">
+          <div id="competences" class="choice-list"></div>
+        </div>
+
+        <div class="card" id="seq-cadrage" style="display:none">
+          <div class="sequence-head">
+            <h3 class="sequence-title">Cadrage</h3>
+            <p class="help">Ces informations correspondent à la partie introductive de la séquence de référence.</p>
+          </div>
+          <div class="seq-grid">
+            <div class="full"><label>Titre de la séquence</label><input id="seq-titre" oninput="App.updateSequenceField('titre',this.value)"></div>
+            <div><label>Domaine du socle</label><textarea id="seq-domaine-socle" oninput="App.updateSequenceField('domaine_socle',this.value)"></textarea></div>
+            <div><label>Objectif cœur de cible</label><textarea id="seq-coeur" oninput="App.updateSequenceField('objectif_coeur_de_cible',this.value)"></textarea></div>
+            <div><label>Compétences travaillées</label><textarea id="seq-competences" placeholder="Une compétence par ligne" oninput="App.updateSequenceField('competences_travaillees',this.value)"></textarea></div>
+            <div><label>Références théoriques</label><textarea id="seq-references" oninput="App.updateSequenceField('references_theoriques',this.value)"></textarea></div>
+          </div>
+          <div class="toolbar"><button class="btn" onclick="App.generateSequence()">Préparer la progression</button><button class="btn ai" onclick="App.go(5);App.openAtelier()">✨ Faire proposer la séquence par l’IA gratuite</button></div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step-panel" data-panel="2" style="display:none">
+        <div class="card">
+          <h3>2. Objectifs et besoins des élèves</h3>
+          <p class="help">Cette étape reprend la logique de la séquence spécialisée : objectif commun puis objectifs individuels prioritaires avec critères de réussite.</p>
+          <label>Objectif commun</label><textarea id="objectif-commun" oninput="App.updateSequenceField('objectif_commun',this.value)"></textarea>
+          <h4>Objectifs individuels prioritaires</h4>
+          <div id="students"></div>
+          <button class="btn secondary small" onclick="App.addStudent()">+ Ajouter un élève</button>
+        </div>
+        <div class="card">
+          <h3>Réglages de la progression</h3>
+          <div class="three">
+            <div><label>Nombre de séances</label><select id="nb-seances" onchange="App.resizeSessions()"><option>5</option><option selected>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></div>
+            <div><label>Durée par défaut (min)</label><input id="duree-defaut" type="number" min="10" step="5" value="45" onchange="App.resizeSessions()"></div>
+            <div><label>Classe / groupe</label><input id="classe" placeholder="Ex. cycle 2 / CE1-CE2" oninput="App.updateSequenceField('classe',this.value)"></div>
+          </div>
+          <div class="toolbar"><button class="btn" onclick="App.go(3)">Construire la progression →</button></div>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step-panel" data-panel="3" style="display:none">
+        <div class="card">
+          <h3>3. Organiser les séances</h3>
+          <p class="help">Une progression lisible. Chaque séance peut ensuite être ouverte et détaillée. Les types proposés reprennent la progression du document : diagnostique, exploration, références, structuration, systématisation, approfondissement, évaluation.</p>
+          <div class="toolbar">
+            <span id="session-count" class="status"></span>
+            <button class="btn secondary small" onclick="App.addSession()">+ Ajouter une séance</button>
+            <button class="btn ai small" onclick="App.go(5);App.openAtelier('sequence')">✨ Générer une progression avec l’IA</button>
+          </div>
+          <div id="session-list" class="session-list"></div>
+        </div>
+      </div>
+
+      <!-- STEP 4 -->
+      <div class="step-panel" data-panel="4" style="display:none">
+        <div class="card">
+          <h3>4. Détailler les séances</h3>
+          <p class="help">Ouvrez une séance pour compléter son objectif, sa problématique, sa consigne, ses critères de réussite et son déroulé. Le tableau suit la structure du document de séance joint.</p>
+          <div id="detail-list"></div>
+        </div>
+      </div>
+
+      <!-- STEP 5 -->
+      <div class="step-panel" data-panel="5" style="display:none">
+        <div class="tabs">
+          <button id="tab-preview" class="active" onclick="App.tab('preview')">Aperçu</button>
+          <button id="tab-atelier" onclick="App.tab('atelier')">✨ Atelier IA gratuit</button>
+          <button id="tab-json" onclick="App.tab('json')">JSON</button>
+        </div>
+        <div id="view-preview">
+          <div class="card">
+            <h3>5. Finaliser</h3>
+            <div class="toolbar"><span class="status ok">Structure prête à relire</span><div class="row"><button class="btn secondary" onclick="App.go(4)">← Modifier les séances</button><button class="btn secondary" onclick="App.exporterPDF('sequence')">Télécharger le PDF</button><button class="btn" onclick="App.exporter()">Exporter le JSON</button></div></div>
+            <div id="preview" class="preview"></div>
+          </div>
+        </div>
+        <div id="view-atelier" style="display:none">
+          <div class="card ai-panel">
+            <h3>✨ Atelier IA gratuit</h3>
+            <div class="notice">Aucune clé API n’est nécessaire. L’atelier prépare un prompt complet à copier dans un chat gratuit. La réponse peut être recollée ici pour créer ou enrichir la séquence. L’IA propose ; vous validez.</div>
+            <label>Action demandée</label>
+            <select id="atelier-action" onchange="App.updatePrompt()">
+              <option value="sequence">Proposer toute la séquence</option>
+              <option value="seance">Proposer / améliorer une séance</option>
+              <option value="ameliorer">Améliorer la progression existante</option>
+            </select>
+            <div id="atelier-session-wrap" style="display:none"><label>Séance concernée</label><select id="atelier-session" onchange="App.updatePrompt()"></select></div>
+            <label>Prompt prêt à copier</label>
+            <div id="atelier-prompt" class="prompt-box"></div>
+            <div class="toolbar"><button class="btn ai" onclick="App.copyPrompt()">📋 Copier le prompt</button><span class="help">Puis collez-le dans votre chat gratuit préféré.</span></div>
+            <label>Réponse du modèle</label>
+            <textarea id="atelier-response" rows="12" placeholder="Collez ici le JSON retourné par l’IA…"></textarea>
+            <div class="toolbar"><button class="btn" onclick="App.importAI()">Analyser et intégrer la proposition</button></div>
+            <div id="atelier-result"></div>
+          </div>
+        </div>
+        <div id="view-json" style="display:none">
+          <div class="card"><h3>JSON de la séquence</h3><div id="json-view" class="prompt-box"></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+<footer>Créateur local · Les données du référentiel sont chargées depuis <code>data/competences.json</code> et <code>data/index.json</code>.</footer>
+
+<script src="../fata-morgana/synapses-crypto.js"></script>
+<script src="../fata-morgana/synapses-coffre.js"></script>
+<script>
+/* =========================================================
+   SYNAPSES — AUTHOR MARKER
+   Project: Grand Planificateur pédagogique
+   Author: Cskrh13 / Vincent
+   Copyright: © 2026
+   Version: 0.9.0-test
+   Build: 2026-08-27
+   ========================================================= */
+
+const SYNAPSES_BUILD = {
+    project: "Synapses",
+    author: "Cskrh13",
+    year: 2026,
+    version: "0.9.0-test",
+    build: "2026-08-27"
+};
+
+"use strict";
+
+let coffre=null;
+try{coffre=new SynapsesCoffre.Coffre()}catch(e){coffre=null}
+function coffreDisponible(){return !!coffre}
+function coffreOuvert(){return !!(coffre&&coffre.ouvert)}
+function eleveLabel(e){const id=e.identite||{};return (`${id.prenom||""} ${id.nom||""}`).trim()||e.identifiantSynapses}
+
+const App = (() => {
+  let refs = [], domaines = [], niveaux = [], selected = null, step = 1;
+  let sequence = null;
+
+  const TYPES = [
+    ["diagnostique","Diagnostique"],
+    ["exploration","Exploration"],
+    ["references","Références"],
+    ["structuration","Structuration"],
+    ["systematisation","Systématisation"],
+    ["approfondissement","Approfondissement"],
+    ["evaluation","Évaluation"]
+  ];
+
+  const DEFAULT_PHASES = ["Présentation","Réactivation / enrôlement","Activité","Restitution & métacognition","Institutionnalisation"];
+
+  function esc(v){ return String(v ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
+  function arr(v){ return Array.isArray(v)?v:(v?String(v).split(/\\n/).map(x=>x.trim()).filter(Boolean):[]); }
+  function uid(prefix="id"){ return prefix+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); }
+
+  function normaliserCompetence(c){
+    return {
+      id:c.id, intitule:c.intitule||c.nom||"", domaine:c.domaine||c.domaine_id||"",
+      domaine_id:c.domaine_id||c.domaine||"", niveau:c.niveau||"", cycle:c.cycle||"",
+      theme:c.theme||"", mots_cles:Array.isArray(c.mots_cles)?c.mots_cles:[],
+      prerequis:c.prerequis_competences||c.prerequis||[]
+    };
+  }
+
+  async function init(){
+    try{
+      const [a,b]=await Promise.all([fetch("data/competences.json"),fetch("data/index.json")]);
+      if(!a.ok||!b.ok) throw new Error("Impossible de charger data/competences.json ou data/index.json");
+      const cj=await a.json(), ij=await b.json();
+      refs=(cj.competences||[]).map(normaliserCompetence);
+      const dm=new Map();
+      (cj.domaines||[]).forEach(d=>dm.set(d.id,d.nom));
+      refs.forEach(c=>{if(c.domaine_id&&!dm.has(c.domaine_id))dm.set(c.domaine_id,c.domaine)});
+      domaines=[...dm].map(([id,nom])=>({id,nom})).sort((a,b)=>a.nom.localeCompare(b.nom,"fr"));
+      niveaux=(ij.meta&&ij.meta.niveaux_reconnus)||[...new Set(refs.map(c=>c.niveau).filter(Boolean))];
+      document.getElementById("ref-status").textContent=refs.length+" compétences";
+      fillFilters(); filterCompetences();
+    }catch(e){
+      document.getElementById("ref-status").textContent="Référentiel non chargé";
+      document.getElementById("competences").innerHTML='<div class="empty">Erreur : '+esc(e.message)+'<br>Vérifiez que ce fichier est bien placé dans le dossier <code>Programmation/</code>.</div>';
+    }
+  }
+
+  function fillFilters(){
+    const n=document.getElementById("niveau"), d=document.getElementById("domaine");
+    niveaux.forEach(x=>{const o=document.createElement("option");o.value=x;o.textContent=x;n.appendChild(o)});
+    domaines.forEach(x=>{const o=document.createElement("option");o.value=x.id;o.textContent=x.nom;d.appendChild(o)});
+  }
+
+  function filterCompetences(){
+    const n=document.getElementById("niveau").value, d=document.getElementById("domaine").value, q=document.getElementById("search").value.trim().toLowerCase();
+    let r=refs.filter(c=>(!n||c.niveau===n)&&(!d||c.domaine_id===d)&&(!q||[c.intitule,c.theme,c.domaine,...c.mots_cles].join(" ").toLowerCase().includes(q)));
+    const box=document.getElementById("competences");
+    if(!n&&!d&&!q){box.innerHTML='<div class="empty">Choisissez un niveau, un domaine ou saisissez un mot-clé.</div>';return}
+    if(!r.length){box.innerHTML='<div class="empty">Aucune compétence trouvée.</div>';return}
+    box.innerHTML=r.slice(0,120).map(c=>`<div class="choice ${selected&&selected.id===c.id?"selected":""}" onclick="App.selectCompetence('${esc(c.id)}')"><strong>${esc(c.niveau?`[${c.niveau}] `:"")}${esc(c.domaine)}</strong><div>${esc(c.intitule)}</div></div>`).join("");
+  }
+
+  function selectCompetence(id){
+    selected=refs.find(c=>c.id===id)||null;if(!selected)return;
+    sequence={
+      id:"SEQ-"+selected.id+"-"+Date.now(), competence_principale:selected.id, domaine:selected.domaine,
+      titre:"Séquence : "+selected.intitule, domaine_socle:"", classe:selected.niveau||"",
+      competences_travaillees:[selected.intitule], objectif_coeur_de_cible:selected.intitule,
+      objectif_commun:"", references_theoriques:"", prerequis:selected.prerequis||[],
+      objectifs_individuels:[], seances:[]
+    };
+    document.getElementById("selection-status").className="status ok";
+    document.getElementById("selection-status").textContent="Compétence sélectionnée";
+    document.getElementById("selection-card").style.display="block";
+    document.getElementById("selection-card").innerHTML=`<strong>${esc(selected.intitule)}</strong><div class="tag accent">${esc(selected.domaine)}</div>${selected.niveau?`<div class="tag">${esc(selected.niveau)}</div>`:""}`;
+    document.getElementById("seq-cadrage").style.display="block";
+    setFields();
+    filterCompetences();
+    go(1);
+  }
+
+  function setFields(){
+    if(!sequence)return;
+    document.getElementById("seq-titre").value=sequence.titre||"";
+    document.getElementById("seq-domaine-socle").value=sequence.domaine_socle||"";
+    document.getElementById("seq-coeur").value=sequence.objectif_coeur_de_cible||"";
+    document.getElementById("seq-competences").value=arr(sequence.competences_travaillees).join("\\n");
+    document.getElementById("seq-references").value=sequence.references_theoriques||"";
+    document.getElementById("objectif-commun").value=sequence.objectif_commun||"";
+    document.getElementById("classe").value=sequence.classe||"";
+    renderStudents();
+    if(sequence.seances.length===0) generateSequence();
+    else {renderSessions();renderDetails();}
+  }
+
+  function updateSequenceField(k,v){
+    if(!sequence)return;
+    sequence[k]=k==="competences_travaillees"?arr(v):v;
+  }
+
+  function addStudent(data={}){
+    if(!sequence)return;
+    sequence.objectifs_individuels.push({id:uid("eleve"),nom:data.nom||"",objectif:data.objectif||"",criteres_reussite:data.criteres_reussite||""});
+    renderStudents();
+  }
+  function renderStudents(){
+    const box=document.getElementById("students");
+    if(!sequence||!sequence.objectifs_individuels.length){box.innerHTML='<div class="empty">Aucun objectif individuel ajouté. Vous pouvez en ajouter si nécessaire.</div>';return}
+    box.innerHTML=sequence.objectifs_individuels.map((s,i)=>`<div class="student-row">
+      <input placeholder="Élève / groupe" value="${esc(s.nom)}" oninput="App.studentField(${i},'nom',this.value)">
+      <textarea placeholder="Objectif individuel prioritaire" oninput="App.studentField(${i},'objectif',this.value)">${esc(s.objectif)}</textarea>
+      <textarea placeholder="Critère de réussite observable" oninput="App.studentField(${i},'criteres_reussite',this.value)">${esc(s.criteres_reussite)}</textarea>
+      <button class="btn danger small" onclick="App.removeStudent(${i})">×</button>
+    </div>`).join("");
+  }
+  function studentField(i,k,v){if(sequence&&sequence.objectifs_individuels[i])sequence.objectifs_individuels[i][k]=v}
+  function removeStudent(i){sequence.objectifs_individuels.splice(i,1);renderStudents()}
+
+  function sessionTemplate(type="exploration",i=1){
+    const name=TYPES.find(x=>x[0]===type)?.[1]||"Séance";
+    return {
+      id:uid("SEANCE"),numero:i,type,titre:`Séance ${i} — ${name}`,
+      competence_cible:selected?.intitule||"",competences_periph:[],
+      modalites_generales:"",niveaux:sequence?.classe?[sequence.classe]:(selected?.niveau?[selected.niveau]:[]),
+      objectif:"",problematique:"",consigne:"",tache:"",
+      criteres_reussite:"",materiel:[],duree_estimee_min:Number(document.getElementById("duree-defaut").value)||45,
+      vigilance:"",deroule:DEFAULT_PHASES.map((p,j)=>({phase:p,temps:j===0?5:"",modalite_materiel:"",deroulement:"",analyse_tache:"",amenagement:"",posture:""})),
+      remarques:""
+    };
+  }
+
+  function recommendedTypes(n){
+    const base=["diagnostique","exploration","references","structuration","systematisation","approfondissement","evaluation"];
+    if(n<=5)return [base[0],base[1],base[3],base[4],base[6]].slice(0,n);
+    return base.slice(0,n);
+  }
+
+  function generateSequence(){
+    if(!sequence||!selected){alert("Sélectionnez d’abord une compétence.");return}
+    const n=Number(document.getElementById("nb-seances").value)||7;
+    const types=recommendedTypes(n);
+    sequence.seances=types.map((t,i)=>sessionTemplate(t,i+1));
+    renderSessions();renderDetails();go(3);
+  }
+
+  function resizeSessions(){
+    if(!sequence)return;
+    const n=Number(document.getElementById("nb-seances").value)||7;
+    while(sequence.seances.length<n)sequence.seances.push(sessionTemplate("systematisation",sequence.seances.length+1));
+    while(sequence.seances.length>n)sequence.seances.pop();
+    sequence.seances.forEach((s,i)=>s.numero=i+1);
+    renderSessions();renderDetails();
+  }
+
+  function addSession(){
+    if(!sequence)return;
+    sequence.seances.push(sessionTemplate("systematisation",sequence.seances.length+1));
+    document.getElementById("nb-seances").value=Math.min(10,sequence.seances.length);
+    renderSessions();renderDetails();
+  }
+
+  function typeOptions(current){return TYPES.map(x=>`<option value="${x[0]}" ${x[0]===current?"selected":""}>${x[1]}</option>`).join("")}
+
+  function renderSessions(){
+    const box=document.getElementById("session-list");if(!sequence){box.innerHTML="";return}
+    document.getElementById("session-count").textContent=sequence.seances.length+" séance"+(sequence.seances.length>1?"s":"");
+    box.innerHTML=sequence.seances.map((s,i)=>`<article class="session" id="session-card-${i}">
+      <div class="session-head">
+        <div class="session-num">${i+1}</div>
+        <div class="session-main"><strong>${esc(s.titre||"Séance sans titre")}</strong><small>${esc(s.type)} · ${s.duree_estimee_min||45} min</small></div>
+        <div class="session-actions">
+          <button class="icon-btn" onclick="App.moveSession(${i},-1)" title="Monter">↑</button>
+          <button class="icon-btn" onclick="App.moveSession(${i},1)" title="Descendre">↓</button>
+          <button class="icon-btn" onclick="App.toggleSession(${i})">✎</button>
+          <button class="icon-btn" onclick="App.removeSession(${i})">×</button>
+        </div>
+      </div>
+      <div class="session-body">
+        <div class="session-fields">
+          <div><label>Type</label><select onchange="App.sessionField(${i},'type',this.value);App.renderSessions()">${typeOptions(s.type)}</select></div>
+          <div><label>Durée (min)</label><input type="number" value="${s.duree_estimee_min||45}" onchange="App.sessionField(${i},'duree_estimee_min',Number(this.value))"></div>
+          <div class="full"><label>Titre</label><input value="${esc(s.titre)}" oninput="App.sessionField(${i},'titre',this.value)"></div>
+        </div>
+      </div>
+    </article>`).join("");
+  }
+
+  function toggleSession(i){document.getElementById("session-card-"+i)?.classList.toggle("open")}
+  function sessionField(i,k,v){if(sequence?.seances[i])sequence.seances[i][k]=v}
+  function moveSession(i,dir){
+    const j=i+dir;if(!sequence||j<0||j>=sequence.seances.length)return;
+    [sequence.seances[i],sequence.seances[j]]=[sequence.seances[j],sequence.seances[i]];
+    sequence.seances.forEach((s,k)=>s.numero=k+1);renderSessions();renderDetails();
+  }
+  function removeSession(i){
+    if(!sequence)return;
+    if(sequence.seances.length<=1){alert("Une séquence doit conserver au moins une séance.");return}
+    sequence.seances.splice(i,1);sequence.seances.forEach((s,k)=>s.numero=k+1);
+    document.getElementById("nb-seances").value=sequence.seances.length;renderSessions();renderDetails();
+  }
+
+  function renderDetails(){
+    const box=document.getElementById("detail-list");if(!sequence){box.innerHTML="";return}
+    box.innerHTML=sequence.seances.map((s,i)=>renderDetail(s,i)).join("");
+    sequence.seances.forEach((s,i)=>renderPrivateStudents(i));
+  }
+
+  function renderDetail(s,i){
+    const phases=s.deroule||[];
+    const phaseRows=phases.map((p,j)=>`<div class="phase-grid">
+      <div><strong>${esc(p.phase)}</strong></div>
+      <div><textarea placeholder="Temps" oninput="App.phaseField(${i},${j},'temps',this.value)">${esc(p.temps)}</textarea></div>
+      <div><textarea placeholder="Modalité + matériel" oninput="App.phaseField(${i},${j},'modalite_materiel',this.value)">${esc(p.modalite_materiel)}</textarea></div>
+      <div><textarea placeholder="Déroulement concret" oninput="App.phaseField(${i},${j},'deroulement',this.value)">${esc(p.deroulement)}</textarea></div>
+      <div><textarea placeholder="Analyse de la tâche : ce que l’élève doit mobiliser" oninput="App.phaseField(${i},${j},'analyse_tache',this.value)">${esc(p.analyse_tache)}</textarea></div>
+      <div><textarea placeholder="Aménagement / différenciation" oninput="App.phaseField(${i},${j},'amenagement',this.value)">${esc(p.amenagement)}</textarea></div>
+      <div><textarea placeholder="Posture de l’enseignant" oninput="App.phaseField(${i},${j},'posture',this.value)">${esc(p.posture)}</textarea></div>
+    </div>`).join("");
+    return `<details class="card" open>
+      <summary><span class="tag accent">${i+1}</span> <strong>${esc(s.titre)}</strong> <span class="tag">${esc(s.type)}</span> <span class="tag">${s.duree_estimee_min||45} min</span></summary>
+      <div style="margin-top:12px">
+        <div class="session-fields">
+          <div><label>Type</label><select onchange="App.sessionField(${i},'type',this.value)">${typeOptions(s.type)}</select></div>
+          <div><label>Durée estimée (min)</label><input type="number" value="${s.duree_estimee_min||45}" onchange="App.sessionField(${i},'duree_estimee_min',Number(this.value))"></div>
+          <div class="full"><label>Titre de la séance</label><input value="${esc(s.titre)}" oninput="App.sessionField(${i},'titre',this.value)"></div>
+          <div><label>Compétence cible</label><textarea oninput="App.sessionField(${i},'competence_cible',this.value)">${esc(s.competence_cible)}</textarea></div>
+          <div><label>Compétences périphériques</label><textarea placeholder="Une par ligne" oninput="App.sessionField(${i},'competences_periph',arr(this.value))">${esc(arr(s.competences_periph).join("\\n"))}</textarea></div>
+          <div><label>Modalités générales</label><textarea placeholder="Travail individuel, groupe, collectif…" oninput="App.sessionField(${i},'modalites_generales',this.value)">${esc(s.modalites_generales)}</textarea></div>
+          <div><label>Niveaux / classe</label><input value="${esc(arr(s.niveaux).join(", "))}" oninput="App.sessionField(${i},'niveaux',this.value.split(',').map(x=>x.trim()).filter(Boolean))"></div>
+          <div class="full"><label>Objectif</label><textarea placeholder="Je veux que les élèves soient capables de…" oninput="App.sessionField(${i},'objectif',this.value)">${esc(s.objectif)}</textarea></div>
+          <div class="full">
+            <div class="private-box">
+              <h4>🔒 Adaptations individuelles — données du coffre</h4>
+              <div class="private-note">Cette zone apparaît pour chaque séance. Elle reste en mémoire tant que le coffre est ouvert et n'est pas intégrée à l'export JSON public.</div>
+              <div id="private-students-${i}"></div>
+              <div class="private-tools">
+                <button type="button" class="btn secondary small" onclick="App.loadPrivateStudents(${i})">↺ Charger les élèves du coffre</button>
+                <button type="button" class="btn secondary small" onclick="App.addPrivateStudent(${i})">+ Ajouter une adaptation</button>
+              </div>
+            </div>
+          </div>
+          <div class="full"><label>Problématique pour les élèves</label><textarea placeholder="Est-ce que je peux… ? / Comment… ?" oninput="App.sessionField(${i},'problematique',this.value)">${esc(s.problematique)}</textarea></div>
+          <div><label>Consigne</label><textarea oninput="App.sessionField(${i},'consigne',this.value)">${esc(s.consigne)}</textarea></div>
+          <div><label>Tâche</label><textarea oninput="App.sessionField(${i},'tache',this.value)">${esc(s.tache)}</textarea></div>
+          <div><label>Critères de réussite</label><textarea oninput="App.sessionField(${i},'criteres_reussite',this.value)">${esc(s.criteres_reussite)}</textarea></div>
+          <div><label>Matériel</label><textarea placeholder="Un élément par ligne" oninput="App.sessionField(${i},'materiel',arr(this.value))">${esc(arr(s.materiel).join("\\n"))}</textarea></div>
+          <div class="full"><label>Points de vigilance</label><textarea oninput="App.sessionField(${i},'vigilance',this.value)">${esc(s.vigilance)}</textarea></div>
+        </div>
+        <h4>Déroulé détaillé</h4>
+        <div class="phase-grid header"><div>Phase</div><div>Temps</div><div>Modalité + matériel</div><div>Déroulement</div><div>Analyse de la tâche</div><div>Aménagement</div><div>Posture enseignant</div></div>
+        ${phaseRows}
+        <div class="toolbar"><button class="btn secondary small" onclick="App.addPhase(${i})">+ Ajouter une phase</button><button class="btn secondary small" onclick="App.exporterPDF('seance',${i})">Télécharger le PDF</button><button class="btn small" onclick="App.go(5)">Voir l’aperçu</button></div>
+      </div>
+    </details>`;
+  }
+
+  function privateStudentLabel(id){
+    if(!coffreOuvert()) return id || "Élève";
+    const e=coffre.listerEleves().find(x=>x.identifiantSynapses===id);
+    return e ? eleveLabel(e) : id || "Élève";
+  }
+  function renderPrivateStudents(i){
+    const wrap=document.getElementById("private-students-"+i);
+    const s=sequence?.seances[i];
+    if(!wrap||!s)return;
+    const rows=s.adaptations_individuelles||[];
+    if(!rows.length){wrap.innerHTML='<div class="help">Aucune adaptation individuelle pour cette séance.</div>';return}
+    const options=coffreOuvert()?coffre.listerEleves().map(e=>`<option value="${esc(e.identifiantSynapses)}">${esc(eleveLabel(e))}</option>`).join(""):"";
+    wrap.innerHTML=rows.map((r,j)=>`<div class="private-row">
+      <select onchange="App.privateField(${i},${j},'identifiant',this.value)">
+        <option value="">— Élève —</option>${options}
+        ${r.identifiant && !coffreOuvert()?`<option value="${esc(r.identifiant)}" selected>${esc(privateStudentLabel(r.identifiant))}</option>`:""}
+      </select>
+      <textarea placeholder="Adaptation / aide prévue" oninput="App.privateField(${i},${j},'adaptation',this.value)">${esc(r.adaptation)}</textarea>
+      <textarea placeholder="Point de vigilance / modalité individuelle" oninput="App.privateField(${i},${j},'vigilance',this.value)">${esc(r.vigilance)}</textarea>
+      <button class="btn danger small" type="button" onclick="App.removePrivateStudent(${i},${j})">×</button>
+    </div>`).join("");
+    rows.forEach((r,j)=>{
+      const sel=wrap.querySelectorAll("select")[j]; if(sel) sel.value=r.identifiant||"";
+    });
+  }
+  function addPrivateStudent(i,id="",adaptation="",vigilance=""){
+    if(!sequence?.seances[i])return;
+    sequence.seances[i].adaptations_individuelles=sequence.seances[i].adaptations_individuelles||[];
+    sequence.seances[i].adaptations_individuelles.push({identifiant:id,adaptation,vigilance});
+    renderPrivateStudents(i);
+  }
+  function removePrivateStudent(i,j){
+    sequence.seances[i].adaptations_individuelles.splice(j,1); renderPrivateStudents(i);
+  }
+  function privateField(i,j,k,v){
+    if(sequence?.seances[i]?.adaptations_individuelles?.[j]) sequence.seances[i].adaptations_individuelles[j][k]=v;
+  }
+  function loadPrivateStudents(i){
+    if(!coffreOuvert()){alert("Ouvrez d’abord le coffre élèves.");return}
+    const s=sequence.seances[i]; s.adaptations_individuelles=s.adaptations_individuelles||[];
+    const ids=new Set(s.adaptations_individuelles.map(x=>x.identifiant).filter(Boolean));
+    coffre.listerEleves().forEach(e=>{if(!ids.has(e.identifiantSynapses))s.adaptations_individuelles.push({identifiant:e.identifiantSynapses,adaptation:"",vigilance:""})});
+    renderPrivateStudents(i);
+  }
+  function phaseField(si,pi,k,v){if(sequence?.seances[si]?.deroule?.[pi])sequence.seances[si].deroule[pi][k]=v}
+  function addPhase(si){sequence.seances[si].deroule.push({phase:"Nouvelle phase",temps:"",modalite_materiel:"",deroulement:"",analyse_tache:"",amenagement:"",posture:""});renderDetails()}
+
+  function go(n){
+    if(n>1&&!sequence){alert("Sélectionnez d’abord une compétence.");return}
+    step=n;
+    document.querySelectorAll(".step-panel").forEach(p=>p.style.display=Number(p.dataset.panel)===n?"block":"none");
+    document.querySelectorAll(".step").forEach(b=>{const x=Number(b.dataset.step);b.classList.toggle("active",x===n);b.classList.toggle("done",x<n)});
+    if(n===2){renderStudents()}
+    if(n===3){renderSessions()}
+    if(n===4){renderDetails()}
+    if(n===5){renderPreview();updatePrompt();updateJson()}
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function renderPreview(){
+    const box=document.getElementById("preview");if(!sequence){box.innerHTML="";return}
+    box.innerHTML=`<h3>${esc(sequence.titre)}</h3>
+      <p><span class="tag accent">${esc(sequence.domaine)}</span> ${sequence.classe?`<span class="tag">${esc(sequence.classe)}</span>`:""}</p>
+      <div class="meta-box"><strong>Domaine du socle</strong>${esc(sequence.domaine_socle||"—")}</div>
+      <h4>Compétences travaillées</h4><ul>${arr(sequence.competences_travaillees).map(x=>`<li>${esc(x)}</li>`).join("")||"<li>—</li>"}</ul>
+      <div class="meta-box"><strong>Objectif cœur de cible</strong>${esc(sequence.objectif_coeur_de_cible||"—")}</div>
+      <div class="meta-box" style="margin-top:8px"><strong>Objectif commun</strong>${esc(sequence.objectif_commun||"—")}</div>
+      <h4>Objectifs individuels prioritaires</h4>
+      ${sequence.objectifs_individuels.length?sequence.objectifs_individuels.map(s=>`<p><strong>${esc(s.nom||"Élève")}</strong> — ${esc(s.objectif)}<br><span class="help">Critère : ${esc(s.criteres_reussite)}</span></p>`).join(""):"<p class='help'>Aucun objectif individuel.</p>"}
+      <h4>Progression</h4>
+      ${sequence.seances.map((s,i)=>`<div class="meta-box" style="margin:7px 0"><strong>Séance ${i+1} · ${esc(s.type)} · ${s.duree_estimee_min||45} min</strong>${esc(s.titre)}<br><span class="help">${esc(s.objectif||"Objectif à préciser")}</span></div>`).join("")}`;
+  }
+
+  function tab(which){
+    ["preview","atelier","json"].forEach(x=>{
+      document.getElementById("view-"+x).style.display=x===which?"block":"none";
+      document.getElementById("tab-"+x).classList.toggle("active",x===which);
+    });
+    if(which==="preview")renderPreview();
+    if(which==="atelier")updatePrompt();
+    if(which==="json")updateJson();
+  }
+
+  function openAtelier(action){
+    tab("atelier");
+    if(action)document.getElementById("atelier-action").value=action;
+    updatePrompt();
+  }
+
+  function updateSessionSelect(){
+    const s=document.getElementById("atelier-session");
+    s.innerHTML=(sequence?.seances||[]).map((x,i)=>`<option value="${i}">Séance ${i+1} — ${esc(x.titre)}</option>`).join("");
+  }
+
+  function schemaPrompt(){
+    return `{
+  "titre": "…",
+  "domaine_socle": "…",
+  "classe": "…",
+  "competences_travaillees": ["…"],
+  "objectif_coeur_de_cible": "…",
+  "objectif_commun": "…",
+  "references_theoriques": "…",
+  "objectifs_individuels": [
+    {"nom":"…","objectif":"…","criteres_reussite":"…"}
+  ],
+  "seances": [{
+    "numero": 1,
+    "type": "diagnostique|exploration|references|structuration|systematisation|approfondissement|evaluation",
+    "titre": "…",
+    "competence_cible": "…",
+    "competences_periph": ["…"],
+    "modalites_generales": "…",
+    "niveaux": ["…"],
+    "objectif": "Je veux que les élèves soient capables de…",
+    "problematique": "…",
+    "consigne": "…",
+    "tache": "…",
+    "criteres_reussite": "…",
+    "materiel": ["…"],
+    "duree_estimee_min": 45,
+    "deroule": [{
+      "phase":"Présentation",
+      "temps":"5 min",
+      "modalite_materiel":"…",
+      "deroulement":"…",
+      "analyse_tache":"…",
+      "amenagement":"…",
+      "posture":"…"
+    }],
+    "vigilance":"…"
+  }]
+}`;
+  }
+
+  function updatePrompt(){
+    if(!sequence)return;
+    const action=document.getElementById("atelier-action").value;
+    const wrap=document.getElementById("atelier-session-wrap");
+    wrap.style.display=action==="seance"?"block":"none";
+    if(action==="seance")updateSessionSelect();
+    let context=`Compétence principale : ${selected?.intitule||sequence.competence_principale}
+Domaine : ${selected?.domaine||sequence.domaine}
+Niveau/classe : ${sequence.classe||selected?.niveau||"à préciser"}
+Objectif cœur de cible : ${sequence.objectif_coeur_de_cible||"à définir"}
+`;
+    let task="";
+    if(action==="seance"){
+      const i=Number(document.getElementById("atelier-session").value||0),s=sequence.seances[i];
+      task=`\\nSéance à travailler : ${JSON.stringify(s,null,2)}`;
+    }else if(action==="ameliorer"){
+      task=`\\nProgression actuelle : ${JSON.stringify(sequence.seances,null,2)}`;
+    }
+    document.getElementById("atelier-prompt").textContent=`Tu es un conseiller pédagogique. Tu produis une proposition directement exploitable par un enseignant.
+
+RÈGLES :
+- Respecte exactement la structure JSON ci-dessous.
+- Ne mets aucun texte avant ou après le JSON.
+- Construis une progression cohérente : diagnostique → exploration → références → structuration → entraînement/systématisation → approfondissement → évaluation lorsque le nombre de séances le permet.
+- Pour chaque séance, rédige des informations concrètes, pas des intitulés génériques.
+- Le déroulé doit expliciter ce que font les élèves et l'enseignant.
+- Chaque ligne du déroulé renseigne : temps, modalité + matériel, déroulement, analyse de la tâche, aménagement/différenciation, posture de l'enseignant.
+- Prends en compte la surcharge cognitive, les aides visuelles, la manipulation, la verbalisation et la progressivité lorsqu'elles sont pertinentes.
+- N'invente pas de référence institutionnelle précise si elle n'est pas fournie.
+- L'objectif et les critères doivent être observables.
+
+CONTEXTE :
+${context}${task}
+
+FORMAT JSON EXACT :
+${schemaPrompt()}`;
+  }
+
+  function copyPrompt(){
+    navigator.clipboard?.writeText(document.getElementById("atelier-prompt").textContent).then(()=>alert("Prompt copié."));
+  }
+
+  function extraireJSON(t){
+    let x=t.trim().replace(/```json/gi,"").replace(/```/g,"").trim();
+    const a=x.indexOf("{"),b=x.lastIndexOf("}");
+    if(a<0||b<0)throw new Error("Aucun objet JSON trouvé.");
+    return JSON.parse(x.slice(a,b+1));
+  }
+
+  function normaliserSeance(s,i){
+    const phases=Array.isArray(s.deroule)?s.deroule.map(p=>({
+      phase:p.phase||"Phase",temps:p.temps||"",modalite_materiel:p.modalite_materiel||"",
+      deroulement:p.deroulement||"",analyse_tache:p.analyse_tache||"",
+      amenagement:p.amenagement||"",posture:p.posture||""
+    })):[];
+    return {
+      id:s.id||uid("SEANCE"),numero:i+1,type:s.type||"exploration",titre:s.titre||s.intitule||`Séance ${i+1}`,
+      competence_cible:s.competence_cible||selected?.intitule||"",competences_periph:s.competences_periph||[],
+      modalites_generales:s.modalites_generales||s.modalites||"",niveaux:s.niveaux||[],
+      objectif:s.objectif||"",problematique:s.problematique||"",consigne:s.consigne||"",tache:s.tache||"",
+      criteres_reussite:s.criteres_reussite||"",materiel:s.materiel||[],duree_estimee_min:Number(s.duree_estimee_min)||45,
+      deroule:phases.length?phases:DEFAULT_PHASES.map(p=>({phase:p,temps:"",modalite_materiel:"",deroulement:"",analyse_tache:"",amenagement:"",posture:""})),
+      vigilance:s.vigilance||"",remarques:s.remarques||""
+    };
+  }
+
+  function integrate(obj){
+    if(obj.seances){
+      sequence.titre=obj.titre||sequence.titre;
+      ["domaine_socle","classe","objectif_coeur_de_cible","objectif_commun","references_theoriques"].forEach(k=>{if(obj[k]!==undefined)sequence[k]=obj[k]});
+      if(obj.competences_travaillees)sequence.competences_travaillees=obj.competences_travaillees;
+      if(obj.objectifs_individuels)sequence.objectifs_individuels=obj.objectifs_individuels;
+      sequence.seances=obj.seances.map(normaliserSeance);
+      document.getElementById("nb-seances").value=Math.min(10,sequence.seances.length);
+      setFields();renderSessions();renderDetails();
+      return "Séquence intégrée : "+sequence.seances.length+" séances.";
+    }
+    throw new Error("Le JSON doit contenir une propriété « seances ».");
+  }
+
+  function importAI(){
+    try{
+      const obj=extraireJSON(document.getElementById("atelier-response").value);
+      const msg=integrate(obj);
+      document.getElementById("atelier-result").innerHTML='<div class="status ok">'+esc(msg)+' Vous pouvez maintenant relire et modifier chaque champ.</div>';
+      go(3);
+    }catch(e){document.getElementById("atelier-result").innerHTML='<div class="status" style="color:var(--danger)">Erreur : '+esc(e.message)+'</div>'}
+  }
+
+  function updateJson(){
+    document.getElementById("json-view").textContent=JSON.stringify(sequence||{},null,2);
+  }
+
+  function pdfEscape(v){return esc(v||"—")}
+  function pdfPhaseTable(phases){
+    const rows=(phases||[]).map(p=>`<tr><td><strong>${pdfEscape(p.phase)}</strong><br>${pdfEscape(p.temps)}</td><td>${pdfEscape(p.modalite_materiel)}</td><td>${pdfEscape(p.deroulement)}</td><td>${pdfEscape(p.analyse_tache)}</td><td>${pdfEscape(p.amenagement)}</td><td>${pdfEscape(p.posture)}</td></tr>`).join("");
+    return rows?`<table><thead><tr><th>Phase / temps</th><th>Modalité & matériel</th><th>Déroulement</th><th>Analyse de la tâche</th><th>Aménagement</th><th>Posture</th></tr></thead><tbody>${rows}</tbody></table>`:"";
+  }
+  function pdfPrivate(adaptations){
+    if(!coffreOuvert() || !(adaptations||[]).length) return "";
+    const rows=adaptations.map(a=>`<div class="pdf-private"><strong>${pdfEscape(privateStudentLabel(a.identifiant))}</strong><br>${pdfEscape(a.adaptation)}${a.vigilance?`<br><em>${pdfEscape(a.vigilance)}</em>`:""}</div>`).join("");
+    return `<h3>Adaptations individuelles</h3>${rows}`;
+  }
+  function pdfSessionHTML(s){
+    return `<section class="pdf-session">
+      <h2>Séance ${pdfEscape(s.numero)} · ${pdfEscape(s.titre)}</h2>
+      <div class="pdf-meta">${pdfEscape(s.type)} · ${pdfEscape(s.duree_estimee_min||45)} min · ${pdfEscape(s.niveaux?.join(", "))}</div>
+      <p><strong>Compétence cible :</strong> ${pdfEscape(s.competence_cible)}</p>
+      <p><strong>Objectif :</strong> ${pdfEscape(s.objectif)}</p>
+      ${pdfPrivate(s.adaptations_individuelles)}
+      <p><strong>Problématique pour les élèves :</strong> ${pdfEscape(s.problematique)}</p>
+      <p><strong>Consigne :</strong> ${pdfEscape(s.consigne)}</p>
+      <p><strong>Tâche :</strong> ${pdfEscape(s.tache)}</p>
+      <p><strong>Critères de réussite :</strong> ${pdfEscape(s.criteres_reussite)}</p>
+      ${pdfPhaseTable(s.deroule)}
+      ${s.vigilance?`<p><strong>Points de vigilance :</strong> ${pdfEscape(s.vigilance)}</p>`:""}
+    </section>`;
+  }
+  function exporterPDF(mode="sequence", index=0){
+    if(!sequence){alert("Aucune séquence à exporter.");return}
+    const sessions=mode==="seance"?[sequence.seances[index]].filter(Boolean):sequence.seances;
+    const html=`<div class="pdf-doc">
+      <div style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#4a6fa8">Programmation · séquence pédagogique</div>
+      <h1>${pdfEscape(sequence.titre)}</h1>
+      <div class="pdf-meta"><strong>${pdfEscape(sequence.domaine)}</strong> · ${pdfEscape(sequence.classe)}</div>
+      <h2>Objectif commun</h2><p>${pdfEscape(sequence.objectif_commun)}</p>
+      <h2>Compétences travaillées</h2><p>${pdfEscape(arr(sequence.competences_travaillees).join(" · "))}</p>
+      ${sessions.map(pdfSessionHTML).join("")}
+    </div>`;
+    const area=document.getElementById("print-area"); area.innerHTML=html;
+    const old=document.title; document.title=(mode==="seance"?"Séance":"Séquence")+" — "+sequence.titre;
+    window.print(); document.title=old;
+  }
+
+  function toggleCoffre(){
+    if(coffreOuvert()){
+      if(confirm("Fermer le coffre et purger les données élèves de la mémoire de cet onglet ?")){coffre.purger();updateCoffreWidget();renderDetails()}
+    }else{
+      const m=document.getElementById("modal-coffre");m.style.display="flex";
+    }
+  }
+  function closeCoffre(){document.getElementById("modal-coffre").style.display="none"}
+  async function openCoffre(){
+    if(!coffreDisponible()){alert("Le coffre est indisponible.");return}
+    const file=document.getElementById("coffre-file").files[0],pwd=document.getElementById("coffre-password").value;
+    if(!file||!pwd){alert("Sélectionnez le fichier .synapses et saisissez le mot de passe.");return}
+    try{await coffre.ouvrir(file,pwd);closeCoffre();document.getElementById("coffre-password").value="";updateCoffreWidget();renderDetails();alert("Coffre ouvert : "+coffre.listerEleves().length+" élève(s)")}catch(e){alert(e.message)}
+  }
+  function updateCoffreWidget(){
+    const el=document.getElementById("coffre-status"); if(!el)return;
+    if(!coffreDisponible()){el.textContent="Coffre indisponible";return}
+    el.textContent=coffreOuvert()?"Coffre ouvert · "+coffre.listerEleves().length+" élève(s)":"Coffre fermé";
+    el.classList.toggle("ouvert",coffreOuvert());
+  }
+
+  function exporter(){
+    if(!sequence){alert("Aucune séquence à exporter.");return}
+    const blob=new Blob([JSON.stringify(sequence,null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(sequence.titre||"sequence").replace(/[^a-z0-9àâçéèêëîïôûùüÿñ -]/gi,"").replace(/\\s+/g,"-")+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  }
+
+  function importer(event){
+    const file=event.target.files?.[0];if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const obj=JSON.parse(r.result);
+        if(!obj.seances)throw new Error("Ce fichier ne contient pas de séquence exploitable.");
+        sequence=obj;
+        selected=refs.find(c=>c.id===sequence.competence_principale)||{id:sequence.competence_principale,intitule:sequence.competences_travaillees?.[0]||"",domaine:sequence.domaine||"",niveau:""};
+        sequence.seances=sequence.seances.map(normaliserSeance);
+        setFields();renderSessions();renderDetails();go(5);
+      }catch(e){alert("Import impossible : "+e.message)}
+    };
+    r.readAsText(file);event.target.value="";
+  }
+
+  return {init,go,filterCompetences,selectCompetence,updateSequenceField,generateSequence,resizeSessions,addSession,renderSessions,toggleSession,sessionField,moveSession,removeSession,renderDetails,phaseField,addPhase,addStudent,studentField,removeStudent,tab,openAtelier,updatePrompt,copyPrompt,importAI,exporter,importer,exporterPDF,toggleCoffre,closeCoffre,openCoffre,addPrivateStudent,removePrivateStudent,privateField,loadPrivateStudents};
+})();
+
+App.init();
+updateCoffreWidget();
+window.addEventListener("beforeunload",()=>{if(coffre)coffre.purger()});
+</script>
+
+<footer class="synapses-footer">
+    <div>Synapses — Grand Planificateur pédagogique</div>
+    <div>© 2026 Cskrh13 / Vincent · v0.9.0-test · 27/08/2026</div>
+</footer>
+</body>
+</html>
