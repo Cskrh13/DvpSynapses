@@ -176,6 +176,24 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
       <div>
         <h3 style="font-size:15px;margin-bottom:8px;">Créer un nouveau coffre</h3>
         <div class="field">
+          <label for="dispositif">Dispositif d'école inclusive (obligatoire)</label>
+          <select id="dispositif" required>
+            <option value="">— sélectionner —</option>
+            <option value="ULIS école">ULIS école</option>
+            <option value="ULIS collège">ULIS collège</option>
+            <option value="ULIS lycée">ULIS lycée</option>
+            <option value="UEE">UEE (unité d'enseignement externalisée)</option>
+            <option value="UPE2A">UPE2A</option>
+            <option value="SEGPA">SEGPA</option>
+            <option value="Classe ordinaire avec inclusion">Classe ordinaire avec inclusion</option>
+            <option value="Autre">Autre</option>
+          </select>
+          <p class="hint" style="margin:6px 0 0;">
+            Utilisé uniquement pour donner du contexte pédagogique à l'atelier IA (onglet « Analyse & IA »).
+            À l'inverse, l'établissement/la classe ne sont <strong>jamais</strong> transmis à une IA, quels que soient vos réglages.
+          </p>
+        </div>
+        <div class="field">
           <label for="nomEtab">Établissement / classe (optionnel)</label>
           <input type="text" id="nomEtab" placeholder="ex : ULIS école Jean Moulin">
         </div>
@@ -349,7 +367,13 @@ const SYNAPSES_BUILD = {
   brancherForceMdp('mdpExport', 'forceMdpBarre', 'forceMdpLabel', 'forceMdpConseils');
 
   $('btnCreer').addEventListener('click', async ()=>{
-    coffre.creer($('nomEtab').value.trim());
+    const dispositif = $('dispositif').value;
+    if (!dispositif) {
+      setStatus($('statutOuverture'), 'Précisez le dispositif d\'école inclusive avant de créer le coffre.', false);
+      $('dispositif').focus();
+      return;
+    }
+    coffre.creer($('nomEtab').value.trim(), dispositif);
     setStatus($('statutOuverture'), 'Nouveau coffre créé en mémoire. Pensez à l\'enregistrer (§3) avant de fermer l\'onglet.', true);
     refreshLockState();
     await ouvrirSuivi();
