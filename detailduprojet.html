@@ -15,7 +15,7 @@ header.site-header{background:var(--navy);color:#fff;position:sticky;top:0;z-ind
 .section{max-width:1080px;margin:auto;padding:68px 24px}.section-head{max-width:760px;margin-bottom:30px}.section h2{font-size:34px;color:var(--navy);margin-top:8px}.section-head p{color:var(--ink-soft);margin:12px 0 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px}.card h3{color:var(--navy);font-size:21px}.card p,.card li{color:var(--ink-soft);font-size:15px}.card ul{padding-left:20px;margin-bottom:0}.card li+li{margin-top:9px}.accent{border-left:4px solid var(--accent-sky)}.quote{background:var(--navy);color:#fff;border-radius:var(--radius);padding:32px;font-family:Fraunces,serif;font-size:24px;line-height:1.4}.quote span{display:block;margin-top:12px;font:12px 'IBM Plex Mono',monospace;color:#B9C6E5}
 .timeline{position:relative;padding-left:28px}.timeline:before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--line)}.step{position:relative;padding:0 0 28px 18px}.step:before{content:"";position:absolute;left:-26px;top:7px;width:14px;height:14px;border-radius:50%;background:var(--accent-sky);box-shadow:0 0 0 5px var(--bg)}.step h3{font-size:20px;color:var(--navy)}.step p{margin:7px 0 0;color:var(--ink-soft)}.ia{background:#EEF3FB;border:1px solid #D7E1F2;border-radius:var(--radius);padding:30px}.ia h3{color:var(--navy);font-size:23px}.callout{margin-top:18px;padding:18px;border-left:4px solid var(--lecture);background:#FFF9F5;color:var(--ink-soft)}
 footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner{max-width:1080px;margin:auto;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:13px}.footer-inner strong{color:#fff;font-family:Fraunces,serif}.footer-inner a{color:#B9C6E5;text-decoration:none}.footer-inner a:hover{text-decoration:underline}
-@media(max-width:760px){.grid{grid-template-columns:1fr}.hero{padding-top:52px}.section{padding:48px 20px}.section h2{font-size:29px}}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.hero{padding-top:52px}.section,.synapses-diagrams{padding:48px 20px}.section h2,.synapses-diagrams h2{font-size:29px}}
 
 /* ===== Qui porte le projet ===== */
 .project-carrier{
@@ -26,7 +26,8 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
   margin-top:22px;
 }
 .project-portrait{
-  width:180px;
+  width:100%;
+  max-width:180px;
   aspect-ratio:1/1;
   object-fit:cover;
   border-radius:14px;
@@ -55,10 +56,10 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
 
 
 /* ===== Schémas : sécurité et échanges IA ===== */
-.synapses-diagrams{margin:56px 0}
+.synapses-diagrams{margin:0 auto}
 .synapses-diagrams .diagram-intro{max-width:850px;color:var(--ink-soft);margin:12px 0 24px}
-.diagram-frame{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#f8f6f0;box-shadow:0 16px 35px -28px rgba(20,38,70,.35)}
-.diagram-frame img{display:block;width:100%;height:auto}
+.diagram-frame{width:100%;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#f8f6f0;box-shadow:0 16px 35px -28px rgba(20,38,70,.35)}
+.diagram-frame img{display:block;width:100%;max-width:100%;height:auto;object-fit:contain}
 .diagram-caption{padding:16px 20px;background:#fff;border-top:1px solid var(--line);color:var(--ink-soft);font-size:14px;line-height:1.55}
 
 </style></head>
@@ -73,7 +74,7 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
 <section class="hero"><div class="hero-inner"><p class="eyebrow">Synapses · Grand Planificateur pédagogique</p><h1>Détails du projet</h1><p class="lead">Synapses est un projet personnel de conception d'outils pédagogiques visant à rendre les programmes plus lisibles, à relier les apprentissages entre eux et à explorer, avec prudence, la place que l'intelligence artificielle peut prendre dans l'Éducation nationale.</p><div class="hero-meta"><span class="pill">Projet non institutionnel</span><span class="pill">Programmes · compétences · progression</span><span class="pill">IA comme outil, pas comme pilote</span></div></div></section>
 <section class="section"><div class="section-head"><p class="eyebrow">Qui porte le projet ?</p><h2>À l'origine de Synapses</h2></div><div class="grid"><article class="card accent">
   <div class="project-carrier">
-    <img class="project-portrait" src="./Images/Portrait.jpg" alt="Portrait de Vincent, porteur du projet Synapses">
+    <img class="project-portrait" src="Images/Portrait.jpg" loading="lazy" decoding="async" alt="Portrait de Vincent, porteur du projet Synapses">
     <div>
       <h3>Qui porte le projet ?</h3>
       <p>Synapses est porté par Vincent, sous le nom Cskrh13, <strong>enseignant spécialisé</strong>. Le projet est né d'une réflexion de terrain autour d'une question très concrète : comment faciliter la pensée pédagogique lorsqu'il faut adapter les situations d'apprentissage, envisager des compensations et répondre aux besoins propres d'un élève ?</p>
@@ -98,12 +99,14 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px}.footer-inner
 <section class="section"><div class="section-head"><p class="eyebrow">Comment ?</p><h2>La méthode Synapses</h2></div><div class="timeline"><div class="step"><h3>1. Partir des sources</h3><p>Les données constituent le socle : programmes, compétences et structures de programmation sont séparés afin d'éviter de confondre le contenu de référence avec son affichage.</p></div><div class="step"><h3>2. Structurer sans inventer</h3><p>Les relations entre compétences, séquences et séances doivent provenir des données renseignées. Lorsqu'une relation n'est pas connue, elle n'a pas vocation à être fabriquée pour rendre une visualisation plus spectaculaire.</p></div><div class="step"><h3>3. Partir des besoins pour penser les adaptations</h3><p>Lorsqu'une situation pose difficulté, Synapses cherche à aider à organiser la réflexion : identifier les besoins propres à l'élève, repérer les obstacles, envisager des adaptations, des aménagements ou des compensations, puis conserver la trace des choix effectués. L'objectif n'est pas d'automatiser une réponse individuelle, mais de rendre la démarche plus accessible et plus cohérente.</p></div><div class="step"><h3>4. Rendre visible</h3><p>Répertoires, filtres, frises, programmations et cartographies permettent de changer d'échelle : voir un détail, puis retrouver sa place dans un ensemble.</p></div><div class="step"><h3>5. Tester et corriger</h3><p>Les erreurs, incohérences et retours utilisateurs sont traités comme des informations utiles. La robustesse du projet dépend autant de la qualité des données que de la qualité du dialogue autour de l'outil.</p></div><div class="step"><h3>6. Garder l'humain responsable</h3><p>Les choix pédagogiques restent des choix professionnels. Synapses peut assister la préparation et la réflexion ; il ne prétend pas remplacer l'expertise, le contexte de classe ou le jugement de l'enseignant.</p></div></div></section>
 <section class="section"><div class="quote">« L'objectif n'est pas d'automatiser la pédagogie, mais de donner davantage de visibilité aux informations qui permettent de la penser. »<span>Principe directeur de Synapses</span></div></section>
 
-<section class="synapses-diagrams" id="securite-donnees">
-  <p class="section-kicker">SÉCURITÉ ET USAGE DES IA</p>
-  <h2>Deux schémas pour comprendre le fonctionnement de Synapses</h2>
-  <p class="diagram-intro">Les données de travail restent sur les clés USB et les ordinateurs des utilisateurs. Synapses propose des compétences issues des programmes ainsi qu'une proposition de structuration des séances et séquences issue de la recherche. Lors d'un échange avec une IA, seules les informations nécessaires, anonymisées et formulées par l'enseignant sont envoyées.</p>
+<section class="synapses-diagrams section" id="securite-donnees">
+  <div class="section-head">
+    <p class="eyebrow">Sécurité et usage des IA</p>
+    <h2>Deux schémas pour comprendre le fonctionnement de Synapses</h2>
+    <p class="diagram-intro">Les données de travail restent sur les clés USB et les ordinateurs des utilisateurs. Synapses propose des compétences issues des programmes ainsi qu'une proposition de structuration des séances et séquences issue de la recherche. Lors d'un échange avec une IA, seules les informations nécessaires, anonymisées et formulées par l'enseignant sont envoyées.</p>
+  </div>
   <div class="diagram-frame">
-    <img src="Images/schémas.png" alt="Schémas expliquant la sécurité des données dans Synapses et les échanges anonymisés avec les intelligences artificielles">
+    <img src="Images/schémas.png" loading="lazy" decoding="async" alt="Schémas expliquant la sécurité des données dans Synapses et les échanges anonymisés avec les intelligences artificielles">
     <div class="diagram-caption"><strong>Principe central :</strong> aucun nom d'élève, aucune donnée personnelle ou sensible n'est transmise. Les élèves sont repérés localement par un numéro. Les propositions de l'IA ne sont pas automatiquement intégrées : l'enseignant choisit ce qu'il souhaite copier et réutiliser dans ses propres outils locaux.</div>
   </div>
 </section>
