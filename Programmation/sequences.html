@@ -1455,7 +1455,7 @@ function buildProgressionPrompt(niveau, domaineId){
   const document_extrait = progFichierTexte
     ? `\n\nDOCUMENT JOINT PAR L'ENSEIGNANT (« ${progFichierNom} », extrait, à utiliser comme source prioritaire pour construire la progression — programme officiel, manuel, référentiel…) :\n"""\n${progFichierTexte}\n"""`
     : "";
-  return `Tu es un conseiller pédagogique expert des programmes de l'école primaire française.
+  return `Tu es un conseiller pédagogique expert des programmes de l'école primaire française. Tu produis une PROGRESSION D'APPRENTISSAGE (une suite d'étapes de compétence), PAS une séquence de séances de classe.
 
 TÂCHE :
 Construis la PROGRESSION, c'est-à-dire l'ordre logique des apprentissages qui permettent à un élève de ${niveau} d'accéder progressivement à la maîtrise du domaine « ${domaineNom} », étape par étape, de la plus élémentaire à la plus avancée.
@@ -1463,6 +1463,8 @@ Construis la PROGRESSION, c'est-à-dire l'ordre logique des apprentissages qui p
 RÈGLES :
 - Respecte exactement la structure JSON ci-dessous.
 - Ne mets aucun texte avant ou après le JSON.
+- La clé racine du tableau doit s'appeler exactement "etapes" (jamais "seances"). Chaque étape est numérotée par la clé "ordre" (jamais "numero").
+- N'ajoute aucun champ de type "déroulé de séance", "matériel" ou "durée en minutes" : ceci n'est pas une fiche de séance, seulement une étape de compétence.
 - Ordonne les étapes du plus simple/élémentaire au plus complexe : chaque étape doit s'appuyer sur celles qui la précèdent.
 - Le nombre d'étapes doit être réaliste pour une année scolaire (entre 5 et 10 étapes).
 - Chaque étape doit être concrète et observable, pas un intitulé générique.
@@ -1475,8 +1477,10 @@ Niveau : ${niveau}
 Domaine : ${domaineNom}
 Cycle : Cycle 2 (CP, CE1, CE2) ou Cycle 3 (CM1, CM2, 6e) selon le niveau indiqué.${document_extrait}
 
-FORMAT JSON EXACT :
-${progressionSchemaPrompt()}`;
+FORMAT JSON EXACT — rappel : la clé racine du tableau est "etapes", chaque étape a une clé "ordre" (pas "seances" / "numero") :
+${progressionSchemaPrompt()}
+
+RAPPEL FINAL : ta réponse doit contenir la clé "etapes" (tableau d'étapes numérotées avec "ordre"). N'utilise pas les clés "seances" ou "numero", qui appartiennent à un autre outil.`;
 }
 
 function updateProgPrompt(){
@@ -1604,7 +1608,7 @@ function normaliserProgression(obj, niveau, domaineId){
     prerequis: e.prerequis || "aucun",
     indicateurs_maitrise: e.indicateurs_maitrise || ""
   })).sort((a,b)=>a.ordre-b.ordre) : [];
-  if(!etapes.length) throw new Error("Le JSON doit contenir un tableau « etapes » non vide.");
+  if(!etapes.length) throw new Error("Le JSON doit contenir un tableau « etapes » non vide. "+(Array.isArray(obj.seances)?"Ce JSON contient « seances » : c'est la réponse de l'atelier du générateur de séquences (autre outil), pas celle de la Progression. Recopiez le prompt ci-dessus dans un NOUVEAU chat, sans historique, pour obtenir une réponse avec « etapes ».":""));
   const existing = findProgression(niveau, domaineId);
   return {
     id: existing ? existing.id : uid("prog"),
