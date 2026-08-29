@@ -229,7 +229,7 @@
       if (!id) return;
       const nom = prompt('Nom (optionnel) :') || '';
       const prenom = prompt('Prénom (optionnel) :') || '';
-      const ageStr = prompt('Âge (optionnel — seule donnée personnelle non identifiante isolément, utilisable par l\'atelier IA) :') || '';
+      const ageStr = prompt('Âge (optionnel — donnée stockée uniquement dans le coffre local, jamais transmise à une IA) :') || '';
       const age = ageStr.trim() !== '' && !isNaN(Number(ageStr)) ? Number(ageStr) : null;
       try {
         this.coffre.ajouterEleve(id.trim(), { nom: nom.trim(), prenom: prenom.trim() }, age);
@@ -266,7 +266,7 @@
       const identite = [eleve.identite.prenom, eleve.identite.nom].filter(Boolean).join(' ');
       const btnAge = el('button', {
         class: 'si-btn si-btn-small',
-        title: 'Modifier l\'âge (donnée non identifiante isolément, utilisable par l\'atelier IA)',
+        title: 'Modifier l\'âge (donnée stockée uniquement dans le coffre local, jamais transmise à une IA)',
         onclick: () => {
           const v = prompt('Âge de l\'élève :', eleve.age != null ? String(eleve.age) : '');
           if (v === null) return;
