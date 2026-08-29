@@ -55,14 +55,17 @@
   }
 
   /**
-   * Structure d'un élève, conforme au modèle logique §12 de la synthèse.
-   * L'identifiant Synapses (ex: "ELEVE-0042") est la clé utilisée par le
-   * moteur pédagogique ; l'identité réelle ne sert qu'à l'affichage local.
+   * @param {string} identifiantSynapses
+   * @param {object} [identite] - { nom, prenom, dateNaissance, classe, ... } — TOUT nominatif, jamais transmis à une IA.
+   * @param {number|null} [age] - donnée jugée non identifiante ISOLÉMENT (contrairement à identite) :
+   *   c'est la seule information de la fiche élève que grille-analyse.js est autorisé à
+   *   inclure dans le prompt IA anonymisé (voir MoteurAnalyse.anonymiser()).
    */
-  function eleveVide(identifiantSynapses, identite) {
+  function eleveVide(identifiantSynapses, identite, age) {
     return {
       identifiantSynapses,
       identite: identite || {}, // { nom, prenom, dateNaissance, classe, ... }
+      age: (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null,
       parcoursScolaire: {},
       accompagnements: [],
       domainesAnalyse: {
@@ -178,13 +181,21 @@
       }));
     }
 
-    ajouterEleve(identifiantSynapses, identite) {
+    ajouterEleve(identifiantSynapses, identite, age) {
       this._assertOuvert();
       if (this._data.eleves.some((e) => e.identifiantSynapses === identifiantSynapses)) {
         throw new Error('Identifiant Synapses déjà utilisé : ' + identifiantSynapses);
       }
-      const e = eleveVide(identifiantSynapses, identite);
+      const e = eleveVide(identifiantSynapses, identite, age);
       this._data.eleves.push(e);
+      return e;
+    }
+
+    /** Modifie uniquement l'âge (seule donnée d'identité re-modifiable isolément
+     *  sans passer par une refonte de l'identité nominative). */
+    definirAge(identifiantSynapses, age) {
+      const e = this.getEleve(identifiantSynapses);
+      e.age = (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null;
       return e;
     }
 
@@ -237,6 +248,16 @@
       const e = this.getEleve(identifiantSynapses);
       const a = Object.assign({ id: 'A-' + Date.now(), libelle: '', proposee: true, utilisee: false, efficacite: null }, adaptation);
       e.adaptations.push(a);
+      return a;
+    }
+
+    /** Bascule utilisee (true <-> false) pour une adaptation donnée — ex :
+     *  clic sur la cellule "Utilisée" dans l'onglet Adaptations. */
+    toggleAdaptationUtilisee(identifiantSynapses, adaptationId) {
+      const e = this.getEleve(identifiantSynapses);
+      const a = e.adaptations.find((x) => x.id === adaptationId);
+      if (!a) throw new Error('Adaptation introuvable : ' + adaptationId);
+      a.utilisee = !a.utilisee;
       return a;
     }
 
