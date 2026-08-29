@@ -577,7 +577,9 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
       <a class="btn" href="planning-affichage.html">🗓 Planning</a>
       <button class="btn" id="btn-export-all">Exporter tout (JSON)</button>
       <button class="btn" id="btn-import-all">Importer</button>
-      <input type="file" id="file-import" accept="application/json">
+      <input type="file" id="file-import" accept="application/json,.json" multiple style="display:none">
+      <button class="btn" id="btn-import-folder">📁 Importer un dossier</button>
+      <input type="file" id="folder-import" webkitdirectory directory multiple style="display:none">
     </div>
   </div>
 </header>
@@ -654,6 +656,8 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn on-panel small" id="btn-load-local-sequences">Charger des séquences depuis l'ordinateur</button>
         <input type="file" id="local-sequences-file" accept="application/json,.json" multiple style="display:none">
+        <button class="btn on-panel small" id="btn-load-local-folder">📁 Importer un dossier entier</button>
+        <input type="file" id="local-folder-input" webkitdirectory directory multiple style="display:none">
       </div>
       <div class="filter-chips" id="domain-filters"></div>
       <div class="filter-chips" id="periode-filters"></div>
@@ -2254,22 +2258,16 @@ function mergeLocalSequenceData(data){
 function attachLocalSequenceLoader(){
   const btns=[document.getElementById('btn-program-load-sequences'),document.getElementById('btn-load-local-sequences')].filter(Boolean);
   const input=document.getElementById('program-sequences-file')||document.getElementById('local-sequences-file');
-  if(!btns.length||!input)return;
-  btns.forEach(btn=>btn.onclick=()=>input.click());
-  input.addEventListener('change',e=>{
-    const files=[...e.target.files]; if(!files.length)return;
-    let done=0, imported=0;
-    files.forEach(file=>{
-      const r=new FileReader();
-      r.onload=()=>{
-        try{ const data=JSON.parse(r.result); imported+=mergeLocalSequenceData(data).length; }catch(err){ console.warn('Séquence locale ignorée',file.name,err); }
-        done++;
-        if(done===files.length){ saveSequences(state.sequences);saveSeances(state.seances);renderSeqGrid();renderProgrammingTable(document.getElementById('program-niveau').value);toast(imported+' séquence(s) locale(s) chargée(s)'); }
-      };
-      r.readAsText(file);
-    });
-    input.value='';
-  });
+  if(btns.length && input){
+    btns.forEach(btn=>btn.onclick=()=>input.click());
+    input.addEventListener('change',e=>{ importJSONFiles(e.target.files); input.value=''; });
+  }
+  const folderBtn = document.getElementById('btn-load-local-folder');
+  const folderInput = document.getElementById('local-folder-input');
+  if(folderBtn && folderInput){
+    folderBtn.onclick = ()=> folderInput.click();
+    folderInput.addEventListener('change', e=>{ importJSONFiles(e.target.files); folderInput.value=''; });
+  }
 }
 
 function initProgrammingUI(){
@@ -2309,43 +2307,47 @@ function downloadJSON(pathSansExtension, data){
 document.getElementById('btn-export-all').addEventListener('click', ()=>{
   downloadJSON("programmation-complete", { sequences: state.sequences, seances: state.seances });
 });
+
+/* Import générique : un ou plusieurs fichiers .json (bouton "Importer"),
+   ou un dossier entier avec sous-dossiers (bouton "Importer un dossier").
+   Chaque fichier peut contenir un lot {sequences:[...],seances:[...]},
+   une séquence unique (avec ses séances imbriquées), ou une séance seule.
+   La fusion se fait par id (mergeLocalSequenceData) : un id déjà connu est
+   mis à jour, un id nouveau est ajouté — rien n'est jamais écrasé en bloc. */
+function importJSONFiles(fileList){
+  const files = [...fileList].filter(f=>/\.json$/i.test(f.name));
+  if(!files.length){ toast("Aucun fichier .json trouvé dans la sélection."); return; }
+  let done = 0, importedSeq = 0, ignores = 0;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        importedSeq += mergeLocalSequenceData(data).length;
+      }catch(err){
+        ignores++;
+        console.warn("Fichier ignoré (JSON invalide) :", file.webkitRelativePath || file.name, err);
+      }
+      done++;
+      if(done === files.length){
+        saveSequences(state.sequences); saveSeances(state.seances);
+        renderFilters(); renderSeqGrid();
+        if(document.getElementById('program-niveau')) renderProgrammingTable(document.getElementById('program-niveau').value);
+        toast(`Import terminé : ${importedSeq} séquence(s) chargée(s)` + (ignores ? `, ${ignores} fichier(s) ignoré(s)` : "") + ".");
+      }
+    };
+    reader.readAsText(file);
+  });
+}
 document.getElementById('btn-import-all').addEventListener('click', ()=> document.getElementById('file-import').click());
 document.getElementById('file-import').addEventListener('change', e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    try{
-      const data = JSON.parse(reader.result);
-      if(Array.isArray(data.sequences)){
-        data.sequences.forEach(s=>{ if(!state.sequences.some(x=>x.id===s.id)) state.sequences.push(s); });
-      }
-      if(Array.isArray(data.seances)){
-        data.seances.forEach(s=>{ if(!state.seances.some(x=>x.id===s.id)) state.seances.push(s); });
-      }
-      // Import d'une séquence unique exportée depuis "Télécharger le JSON" (contient .seances imbriquées)
-      if(data.id && data.titre && !Array.isArray(data.sequences)){
-        const embeddedSeances = Array.isArray(data.seances) ? data.seances : [];
-        const { seances, ...seqOnly } = data;
-        if(!state.sequences.some(x=>x.id===seqOnly.id)) state.sequences.push(seqOnly);
-        embeddedSeances.forEach(s=>{ if(!state.seances.some(x=>x.id===s.id)) state.seances.push(s); });
-      }
-      // Import d'une séance unique
-      if(data.id && data.sequence_id && !data.titre_deja_traite){
-        if(data.sequence_id && !state.seances.some(x=>x.id===data.id) && !Array.isArray(data.sequences) && !data.objectif_commun===undefined){
-          // évite double-ajout si déjà géré ci-dessus via data.id/data.titre
-        }
-      }
-      saveSequences(state.sequences); saveSeances(state.seances);
-      renderSeqGrid();
-      if(document.getElementById('program-niveau')) renderProgrammingTable(document.getElementById('program-niveau').value);
-      toast("Import réussi");
-    }catch(err){
-      alert("Fichier JSON invalide : " + err.message);
-    }
-    document.getElementById('file-import').value = "";
-  };
-  reader.readAsText(file);
+  importJSONFiles(e.target.files);
+  e.target.value = "";
+});
+document.getElementById('btn-import-folder').addEventListener('click', ()=> document.getElementById('folder-import').click());
+document.getElementById('folder-import').addEventListener('change', e=>{
+  importJSONFiles(e.target.files);
+  e.target.value = "";
 });
 
 /* ============================================================
