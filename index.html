@@ -1360,6 +1360,26 @@ window.addEventListener("error", e=>{
 })();
 </script>
 
+<script>
+(function(){
+  var navDropdowns = Array.prototype.slice.call(document.querySelectorAll('.nav-dropdown'));
+  navDropdowns.forEach(function(dd){
+    dd.addEventListener('toggle', function(){
+      if(dd.open){
+        navDropdowns.forEach(function(other){
+          if(other !== dd) other.open = false;
+        });
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    navDropdowns.forEach(function(dd){
+      if(dd.open && !dd.contains(e.target)) dd.open = false;
+    });
+  });
+})();
+</script>
+
 <footer class="synapses-footer">
     <div>Synapses — Grand Planificateur pédagogique</div>
     <div>© 2026 Cskrh13 / Vincent · v0.9.0-test · 27/08/2026</div>
