@@ -57,9 +57,10 @@
   /**
    * @param {string} identifiantSynapses
    * @param {object} [identite] - { nom, prenom, dateNaissance, classe, ... } — TOUT nominatif, jamais transmis à une IA.
-   * @param {number|null} [age] - donnée jugée non identifiante ISOLÉMENT (contrairement à identite) :
-   *   c'est la seule information de la fiche élève que grille-analyse.js est autorisé à
-   *   inclure dans le prompt IA anonymisé (voir MoteurAnalyse.anonymiser()).
+   * @param {number|null} [age] - donnée stockée uniquement dans le coffre local, pour affichage/
+   *   usage interne de l'application. NE JAMAIS transmettre à une IA, même anonymisée par
+   *   ailleurs : grille-analyse.js l'exclut explicitement de MoteurAnalyse.anonymiser() (voir
+   *   la note dans ce fichier pour le raisonnement RGPD).
    */
   function eleveVide(identifiantSynapses, identite, age) {
     return {
