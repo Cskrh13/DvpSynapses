@@ -576,9 +576,8 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
       <a class="btn" href="generateur-sequences-projet.html">🧩 Générateur de séquences</a>
       <a class="btn" href="planning-affichage.html">🗓 Planning</a>
       <button class="btn" id="btn-export-all">Exporter tout (JSON)</button>
-      <button class="btn" id="btn-import-all">Importer un JSON</button>
+      <button class="btn" id="btn-import-all">Importer</button>
       <input type="file" id="file-import" accept="application/json">
-      <button class="btn primary" id="btn-new-seq">＋ Nouvelle séquence</button>
     </div>
   </div>
 </header>
@@ -1221,7 +1220,7 @@ function saveSeances(list){ localStorage.setItem(STORE_SEA, JSON.stringify(list)
 const state = {
   sequences: loadSequences(),
   seances: loadSeances(),
-  activeDomains: new Set(Object.keys(DOMAINES)),
+  activeDomains: null, // null = aucun filtre choisi -> toutes les compétences/domaines sont affichés
   activePeriode: null,
   currentSeqId: null,
   editingSeqId: null,
@@ -1295,12 +1294,25 @@ document.getElementById('periodRow').innerHTML = periodRowHTML();
 function renderFilters(){
   const domWrap = document.getElementById('domain-filters');
   domWrap.innerHTML = "";
-  Object.entries(DOMAINES).forEach(([id,d])=>{
+  // Domaines + sous-domaines réellement présents dans le référentiel (competences.json),
+  // tous niveaux confondus, plutôt que les 5 grands domaines figés.
+  const domainesDisponibles = domainesDuNiveau(null);
+  if(state.activeDomains===null){
+    state.activeDomains = new Set(domainesDisponibles.map(d=>d.id));
+  } else {
+    // toute compétence nouvellement apparue (référentiel chargé après coup, import…) reste visible par défaut
+    domainesDisponibles.forEach(d=>{ if(!state.activeDomains.has(d.id)) state.activeDomains.add(d.id); });
+  }
+  if(!domainesDisponibles.length){
+    domWrap.innerHTML = `<span style="font-size:12px;color:var(--ink-soft);">Référentiel de compétences en cours de chargement…</span>`;
+  }
+  domainesDisponibles.forEach(d=>{
     const c = document.createElement('button');
     c.className = "chip"; c.textContent = d.nom;
-    c.setAttribute('aria-pressed', state.activeDomains.has(id));
+    c.title = d.discipline || "";
+    c.setAttribute('aria-pressed', state.activeDomains.has(d.id));
     c.addEventListener('click', ()=>{
-      if(state.activeDomains.has(id)) state.activeDomains.delete(id); else state.activeDomains.add(id);
+      if(state.activeDomains.has(d.id)) state.activeDomains.delete(d.id); else state.activeDomains.add(d.id);
       renderFilters(); renderSeqGrid();
     });
     domWrap.appendChild(c);
@@ -1343,7 +1355,7 @@ function renderSeqGrid(){
   const grid = document.getElementById('seq-grid');
   grid.innerHTML = "";
   const list = state.sequences.filter(s=>{
-    if(!state.activeDomains.has(s.domaine)) return false;
+    if(state.activeDomains && !state.activeDomains.has(sequenceDomainId(s))) return false;
     if(state.activePeriode!==null && assignedPeriodForSequence(s.id)!==state.activePeriode) return false;
     return true;
   });
@@ -1351,15 +1363,16 @@ function renderSeqGrid(){
   if(!list.length){
     grid.innerHTML = `<div class="empty-state">
       <h4>Aucune séquence pour ces filtres</h4>
-      <p>Créez une nouvelle séquence ou ajustez les filtres ci-dessus.</p>
-      <button class="btn on-panel primary" id="empty-new-seq">＋ Nouvelle séquence</button>
+      <p>Importez des séquences depuis votre ordinateur, ou ajustez les filtres ci-dessus.</p>
+      <button class="btn on-panel primary" id="empty-new-seq">📂 Importer</button>
     </div>`;
-    document.getElementById('empty-new-seq').addEventListener('click', ()=> openSeqForm(null));
+    document.getElementById('empty-new-seq').addEventListener('click', ()=> document.getElementById('file-import').click());
     return;
   }
 
   list.forEach(seq=>{
-    const dom = DOMAINES[seq.domaine] || {nom:seq.domaine,couleur:"#2E5EAA"};
+    const domInfo = sequenceDomainInfo(seq);
+    const dom = {nom: domInfo.nom, couleur: colorForDomaine(domInfo.id)};
     const nbSeances = state.seances.filter(x=>x.sequence_id===seq.id).length;
     const card = document.createElement('button');
     card.className = "seq-brique";
@@ -1585,7 +1598,7 @@ function getProgressionNeighbors(seq){
   state.sequences.forEach(other=>{if(other.id===seq.id)return;if(!previous.some(x=>x.id===other.id)&&sequenceRelationIds(other,"next").includes(seq.id))previous.push(other);if(!next.some(x=>x.id===other.id)&&sequenceRelationIds(other,"previous").includes(seq.id))next.push(other);});
   return {previous:[...new Map(previous.map(x=>[x.id,x])).values()],next:[...new Map(next.map(x=>[x.id,x])).values()]};
 }
-function focusSequenceCard(seq,relation){const dom=DOMAINES[seq.domaine]||{nom:seq.domaine};return `<button class="focus-card" data-focus-seq="${escapeAttr(seq.id)}"><strong>${escapeHTML(seq.titre||"Séquence sans titre")}</strong><span>${escapeHTML(seqNiveau(seq))} · ${escapeHTML(dom.nom||"")}${seq.periode?` · P${escapeHTML(seq.periode)}`:""}</span>${relation?`<span>${escapeHTML(relation)}</span>`:""}</button>`;}
+function focusSequenceCard(seq,relation){const dom=sequenceDomainInfo(seq);return `<button class="focus-card" data-focus-seq="${escapeAttr(seq.id)}"><strong>${escapeHTML(seq.titre||"Séquence sans titre")}</strong><span>${escapeHTML(seqNiveau(seq))} · ${escapeHTML(dom.nom||"")}${seq.periode?` · P${escapeHTML(seq.periode)}`:""}</span>${relation?`<span>${escapeHTML(relation)}</span>`:""}</button>`;}
 function competencePillsForSequence(seq){const ids=[seq.competence_id,...(Array.isArray(seq.competences_mobilisees)?seq.competences_mobilisees:[])].filter(Boolean);const unique=[...new Set(ids)];return unique.length?unique.map(id=>`<span class="focus-pill">${escapeHTML(competenceLabel(id,id))}</span>`).join(""):`<span class="focus-pill">Aucune compétence explicitement associée</span>`;}
 
 function renderSeancesGrid(seq){
@@ -1618,7 +1631,6 @@ function renderSeancesGrid(seq){
 }
 
 /* ---- Actions séquence ---- */
-document.getElementById('btn-new-seq').addEventListener('click', ()=> openSeqForm(null));
 document.getElementById('btn-edit-seq').addEventListener('click', ()=> openSeqForm(state.currentSeqId));
 document.getElementById('btn-delete-seq').addEventListener('click', ()=>{
   if(!confirm("Supprimer cette séquence et toutes ses séances ?")) return;
@@ -1975,7 +1987,7 @@ function openSeaDrawer(seaId){
   const sea = state.seances.find(s=>s.id===seaId);
   if(!sea) return;
   const seq = state.sequences.find(s=>s.id===sea.sequence_id);
-  const dom = seq ? (DOMAINES[seq.domaine]||{nom:seq.domaine}) : {nom:""};
+  const dom = seq ? sequenceDomainInfo(seq) : {nom:""};
 
   document.getElementById('sea-drawer-eyebrow').textContent = `${seq? seqNiveau(seq)+" · "+seqMatiere(seq)+" · " : ""}${dom.nom||""} · Séance ${sea.numero||""} ${sea.type? "· "+sea.type:""}`;
 
@@ -2118,7 +2130,7 @@ function launchPrint(html, title){
 function printSequence(seqId){
   const seq = state.sequences.find(s=>s.id===seqId);
   if(!seq) return;
-  const dom = DOMAINES[seq.domaine] || {nom:seq.domaine};
+  const dom = sequenceDomainInfo(seq);
   const seances = state.seances.filter(x=>x.sequence_id===seqId);
   const html = `
     <p class="print-eyebrow">${escapeHTML(seq.niveau||"")} · ${escapeHTML(seq.matiere||MATIERE_DEFAUT)} · ${escapeHTML(dom.nom)} · Période ${seq.periode} · Semaines ${seq.semaine_debut}–${seq.semaine_fin}</p>
@@ -2405,7 +2417,9 @@ updateCoffreWidget();
 /* Le référentiel de compétences est chargé une fois, au démarrage. */
 chargerReferentielCompetences().then(()=>{
   if(document.getElementById('view-progression').classList.contains('open')) fillProgressionSelectors();
-  if(document.getElementById('program-niveau')){fillProgrammeNiveaux();renderProgrammingTable(document.getElementById('program-niveau').value);renderSeqGrid();}
+  if(document.getElementById('program-niveau')){fillProgrammeNiveaux();renderProgrammingTable(document.getElementById('program-niveau').value);}
+  renderFilters();
+  renderSeqGrid();
   openFromCartographyURL();
 });
 </script>
