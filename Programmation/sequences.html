@@ -186,8 +186,9 @@ input[type="file"]{display:none;}
 .week-grid{display:grid;grid-template-columns:repeat(36,minmax(0,1fr));gap:3px;}
 .week-cell{
   aspect-ratio:1/1.15;background:#EEECE3;border-radius:4px;display:flex;align-items:center;justify-content:center;
-  font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink-soft);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--ink-soft);border:none;padding:0;cursor:pointer;
 }
+.week-cell:hover{background:#E4E1D6;}
 .week-cell.in-range{color:#fff;font-weight:700;}
 
 /* ---- Focus de progression autour de la séquence ---- */
@@ -720,7 +721,8 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
 
     <div class="cp-block">
       <div class="panel">
-        <h5 style="margin-bottom:14px;">Positionnement — 36 semaines</h5>
+        <h5 style="margin-bottom:6px;">Positionnement — 36 semaines</h5>
+        <p style="font-size:12px;color:var(--ink-soft);margin:0 0 14px;">Cliquez sur une semaine de début puis une semaine de fin pour positionner la séquence. <button type="button" id="seq-week-clear" style="background:none;border:none;color:var(--accent-sky);font-weight:600;cursor:pointer;padding:0;">Effacer le positionnement</button></p>
         <div class="period-row" id="periodRow"></div>
         <div class="week-grid" id="seq-week-grid"></div>
       </div>
@@ -1172,7 +1174,7 @@ async function chargerReferentielCompetences(){
    ------------------------------------------------------------ */
 function seqNiveau(seq){ return (seq && seq.niveau) || NIVEAUX[0]; }
 function seqMatiere(seq){ return (seq && seq.matiere) || MATIERE_DEFAUT; }
-function seqChamp(seq){ return (seq && (seq.competence_id || seq.domaine)) || "lecture"; }
+function seqChamp(seq){ return (seq && (seq.competence_id || seq.domaine_id || seq.domaine)) || "lecture"; }
 function seqChemin(seq){
   return `data/${seqNiveau(seq)}/${slug(seqMatiere(seq))}/${seqChamp(seq)}`;
 }
@@ -1400,6 +1402,110 @@ function escapeHTML(str){
 /* ============================================================
    VUE 2 — DÉTAIL D'UNE SÉQUENCE
    ============================================================ */
+/* ============================================================
+   FICHE SÉQUENCE — rendu complet (titre, tags, objectif, prérequis,
+   références, focus progression, objectifs individuels,
+   positionnement 36 semaines, séances)
+   ============================================================ */
+let seqWeekPickStart = null; // premier clic en attente du second, pour définir une plage
+
+function renderSeqDetail(){
+  const seq = state.sequences.find(s=>s.id===state.currentSeqId);
+  if(!seq){ backToList(); return; }
+  seqWeekPickStart = null;
+
+  const dom = sequenceDomainInfo(seq);
+  const niveau = seqNiveau(seq);
+  const matiere = seq.matiere || MATIERE_DEFAUT;
+  const periode = assignedPeriodForSequence(seq.id) || seq.periode || null;
+
+  document.getElementById('seq-eyebrow').textContent = [
+    niveau, matiere, dom.nom,
+    periode ? `Période ${periode}` : null,
+    (seq.semaine_debut && seq.semaine_fin) ? `Semaines ${seq.semaine_debut}–${seq.semaine_fin}` : null
+  ].filter(Boolean).join(' · ');
+
+  document.getElementById('seq-title').textContent = seq.titre || "Séquence sans titre";
+
+  const tags = [niveau, matiere, dom.nom, seq.classe].filter(Boolean);
+  document.getElementById('seq-tags').innerHTML =
+    tags.map(t=>`<span class="badge plain">${escapeHTML(t)}</span>`).join('') +
+    (seq.brouillon ? `<span class="badge plain" style="color:#9a3d2e;">📝 Brouillon</span>` : "") +
+    `<span class="badge plain" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;">${escapeHTML(seqChemin(seq))}/</span>`;
+
+  document.getElementById('seq-objectif').textContent = seq.objectif_commun || "—";
+
+  const prereqBlock = document.getElementById('seq-prerequis-block');
+  const prereqText = Array.isArray(seq.prerequis) ? seq.prerequis.filter(Boolean).join(' · ') : (seq.prerequis || '');
+  if(prereqText){ prereqBlock.style.display=''; document.getElementById('seq-prerequis').textContent = prereqText; }
+  else prereqBlock.style.display = 'none';
+
+  const refsBlock = document.getElementById('seq-refs-block');
+  if(seq.references_theoriques){ refsBlock.style.display=''; document.getElementById('seq-refs').textContent = seq.references_theoriques; }
+  else refsBlock.style.display = 'none';
+
+  const focusWrap = document.getElementById('seq-focus-progression');
+  const {previous, next} = getProgressionNeighbors(seq);
+  if(previous.length || next.length){
+    focusWrap.innerHTML = [
+      ...previous.map(s=>focusSequenceCard(s,'← Séquence précédente')),
+      `<div class="focus-card" style="background:#eef4fc;border-color:var(--accent-sky);"><strong>${escapeHTML(seq.titre||"Cette séquence")}</strong><span>Séquence actuelle</span></div>`,
+      ...next.map(s=>focusSequenceCard(s,'Séquence suivante →'))
+    ].join('');
+    focusWrap.querySelectorAll('[data-focus-seq]').forEach(btn=>btn.addEventListener('click', ()=> openSeqDetail(btn.dataset.focusSeq)));
+  } else {
+    focusWrap.innerHTML = `<p style="font-size:13px;color:var(--ink-soft);margin:0;">Aucune séquence précédente ou suivante n'est reliée à celle-ci pour l'instant.</p>`;
+  }
+
+  const elevesBlock = document.getElementById('seq-eleves-block');
+  const eleves = (seq.objectifs_individuels||[]).filter(e=>e.nom||e.objectif);
+  if(eleves.length){
+    elevesBlock.style.display = '';
+    document.getElementById('seq-eleves-body').innerHTML = eleves.map(e=>`<tr><td>${escapeHTML(e.nom)}</td><td>${escapeHTML(e.objectif)}</td></tr>`).join('');
+  } else elevesBlock.style.display = 'none';
+
+  renderSeqWeekGrid(seq, dom.couleur);
+  renderSeancesGrid(seq);
+}
+
+function renderSeqWeekGrid(seq, couleur){
+  couleur = couleur || sequenceDomainInfo(seq).couleur || colorForDomaine(sequenceDomainId(seq));
+  const grid = document.getElementById('seq-week-grid');
+  grid.innerHTML = "";
+  for(let w=1; w<=36; w++){
+    const cell = document.createElement('button');
+    cell.type = "button";
+    cell.className = "week-cell";
+    cell.textContent = w;
+    cell.title = "Semaine " + w;
+    const inRange = seq.semaine_debut && seq.semaine_fin && w>=seq.semaine_debut && w<=seq.semaine_fin;
+    if(inRange){ cell.classList.add('in-range'); cell.style.background = couleur; }
+    if(seqWeekPickStart===w) cell.style.outline = "2px solid " + couleur;
+    cell.addEventListener('click', ()=>{
+      if(seqWeekPickStart===null){
+        seqWeekPickStart = w;
+        renderSeqWeekGrid(seq, couleur);
+        return;
+      }
+      let debut = seqWeekPickStart, fin = w;
+      if(fin<debut){ const t=debut; debut=fin; fin=t; }
+      seq.semaine_debut = debut; seq.semaine_fin = fin;
+      seqWeekPickStart = null;
+      saveSequences(state.sequences);
+      renderSeqDetail();
+    });
+    grid.appendChild(cell);
+  }
+}
+document.getElementById('seq-week-clear')?.addEventListener('click', ()=>{
+  const seq = state.sequences.find(s=>s.id===state.currentSeqId);
+  if(!seq) return;
+  delete seq.semaine_debut; delete seq.semaine_fin;
+  seqWeekPickStart = null;
+  saveSequences(state.sequences);
+  renderSeqDetail();
+});
+
 function openSeqDetail(seqId){
   state.currentSeqId = seqId;
   document.getElementById('view-list').classList.remove('open');
@@ -1595,6 +1701,14 @@ document.getElementById('btn-prog-pdf').onclick=()=>printProgression(currentProg
 document.getElementById('btn-prog-doc').onclick=()=>downloadDocProgression(currentProgressionId);
 document.getElementById('btn-prog-json').onclick=()=>{const p=progressions.find(x=>x.id===currentProgressionId);if(p)downloadJSON(slug(p.titre||'programmation'),p);};
 document.getElementById('btn-prog-delete').onclick=()=>{if(!confirm('Supprimer cette programmation ?'))return;progressions=progressions.filter(p=>p.id!==currentProgressionId);saveProgressions(progressions);currentProgressionId=null;document.getElementById('prog-actions').style.display='none';document.getElementById('prog-content').innerHTML='';renderProgSaved();};
+function sequenceById(id){ return state.sequences.find(s=>s.id===id); }
+function sequenceRelationIds(seq, type){
+  // Le lien entre séquences (précédente/suivante) est volontairement local et manuel :
+  // il n'est renseigné que si la séquence porte explicitement ces champs (édition future).
+  if(!seq) return [];
+  const key = type==="previous" ? "sequences_precedentes" : "sequences_suivantes";
+  return Array.isArray(seq[key]) ? seq[key] : [];
+}
 function getProgressionNeighbors(seq){
   const previous=sequenceRelationIds(seq,"previous").map(sequenceById).filter(Boolean);
   const next=sequenceRelationIds(seq,"next").map(sequenceById).filter(Boolean);
