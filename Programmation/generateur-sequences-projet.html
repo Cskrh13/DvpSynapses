@@ -20,14 +20,26 @@
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer}
-.topbar{background:var(--navy);color:#fff;padding:18px 24px;position:sticky;top:0;z-index:20;box-shadow:0 2px 12px rgba(0,0,0,.12)}
-.topbar-inner{max-width:1250px;margin:auto;display:flex;gap:18px;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:12px}
-.brand-badge{width:42px;height:42px;border-radius:11px;background:var(--blue);display:grid;place-items:center;font-weight:800}
-.brand h1{font-size:1.05rem;margin:0}.brand small{color:#b9c4d8}
-.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.topbar{background:#1E2A4A;color:#fff;position:sticky;top:0;z-index:50;border-bottom:3px solid #2E5EAA}
+.topbar-inner{max-width:1250px;margin:auto;padding:14px 24px;display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff}
+.brand-badge{width:40px;height:40px;border-radius:8px;background:linear-gradient(160deg,#2E5EAA,#5486d6);display:grid;place-items:center;font-weight:700;font-size:18px;flex-shrink:0}
+.brand h1{font-size:1.05rem;margin:0}.brand small{color:#B9C4D8}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap;row-gap:8px;align-items:center}
 .top-actions button{border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;padding:8px 12px;border-radius:999px}
 .top-actions button:hover{background:rgba(255,255,255,.1)}
+
+/* Nav à menus déroulants — reprise de la DA d'index.html */
+nav.main-nav{display:flex;gap:6px;flex-wrap:wrap;row-gap:6px;align-items:center}
+.nav-dropdown{position:relative;flex:0 0 auto}
+.nav-dropdown>summary{height:36px;line-height:20px;list-style:none;color:#D9E0F2;font-size:14px;font-weight:500;padding:8px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;box-sizing:border-box}
+.nav-dropdown>summary::-webkit-details-marker{display:none}
+.nav-dropdown>summary::after{content:"⌄";font-size:11px;margin-left:7px;opacity:.75}
+.nav-dropdown[open]>summary,.nav-dropdown>summary:hover{background:rgba(255,255,255,.09);color:#fff}
+.nav-dropdown-menu{position:absolute;top:100%;left:0;margin-top:7px;min-width:235px;background:#1E2A4A;border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:7px;box-shadow:0 14px 30px rgba(0,0,0,.25);z-index:100}
+.nav-dropdown-menu a{display:block!important;color:#D9E0F2!important;padding:9px 11px!important;border-radius:5px;margin:0!important;background:transparent!important;border:0!important;font-size:13.5px;font-weight:500}
+.nav-dropdown-menu a:hover{background:rgba(255,255,255,.09)!important;color:#fff!important}
+@media(max-width:760px){nav.main-nav{width:100%}.nav-dropdown-menu{position:static;margin-top:4px;width:100%}}
 main{max-width:1250px;margin:auto;padding:26px 20px 50px}
 .hero h2{margin:0;font-family:Georgia,serif;font-size:2rem}.hero p{max-width:800px;color:var(--soft);margin-top:7px}
 .stepper{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:22px 0}
@@ -140,18 +152,6 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 .panier-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
 .panier-item:last-child{border-bottom:0}
 
-/* Nav à menus déroulants (DA commune du site) */
-nav.main-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:8px}
-.nav-dropdown{position:relative}
-.nav-dropdown>summary{list-style:none;cursor:pointer;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;padding:8px 12px;border-radius:999px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;font-size:.85rem}
-.nav-dropdown>summary::-webkit-details-marker{display:none}
-.nav-dropdown>summary::after{content:"⌄";font-size:.7rem;opacity:.8}
-.nav-dropdown[open]>summary,.nav-dropdown>summary:hover{background:rgba(255,255,255,.12)}
-.nav-dropdown-menu{position:absolute;top:100%;right:0;margin-top:8px;min-width:235px;background:var(--navy2);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:7px;box-shadow:0 14px 30px rgba(0,0,0,.28);z-index:100}
-.nav-dropdown-menu button{display:flex!important;width:100%;text-align:left;align-items:center;gap:8px;background:transparent!important;border:0!important;color:#fff!important;padding:9px 11px!important;border-radius:6px;font-weight:600;font-size:.85rem}
-.nav-dropdown-menu button:hover{background:rgba(255,255,255,.1)!important}
-@media(max-width:760px){nav.main-nav{width:100%}.nav-dropdown-menu{position:static;width:100%;margin-top:6px}}
-
 /* Tableau de bord placé avant les étapes */
 .top-dashboard{max-width:1180px;margin:24px auto 0;padding:0 22px}
 .top-dashboard-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
@@ -163,23 +163,28 @@ nav.main-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:8px}
 <body>
 <header class="topbar">
   <div class="topbar-inner">
-    <div class="brand"><div class="brand-badge">RÉ</div><div><h1>Créateur de séquences</h1><small>Mode guidé · séquences et séances détaillées</small></div></div>
+    <a class="brand" href="sequences.html"><div class="brand-badge">RÉ</div><div><h1>Créateur de séquences</h1><small>Mode guidé · séquences et séances détaillées</small></div></a>
     <nav class="main-nav" aria-label="Navigation principale">
+      <details class="nav-dropdown">
+        <summary>Préparer l'année</summary>
+        <div class="nav-dropdown-menu">
+          <a href="sequences.html">📚 Ma programmation</a>
+          <a href="planning-affichage.html">🗓 Mon emploi du temps</a>
+          <a href="generateur-sequences-projet.html" aria-current="page">🧩 Créer une séquence</a>
+        </div>
+      </details>
+    </nav>
+    <div class="top-actions">
       <div class="coffre-widget">
         <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
         <button type="button" onclick="App.toggleCoffre()">Ouvrir le coffre</button>
       </div>
       <button id="ref-status">Chargement du référentiel…</button>
-      <details class="nav-dropdown">
-        <summary>Finaliser</summary>
-        <div class="nav-dropdown-menu">
-          <button type="button" onclick="App.exporterPDF('sequence')">🖨 Télécharger en PDF</button>
-          <button type="button" onclick="App.exporter()">⬇️ Exporter le JSON</button>
-          <button type="button" onclick="document.getElementById('import-file').click()">⬆️ Importer un JSON</button>
-        </div>
-      </details>
+      <button onclick="App.exporterPDF('sequence')">PDF</button>
+      <button onclick="App.exporter()">Exporter</button>
+      <button onclick="document.getElementById('import-file').click()">Importer</button>
       <input id="import-file" type="file" accept="application/json" hidden onchange="App.importer(event)">
-    </nav>
+    </div>
   </div>
 </header>
 
