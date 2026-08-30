@@ -65,10 +65,13 @@ textarea{resize:vertical;min-height:90px}input:focus,select:focus,textarea:focus
 .session-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.session-fields .full{grid-column:1/-1}
 .phase{border:1px solid var(--line);border-radius:10px;margin-top:10px;overflow:hidden}
 .phase-head{display:flex;justify-content:space-between;align-items:center;background:#f8f9f9;padding:8px 10px;font-weight:800}
-.phase-grid{display:grid;grid-template-columns:100px 1.1fr 1.7fr 1.2fr 1.5fr 1.3fr;gap:0;border-top:1px solid var(--line)}
-.phase-grid>div{padding:8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:.78rem}
-.phase-grid>div:nth-child(6n){border-right:0}.phase-grid input,.phase-grid textarea{font-size:.76rem;padding:6px;min-height:50px}
-.phase-grid.header{background:#f2f4f5;font-weight:800;color:var(--soft)}
+.phase-card{border:1px solid var(--line);border-radius:10px;margin-top:12px;overflow:hidden;background:#fff}
+.phase-card-head{background:#f8f9f9;padding:10px 14px;font-weight:800;border-bottom:1px solid var(--line);font-size:.92rem}
+.phase-card-body{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.phase-card-body label{display:block;font-size:.78rem;font-weight:800;color:var(--soft);margin:0 0 5px}
+.phase-card-body textarea{min-height:72px;font-size:.85rem}
+.phase-card-body .full{grid-column:1/-1}
+@media(max-width:640px){.phase-card-body{grid-template-columns:1fr}}
 .objectives{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .student-row{display:grid;grid-template-columns:1fr 2fr 2fr auto;gap:8px;align-items:start;margin-bottom:7px}
 .meta-box{background:#f8f9f9;border-radius:10px;padding:10px}.meta-box strong{display:block;font-size:.75rem;color:var(--soft);text-transform:uppercase}
@@ -115,7 +118,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
   .pdf-cadrage th{background:#f2f4f5;text-align:left}
   .pdf-materiel{border:1px dashed #c9622f;border-radius:8px;padding:9px 10px;margin-top:8px;font-size:10px;background:#fff8f3}
 }
-@media(max-width:900px){.stepper{grid-template-columns:1fr 1fr}.phase-grid{grid-template-columns:1fr}.phase-grid.header{display:none}.phase-grid>div{border-right:0}.two,.seq-grid,.objectives,.session-fields{grid-template-columns:1fr}.student-row{grid-template-columns:1fr}.topbar{position:static}}
+@media(max-width:900px){.stepper{grid-template-columns:1fr 1fr}.two,.seq-grid,.objectives,.session-fields{grid-template-columns:1fr}.student-row{grid-template-columns:1fr}.topbar{position:static}}
 
 .synapses-footer {
     margin-top: 40px;
@@ -137,6 +140,18 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 .panier-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
 .panier-item:last-child{border-bottom:0}
 
+/* Nav à menus déroulants (DA commune du site) */
+nav.main-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:8px}
+.nav-dropdown{position:relative}
+.nav-dropdown>summary{list-style:none;cursor:pointer;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;padding:8px 12px;border-radius:999px;font-weight:800;white-space:nowrap;display:flex;align-items:center;gap:6px;font-size:.85rem}
+.nav-dropdown>summary::-webkit-details-marker{display:none}
+.nav-dropdown>summary::after{content:"⌄";font-size:.7rem;opacity:.8}
+.nav-dropdown[open]>summary,.nav-dropdown>summary:hover{background:rgba(255,255,255,.12)}
+.nav-dropdown-menu{position:absolute;top:100%;right:0;margin-top:8px;min-width:235px;background:var(--navy2);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:7px;box-shadow:0 14px 30px rgba(0,0,0,.28);z-index:100}
+.nav-dropdown-menu button{display:flex!important;width:100%;text-align:left;align-items:center;gap:8px;background:transparent!important;border:0!important;color:#fff!important;padding:9px 11px!important;border-radius:6px;font-weight:600;font-size:.85rem}
+.nav-dropdown-menu button:hover{background:rgba(255,255,255,.1)!important}
+@media(max-width:760px){nav.main-nav{width:100%}.nav-dropdown-menu{position:static;width:100%;margin-top:6px}}
+
 /* Tableau de bord placé avant les étapes */
 .top-dashboard{max-width:1180px;margin:24px auto 0;padding:0 22px}
 .top-dashboard-inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
@@ -149,17 +164,22 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:25px}
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand"><div class="brand-badge">RÉ</div><div><h1>Créateur de séquences</h1><small>Mode guidé · séquences et séances détaillées</small></div></div>
-    <div class="top-actions">
+    <nav class="main-nav" aria-label="Navigation principale">
       <div class="coffre-widget">
         <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
         <button type="button" onclick="App.toggleCoffre()">Ouvrir le coffre</button>
       </div>
       <button id="ref-status">Chargement du référentiel…</button>
-      <button onclick="App.exporterPDF('sequence')">PDF</button>
-      <button onclick="App.exporter()">Exporter</button>
-      <button onclick="document.getElementById('import-file').click()">Importer</button>
+      <details class="nav-dropdown">
+        <summary>Finaliser</summary>
+        <div class="nav-dropdown-menu">
+          <button type="button" onclick="App.exporterPDF('sequence')">🖨 Télécharger en PDF</button>
+          <button type="button" onclick="App.exporter()">⬇️ Exporter le JSON</button>
+          <button type="button" onclick="document.getElementById('import-file').click()">⬆️ Importer un JSON</button>
+        </div>
+      </details>
       <input id="import-file" type="file" accept="application/json" hidden onchange="App.importer(event)">
-    </div>
+    </nav>
   </div>
 </header>
 
@@ -937,14 +957,16 @@ Une fois l'image téléchargée, chargez-la dans Synapses via « Charger un fich
 
   function renderDetail(s,i){
     const phases=s.deroule||[];
-    const phaseRows=phases.map((p,j)=>`<div class="phase-grid">
-      <div><strong>${esc(p.phase)}</strong></div>
-      <div><textarea placeholder="Temps" oninput="App.phaseField(${i},${j},'temps',this.value)">${esc(p.temps)}</textarea></div>
-      <div><textarea placeholder="Modalité + matériel" oninput="App.phaseField(${i},${j},'modalite_materiel',this.value)">${esc(p.modalite_materiel)}</textarea></div>
-      <div><textarea placeholder="Déroulement concret" oninput="App.phaseField(${i},${j},'deroulement',this.value)">${esc(p.deroulement)}</textarea></div>
-      <div><textarea placeholder="Analyse de la tâche : ce que l’élève doit mobiliser" oninput="App.phaseField(${i},${j},'analyse_tache',this.value)">${esc(p.analyse_tache)}</textarea></div>
-      <div><textarea placeholder="Aménagement / différenciation" oninput="App.phaseField(${i},${j},'amenagement',this.value)">${esc(p.amenagement)}</textarea></div>
-      <div><textarea placeholder="Posture de l’enseignant" oninput="App.phaseField(${i},${j},'posture',this.value)">${esc(p.posture)}</textarea></div>
+    const phaseCards=phases.map((p,j)=>`<div class="phase-card">
+      <div class="phase-card-head">${esc(p.phase)}</div>
+      <div class="phase-card-body">
+        <div><label>Temps (min)</label><textarea placeholder="Temps" oninput="App.phaseField(${i},${j},'temps',this.value)">${esc(p.temps)}</textarea></div>
+        <div><label>Modalité + matériel</label><textarea placeholder="Modalité + matériel" oninput="App.phaseField(${i},${j},'modalite_materiel',this.value)">${esc(p.modalite_materiel)}</textarea></div>
+        <div class="full"><label>Déroulement concret</label><textarea placeholder="Déroulement concret" oninput="App.phaseField(${i},${j},'deroulement',this.value)">${esc(p.deroulement)}</textarea></div>
+        <div class="full"><label>Analyse de la tâche : ce que l'élève doit mobiliser</label><textarea placeholder="Analyse de la tâche" oninput="App.phaseField(${i},${j},'analyse_tache',this.value)">${esc(p.analyse_tache)}</textarea></div>
+        <div><label>Aménagement / différenciation</label><textarea placeholder="Aménagement / différenciation" oninput="App.phaseField(${i},${j},'amenagement',this.value)">${esc(p.amenagement)}</textarea></div>
+        <div><label>Posture de l'enseignant</label><textarea placeholder="Posture de l'enseignant" oninput="App.phaseField(${i},${j},'posture',this.value)">${esc(p.posture)}</textarea></div>
+      </div>
     </div>`).join("");
     return `<details class="card" open>
       <summary><span class="tag accent">${i+1}</span> <strong>${esc(s.titre)}</strong> <span class="tag">${esc(s.type)}</span> <span class="tag">${s.duree_estimee_min||45} min</span></summary>
@@ -977,8 +999,7 @@ Une fois l'image téléchargée, chargez-la dans Synapses via « Charger un fich
           <div class="full"><label>Points de vigilance</label><textarea oninput="App.sessionField(${i},'vigilance',this.value)">${esc(s.vigilance)}</textarea></div>
         </div>
         <h4>Déroulé détaillé</h4>
-        <div class="phase-grid header"><div>Phase</div><div>Temps</div><div>Modalité + matériel</div><div>Déroulement</div><div>Analyse de la tâche</div><div>Aménagement</div><div>Posture enseignant</div></div>
-        ${phaseRows}
+        ${phaseCards}
         <div class="toolbar"><button class="btn secondary small" onclick="App.addPhase(${i})">+ Ajouter une phase</button><button class="btn secondary small" onclick="App.exporterPDF('seance',${i})">Télécharger le PDF</button><button class="btn small" onclick="App.go(6)">Voir l’aperçu</button></div>
       </div>
     </details>`;
@@ -1468,6 +1489,25 @@ RAPPEL FINAL : ta réponse doit contenir la clé "seances" (tableau de séances 
 App.init();
 App.updateCoffreWidget();
 window.addEventListener("beforeunload",()=>{if(coffre)coffre.purger()});
+</script>
+<script>
+(function(){
+  var navDropdowns = Array.prototype.slice.call(document.querySelectorAll('.nav-dropdown'));
+  navDropdowns.forEach(function(dd){
+    dd.addEventListener('toggle', function(){
+      if(dd.open){
+        navDropdowns.forEach(function(other){
+          if(other !== dd) other.open = false;
+        });
+      }
+    });
+  });
+  document.addEventListener('click', function(e){
+    navDropdowns.forEach(function(dd){
+      if(dd.open && !dd.contains(e.target)) dd.open = false;
+    });
+  });
+})();
 </script>
 
 <footer class="synapses-footer">
