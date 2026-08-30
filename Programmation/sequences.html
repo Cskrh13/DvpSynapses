@@ -592,24 +592,19 @@ footer{padding:30px 24px 20px;text-align:center;font-family:'IBM Plex Mono',mono
       <details class="nav-dropdown">
         <summary>Préparer l'année</summary>
         <div class="nav-dropdown-menu">
+          <a href="sequences.html" aria-current="page">📚 Ma programmation</a>
           <a href="planning-affichage.html">🗓 Mon emploi du temps</a>
           <a href="generateur-sequences-projet.html">🧩 Créer une séquence</a>
-          <div class="menu-separator"></div>
-          <a href="../index.html">📖 Référentiel des compétences</a>
         </div>
       </details>
       <details class="nav-dropdown">
-        <summary>Progression &amp; données</summary>
+        <summary>Progression</summary>
         <div class="nav-dropdown-menu">
           <button type="button" id="btn-view-progression">📈 Voir ma progression annuelle</button>
-          <div class="menu-separator"></div>
-          <button type="button" id="btn-export-all">⬇️ Exporter tout (JSON)</button>
-          <button type="button" id="btn-import-all">⬆️ Importer des fichiers</button>
-          <button type="button" id="btn-import-folder">📁 Importer un dossier entier</button>
-          <input type="file" id="file-import" accept="application/json,.json" multiple style="display:none">
-          <input type="file" id="folder-import" webkitdirectory directory multiple style="display:none">
         </div>
       </details>
+      <input type="file" id="file-import" accept="application/json,.json" multiple style="display:none">
+      <input type="file" id="folder-import" webkitdirectory directory multiple style="display:none">
     </nav>
     <div class="coffre-widget">
       <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
@@ -2558,7 +2553,7 @@ function downloadJSON(pathSansExtension, data){
   a.click();
   URL.revokeObjectURL(a.href);
 }
-document.getElementById('btn-export-all').addEventListener('click', ()=>{
+document.getElementById('btn-export-all')?.addEventListener('click', ()=>{
   downloadJSON("programmation-complete", { sequences: state.sequences, seances: state.seances });
 });
 
@@ -2593,12 +2588,12 @@ function importJSONFiles(fileList){
     reader.readAsText(file);
   });
 }
-document.getElementById('btn-import-all').addEventListener('click', ()=> document.getElementById('file-import').click());
+document.getElementById('btn-import-all')?.addEventListener('click', ()=> document.getElementById('file-import').click());
 document.getElementById('file-import').addEventListener('change', e=>{
   importJSONFiles(e.target.files);
   e.target.value = "";
 });
-document.getElementById('btn-import-folder').addEventListener('click', ()=> document.getElementById('folder-import').click());
+document.getElementById('btn-import-folder')?.addEventListener('click', ()=> document.getElementById('folder-import').click());
 document.getElementById('folder-import').addEventListener('change', e=>{
   importJSONFiles(e.target.files);
   e.target.value = "";
