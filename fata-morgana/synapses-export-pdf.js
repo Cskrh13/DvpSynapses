@@ -17,8 +17,10 @@
  *  - jsPDF + plugin jspdf-autotable (chargés en <script> avant ce fichier,
  *    voir coffre.html) ;
  *  - synapses-coffre.js (structure des données élève) ;
- *  - éventuellement suivi-individuel.js (pour les libellés de domaines), de
- *    façon optionnelle et non bloquante.
+ *  - éventuellement suivi-individuel.js (pour les libellés de domaines) et
+ *    grille-analyse.js (pour le parcours de compétences proposé), de façon
+ *    optionnelle et non bloquante : si l'un des deux manque, la fiche PDF
+ *    se génère quand même, simplement sans cette section.
  * ---------------------------------------------------------------------------
  */
 (function (global) {
@@ -80,6 +82,11 @@
   const MOTS_PRIORITE = { 1: 'Faible', 2: 'Moyenne', 3: 'Élevée' };
   const MOTS_EFFICACITE = { 1: 'Peu efficace', 2: 'Assez efficace', 3: 'Très efficace' };
 
+  function capitaliser(txt) {
+    if (!txt) return '';
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }
+
   class ExportFichePDF {
     /**
      * @param {SynapsesCoffre.Coffre} coffre
@@ -97,6 +104,26 @@
         return this.suivi._labelDomaine(id);
       }
       return id;
+    }
+
+    /**
+     * Renvoie les étapes du "parcours de compétences proposé" (même calcul que
+     * l'onglet Parcours de l'appli, voir grille-analyse.js), en réutilisant le
+     * moteur d'analyse déjà instancié par suivi-individuel.js — jamais recalculé
+     * indépendamment, pour ne jamais désynchroniser la fiche PDF de l'écran.
+     * Renvoie null si le moteur d'analyse n'est pas disponible (grille-analyse.js
+     * non chargé, ou export PDF utilisé sans passer suivi au constructeur) :
+     * dans ce cas, la fiche PDF omet simplement cette section plutôt que d'échouer.
+     */
+    _etapesParcoursProposees(eleve) {
+      if (!this.suivi || typeof this.suivi._obtenirGrilleAnalyseUI !== 'function') return null;
+      try {
+        const ui = this.suivi._obtenirGrilleAnalyseUI();
+        if (!ui || !ui.moteur || typeof ui.moteur.proposerParcours !== 'function') return null;
+        return ui.moteur.proposerParcours(eleve);
+      } catch (e) {
+        return null;
+      }
     }
 
     // ------------------------------------------------------------------
@@ -194,7 +221,8 @@
         'Comment lire cette fiche : "Observations" = ce qui a été remarqué en classe, dans quel contexte, et ce qui ' +
         'a été essayé sur le moment. "Besoins identifiés" = ce dont l\'élève semble avoir besoin pour progresser, avec ' +
         'un niveau de priorité. "Adaptations" = les aménagements testés et leur efficacité observée. "Objectifs" = ce ' +
-        'qui est visé actuellement. "Journal de parcours" = une chronologie libre des étapes marquantes.';
+        'qui est visé actuellement. "Parcours de compétences proposé" = une suite d\'objectifs suggérée par ' +
+        'l\'application, à valider ou ajuster. "Journal de parcours" = une chronologie libre des étapes marquantes.';
       doc.setFillColor.apply(doc, C.bg);
       doc.setDrawColor.apply(doc, C.line);
       const lignes = doc.splitTextToSize(texte, w - 2 * MARGIN - 16);
@@ -356,6 +384,32 @@
       } else {
         const rows = eleve.objectifs.map((o) => [o.libelle || '', o.statut || '']);
         y = this._table(doc, y, ['Objectif', 'Statut'], rows, { 1: { cellWidth: 100 } });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Parcours de compétences proposé (calculé, voir grille-analyse.js) ----
+      const etapesParcours = this._etapesParcoursProposees(eleve);
+      y = this._titreSection(doc, y,
+        'Parcours de compétences proposé' + (etapesParcours ? ' (' + etapesParcours.length + ')' : ''),
+        'Suite d\'objectifs suggérée automatiquement à partir des besoins et compétences observés — toujours à valider par l\'enseignant, jamais une prescription.');
+      if (etapesParcours === null) {
+        y = this._texteVide(doc, y,
+          'Section non disponible pour cette fiche (moteur d\'analyse non chargé au moment de la génération du PDF).');
+      } else if (!etapesParcours.length) {
+        y = this._texteVide(doc, y,
+          'Aucune étape proposée pour le moment : pas encore assez de besoins ou d\'objectifs enregistrés pour cet élève.');
+      } else {
+        const rows = etapesParcours.map((e) => [
+          String(e.ordre),
+          e.domaineNom || '—',
+          e.objectif || '',
+          capitaliser(e.statut),
+          e.origine || '',
+          (e.adaptationsAssociees && e.adaptationsAssociees.length) ? e.adaptationsAssociees.join(', ') : '—'
+        ]);
+        y = this._table(doc, y, ['#', 'Domaine', 'Objectif proposé', 'Statut', 'Origine', 'Adaptations associées'], rows, {
+          0: { cellWidth: 22 }, 1: { cellWidth: 85 }, 3: { cellWidth: 60 }
+        });
       }
       y = this._sauteDePageSiNecessaire(doc, y);
 
