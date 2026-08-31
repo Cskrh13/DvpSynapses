@@ -1,285 +1,375 @@
 /**
- * synapses-coffre.js
+ * synapses-export-pdf.js
  * ---------------------------------------------------------------------------
- * Gestion du cycle de vie du coffre Synapses (.synapses) et du modèle de
- * données individuelles confidentielles (voir synthèse projet, §2, §3, §12).
+ * Génère, pour un élève (ou pour tous les élèves du coffre), une fiche PDF
+ * lisible et ergonomique reprenant la DA du site (bandeau navy, accent bleu,
+ * typographies Fraunces/Inter approchées avec les polices PDF standard).
  *
- * Règles de confidentialité STRICTES :
- *  - Les données individuelles ne sont JAMAIS écrites dans localStorage,
- *    dans l'URL, dans des paramètres d'URL, dans des logs console, ou
- *    envoyées à des outils de statistiques/analytics.
- *  - Elles n'existent qu'en mémoire JS (this._data), pour la durée de
- *    la session, et uniquement après déchiffrement explicite par
- *    l'enseignant (mot de passe).
- *  - purger() est la seule façon de faire disparaître ces données ; elle
- *    doit être appelée explicitement par l'utilisateur (bouton dédié)
- *    et idéalement aussi sur fermeture de page (voir coffre.html).
- *  - Le fichier .synapses chiffré (via synapses-crypto.js) est le SEUL
- *    support persistant autorisé pour ces données.
+ * Règles de confidentialité (voir synapses-coffre.js) :
+ *  - Tout se passe EN MÉMOIRE, dans le navigateur. jsPDF construit le fichier
+ *    localement puis déclenche un téléchargement natif : aucune donnée élève
+ *    ne transite par un serveur, ni par le réseau.
+ *  - Ce module ne lit que ce que le Coffre lui fournit explicitement (mêmes
+ *    garanties que suivi-individuel.js) ; il n'écrit jamais dans
+ *    localStorage/URL/logs.
  *
- * Tout module métier (suivi-individuel.js, grille-analyse.js,
- * parcours-eleve.js, injection dans sequences.html, etc.) doit passer
- * par l'instance de Coffre exposée ici plutôt que de manipuler des
- * données élève directement.
- *
- * Dépend de synapses-crypto.js, qui doit être chargé avant ce fichier.
+ * Dépend de :
+ *  - jsPDF + plugin jspdf-autotable (chargés en <script> avant ce fichier,
+ *    voir coffre.html) ;
+ *  - synapses-coffre.js (structure des données élève) ;
+ *  - éventuellement suivi-individuel.js (pour les libellés de domaines), de
+ *    façon optionnelle et non bloquante.
  * ---------------------------------------------------------------------------
  */
 (function (global) {
   'use strict';
 
-  if (!global.SynapsesCrypto) {
-    throw new Error('synapses-coffre.js nécessite synapses-crypto.js (à charger avant ce script).');
-  }
+  // Palette reprise de :root dans coffre.html (couleurs converties en RGB 0-255)
+  const C = {
+    navy: [30, 42, 74],
+    navyDeep: [20, 29, 51],
+    accent: [46, 94, 170],
+    ink: [32, 36, 46],
+    inkSoft: [91, 95, 107],
+    line: [222, 219, 210],
+    bg: [246, 245, 241],
+    danger: [181, 80, 46],
+    ok: [42, 127, 114],
+    white: [255, 255, 255]
+  };
 
-  function nowIso() {
-    return new Date().toISOString();
-  }
+  const MARGIN = 40;
 
-  /**
-   * @param {string} [nomEtablissement] - libre, jamais transmis à une IA (voir grille-analyse.js)
-   * @param {string} [dispositif] - type de dispositif d'école inclusive (ex: "ULIS école"),
-   *   donnée générique (pas d'identité), seule autorisée à être transmise en contexte IA.
-   */
-  function coffreVide(nomEtablissement, dispositif) {
-    return {
-      version: 1,
-      creeLe: nowIso(),
-      modifieLe: nowIso(),
-      etablissement: nomEtablissement || '',
-      dispositif: dispositif || '',
-      // Le référentiel public (programmes, BARRY, S4C, séances...) N'EST
-      // JAMAIS recopié ici : seules les données propres à l'élève y figurent.
-      eleves: []
-    };
-  }
-
-  /**
-   * @param {string} identifiantSynapses
-   * @param {object} [identite] - { nom, prenom, dateNaissance, classe, ... } — TOUT nominatif, jamais transmis à une IA.
-   * @param {number|null} [age] - donnée stockée uniquement dans le coffre local, pour affichage/
-   *   usage interne de l'application. NE JAMAIS transmettre à une IA, même anonymisée par
-   *   ailleurs : grille-analyse.js l'exclut explicitement de MoteurAnalyse.anonymiser() (voir
-   *   la note dans ce fichier pour le raisonnement RGPD).
-   */
-  function eleveVide(identifiantSynapses, identite, age) {
-    return {
-      identifiantSynapses,
-      identite: identite || {}, // { nom, prenom, dateNaissance, classe, ... }
-      age: (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null,
-      parcoursScolaire: {},
-      accompagnements: [],
-      domainesAnalyse: {
-        affectif: {},
-        social: {},
-        cognitif: {},
-        sensorimoteur: {},
-        mathematiques: {}, // s'appuie sur S4C (référentiel public)
-        francais: {}       // s'appuie sur S4C (référentiel public)
-      },
-      // Chaîne d'analyse §4 : situation observée -> points d'appui ->
-      // difficulté -> hypothèse de besoin -> adaptation -> apprentissage
-      // -> objectif -> nouvelle observation -> évaluation de l'efficacité.
-      observations: [],
-      besoins: [],
-      adaptations: [],
-      objectifs: [],
-      // Parcours longitudinal §9, §11 : chronologie pédagogique, pas une
-      // simple fiche de commentaires.
-      parcours: { seances: [], observations: [], progres: [], bilans: [] }
-    };
-  }
-
-  class Coffre {
-    constructor() {
-      this._data = null;  // état déchiffré, EN MÉMOIRE UNIQUEMENT
-      this._ouvert = false;
-    }
-
-    get ouvert() {
-      return this._ouvert;
-    }
-
-    /** Instantané en lecture seule de l'état courant (pour l'UI). */
-    get donnees() {
-      return this._data;
-    }
-
-    /** Crée un nouveau coffre vide en mémoire. Rien n'est écrit sur disque
-     *  tant que exporter()/telecharger() n'est pas appelé explicitement.
-     *  @param {string} [nomEtablissement]
-     *  @param {string} [dispositif] - requis côté UI avant l'appel (voir coffre.html) */
-    creer(nomEtablissement, dispositif) {
-      this._data = coffreVide(nomEtablissement, dispositif);
-      this._ouvert = true;
-      return this._data;
-    }
-
-    /**
-     * Ouvre un coffre à partir d'un fichier .synapses (File/Blob ou
-     * ArrayBuffer) et d'un mot de passe.
-     */
-    async ouvrir(fichier, motDePasse) {
-      const buffer = fichier instanceof ArrayBuffer ? fichier : await fichier.arrayBuffer();
-      const data = await global.SynapsesCrypto.decryptCoffre(motDePasse, new Uint8Array(buffer));
-      this._data = data;
-      this._ouvert = true;
-      return this._data;
-    }
-
-    /** Sérialise et chiffre le coffre courant ; renvoie un Blob prêt à être
-     *  téléchargé / enregistré sur une clé USB, etc. */
-    async exporter(motDePasse) {
-      this._assertOuvert();
-      this._data.modifieLe = nowIso();
-      const bytes = await global.SynapsesCrypto.encryptCoffre(motDePasse, this._data);
-      return new Blob([bytes], { type: 'application/octet-stream' });
-    }
-
-    /** Déclenche le téléchargement du coffre chiffré sous forme de .synapses. */
-    async telecharger(motDePasse, nomFichier) {
-      const blob = await this.exporter(motDePasse);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = nomFichier || 'coffre.synapses';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-
-    /**
-     * Détruit explicitement toutes les données confidentielles en mémoire.
-     * À appeler sur clic du bouton "Détruire les données confidentielles"
-     * et, par sécurité, sur fermeture/déchargement de la page.
-     */
-    purger() {
-      if (this._data) {
-        // Écrasement best-effort des références avant suppression.
-        for (const k of Object.keys(this._data)) delete this._data[k];
-      }
-      this._data = null;
-      this._ouvert = false;
-    }
-
-    _assertOuvert() {
-      if (!this._ouvert || !this._data) {
-        throw new Error('Aucun coffre ouvert. Créez ou ouvrez un coffre au préalable.');
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // API métier — point d'entrée unique pour les futurs modules
-    // (suivi-individuel.js, grille-analyse.js, parcours-eleve.js, ...)
-    // ------------------------------------------------------------------
-
-    listerEleves() {
-      this._assertOuvert();
-      return this._data.eleves.map((e) => ({
-        identifiantSynapses: e.identifiantSynapses,
-        identite: e.identite
-      }));
-    }
-
-    ajouterEleve(identifiantSynapses, identite, age) {
-      this._assertOuvert();
-      if (this._data.eleves.some((e) => e.identifiantSynapses === identifiantSynapses)) {
-        throw new Error('Identifiant Synapses déjà utilisé : ' + identifiantSynapses);
-      }
-      const e = eleveVide(identifiantSynapses, identite, age);
-      this._data.eleves.push(e);
-      return e;
-    }
-
-    /** Modifie uniquement l'âge (seule donnée d'identité re-modifiable isolément
-     *  sans passer par une refonte de l'identité nominative). */
-    definirAge(identifiantSynapses, age) {
-      const e = this.getEleve(identifiantSynapses);
-      e.age = (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null;
-      return e;
-    }
-
-    getEleve(identifiantSynapses) {
-      this._assertOuvert();
-      const e = this._data.eleves.find((e) => e.identifiantSynapses === identifiantSynapses);
-      if (!e) throw new Error('Élève introuvable : ' + identifiantSynapses);
-      return e;
-    }
-
-    supprimerEleve(identifiantSynapses) {
-      this._assertOuvert();
-      const idx = this._data.eleves.findIndex((e) => e.identifiantSynapses === identifiantSynapses);
-      if (idx === -1) throw new Error('Élève introuvable : ' + identifiantSynapses);
-      this._data.eleves.splice(idx, 1);
-    }
-
-    /** Enregistre une observation suivant la chaîne d'analyse (§4, §6). */
-    ajouterObservation(identifiantSynapses, observation) {
-      const e = this.getEleve(identifiantSynapses);
-      const obs = Object.assign(
-        {
-          date: nowIso(),
-          domaine: null,
-          competence: null,
-          situation: '',
-          pointsAppui: [],
-          difficulte: '',
-          besoin: '',
-          adaptationProposee: '',
-          adaptationUtilisee: '',
-          resultat: '',
-          autonomie: null,
-          priorite: null
-        },
-        observation
+  function jsPDFCtor() {
+    const ns = global.jspdf;
+    if (!ns || !ns.jsPDF) {
+      throw new Error(
+        'jsPDF n\'est pas chargé. Ajoutez les scripts jsPDF et jspdf-autotable avant synapses-export-pdf.js.'
       );
-      e.observations.push(obs);
-      return obs;
     }
+    return ns.jsPDF;
+  }
 
-    ajouterBesoin(identifiantSynapses, besoin) {
-      const e = this.getEleve(identifiantSynapses);
-      const b = Object.assign({ id: 'B-' + Date.now(), hypothese: '', priorite: null, evolution: [] }, besoin);
-      e.besoins.push(b);
-      return b;
-    }
-
-    ajouterAdaptation(identifiantSynapses, adaptation) {
-      const e = this.getEleve(identifiantSynapses);
-      const a = Object.assign({ id: 'A-' + Date.now(), libelle: '', proposee: true, utilisee: false, efficacite: null }, adaptation);
-      e.adaptations.push(a);
-      return a;
-    }
-
-    /** Bascule utilisee (true <-> false) pour une adaptation donnée — ex :
-     *  clic sur la cellule "Utilisée" dans l'onglet Adaptations. */
-    toggleAdaptationUtilisee(identifiantSynapses, adaptationId) {
-      const e = this.getEleve(identifiantSynapses);
-      const a = e.adaptations.find((x) => x.id === adaptationId);
-      if (!a) throw new Error('Adaptation introuvable : ' + adaptationId);
-      a.utilisee = !a.utilisee;
-      return a;
-    }
-
-    /** Les objectifs sont une conséquence de l'analyse (§8) : à créer
-     *  seulement après validation explicite de l'enseignant. */
-    ajouterObjectif(identifiantSynapses, objectif) {
-      const e = this.getEleve(identifiantSynapses);
-      const o = Object.assign({ id: 'O-' + Date.now(), libelle: '', statut: 'actif', historique: [] }, objectif);
-      e.objectifs.push(o);
-      return o;
-    }
-
-    ajouterEvenementParcours(identifiantSynapses, type, evenement) {
-      const e = this.getEleve(identifiantSynapses);
-      const cle = { seance: 'seances', observation: 'observations', progres: 'progres', bilan: 'bilans' }[type];
-      if (!cle) throw new Error('Type d\'événement de parcours inconnu : ' + type);
-      const ev = Object.assign({ date: nowIso() }, evenement);
-      e.parcours[cle].push(ev);
-      return ev;
+  function fmtDate(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('fr-FR');
+    } catch (e) {
+      return '';
     }
   }
 
-  global.SynapsesCoffre = { Coffre, eleveVide, coffreVide };
+  function nomComplet(eleve) {
+    const identite = eleve.identite || {};
+    return [identite.prenom, identite.nom].filter(Boolean).join(' ') || '(identité non renseignée)';
+  }
+
+  class ExportFichePDF {
+    /**
+     * @param {SynapsesCoffre.Coffre} coffre
+     * @param {SynapsesSuiviIndividuel.SuiviIndividuel} [suivi] - optionnel, pour libeller
+     *   les domaines avec leur nom lisible (BARRY/S4C) plutôt que leur identifiant brut.
+     */
+    constructor(coffre, suivi) {
+      this.coffre = coffre;
+      this.suivi = suivi || null;
+    }
+
+    _labelDomaine(id) {
+      if (!id) return '—';
+      if (this.suivi && typeof this.suivi._labelDomaine === 'function') {
+        return this.suivi._labelDomaine(id);
+      }
+      return id;
+    }
+
+    // ------------------------------------------------------------------
+    // Mise en page commune
+    // ------------------------------------------------------------------
+
+    _nouveauDocument() {
+      const JsPDF = jsPDFCtor();
+      const doc = new JsPDF({ unit: 'pt', format: 'a4' });
+      doc.setProperties({
+        title: 'Fiche Synapses',
+        subject: 'Coffre confidentiel Synapses',
+        creator: 'Synapses'
+      });
+      return doc;
+    }
+
+    _largeurPage(doc) {
+      return doc.internal.pageSize.getWidth();
+    }
+    _hauteurPage(doc) {
+      return doc.internal.pageSize.getHeight();
+    }
+
+    /** Bandeau d'en-tête navy, identique en esprit au header du site. Renvoie le y de reprise. */
+    _dessinerEntete(doc, eleve) {
+      const w = this._largeurPage(doc);
+      const infos = this.coffre.donnees || {};
+
+      doc.setFillColor.apply(doc, C.navy);
+      doc.rect(0, 0, w, 92, 'F');
+      doc.setFillColor.apply(doc, C.accent);
+      doc.rect(0, 89, w, 3, 'F');
+
+      // Wordmark
+      doc.setTextColor.apply(doc, C.white);
+      doc.setFont('times', 'bold');
+      doc.setFontSize(9);
+      doc.text('SYNAPSES', MARGIN, 26);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(185, 198, 229);
+      doc.text('COFFRE CONFIDENTIEL — FICHE INDIVIDUELLE', MARGIN, 38);
+
+      // Nom / identifiant
+      doc.setFont('times', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor.apply(doc, C.white);
+      doc.text(nomComplet(eleve), MARGIN, 62);
+
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(185, 198, 229);
+      const age = eleve.age != null ? (' · ' + eleve.age + ' an' + (eleve.age > 1 ? 's' : '')) : '';
+      doc.text(eleve.identifiantSynapses + age, MARGIN, 76);
+
+      // Établissement / dispositif, aligné à droite
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(185, 198, 229);
+      const droite = [infos.dispositif, infos.etablissement].filter(Boolean).join(' — ') || '';
+      if (droite) doc.text(droite, w - MARGIN, 62, { align: 'right' });
+      doc.setFontSize(8);
+      doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), w - MARGIN, 76, { align: 'right' });
+
+      return 118;
+    }
+
+    /** Bandeau de rappel de confidentialité, discret, en haut de chaque fiche. */
+    _dessinerBandeauConfidentialite(doc, y) {
+      const w = this._largeurPage(doc);
+      const texte =
+        'Document confidentiel : contient des données individuelles concernant un élève en situation de handicap ' +
+        'ou de besoin éducatif particulier. À ne diffuser qu\'aux personnes habilitées, à conserver sur un support sûr.';
+      doc.setFillColor(255, 247, 237);
+      doc.setDrawColor(239, 217, 184);
+      const hauteurTexte = doc.splitTextToSize(texte, w - 2 * MARGIN - 16);
+      const h = 14 + hauteurTexte.length * 11;
+      doc.roundedRect(MARGIN, y, w - 2 * MARGIN, h, 4, 4, 'FD');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(122, 74, 18);
+      doc.text(hauteurTexte, MARGIN + 8, y + 15);
+      return y + h + 18;
+    }
+
+    _titreSection(doc, y, titre) {
+      doc.setFont('times', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor.apply(doc, C.ink);
+      doc.text(titre, MARGIN, y);
+      doc.setDrawColor.apply(doc, C.line);
+      doc.setLineWidth(1);
+      doc.line(MARGIN, y + 5, this._largeurPage(doc) - MARGIN, y + 5);
+      return y + 22;
+    }
+
+    _texteVide(doc, y, texte) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9.5);
+      doc.setTextColor.apply(doc, C.inkSoft);
+      doc.text(texte, MARGIN, y);
+      return y + 20;
+    }
+
+    /** Table ergonomique via autoTable, stylée pour coller à la DA (bandeau accent, lignes fines). */
+    _table(doc, y, head, rows, colStyles) {
+      doc.autoTable({
+        startY: y,
+        margin: { left: MARGIN, right: MARGIN },
+        head: [head],
+        body: rows,
+        theme: 'plain',
+        styles: {
+          font: 'helvetica',
+          fontSize: 9,
+          textColor: C.ink,
+          lineColor: C.line,
+          lineWidth: 0.5,
+          cellPadding: { top: 5, bottom: 5, left: 4, right: 4 },
+          overflow: 'linebreak',
+          valign: 'top'
+        },
+        headStyles: {
+          fillColor: C.navy,
+          textColor: C.white,
+          fontStyle: 'bold',
+          fontSize: 8.5
+        },
+        alternateRowStyles: { fillColor: [250, 250, 247] },
+        columnStyles: colStyles || {}
+      });
+      return doc.lastAutoTable.finalY + 24;
+    }
+
+    _sauteDePageSiNecessaire(doc, y, marge) {
+      const hMax = this._hauteurPage(doc) - (marge || 50);
+      if (y > hMax) {
+        doc.addPage();
+        return 50;
+      }
+      return y;
+    }
+
+    _piedDePage(doc) {
+      const total = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i);
+        const w = this._largeurPage(doc);
+        const h = this._hauteurPage(doc);
+        doc.setDrawColor.apply(doc, C.line);
+        doc.setLineWidth(0.5);
+        doc.line(MARGIN, h - 34, w - MARGIN, h - 34);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor.apply(doc, C.inkSoft);
+        doc.text('Synapses — Coffre confidentiel · document généré localement, non destiné à être diffusé sans précaution', MARGIN, h - 20);
+        doc.text('Page ' + i + ' / ' + total, w - MARGIN, h - 20, { align: 'right' });
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // Construction du contenu d'une fiche élève
+    // ------------------------------------------------------------------
+
+    /** Ajoute la fiche complète de `eleve` au document, sur une ou plusieurs pages.
+     *  Si `nouvellePage` est vrai, commence sur une nouvelle page (utile pour l'export groupé). */
+    _construireFiche(doc, eleve, nouvellePage) {
+      if (nouvellePage) doc.addPage();
+      let y = this._dessinerEntete(doc, eleve);
+      y = this._dessinerBandeauConfidentialite(doc, y);
+
+      // ---- Observations ----
+      y = this._titreSection(doc, y, 'Observations (' + eleve.observations.length + ')');
+      if (!eleve.observations.length) {
+        y = this._texteVide(doc, y, 'Aucune observation enregistrée pour cet élève.');
+      } else {
+        const rows = eleve.observations.slice().reverse().map((o) => [
+          fmtDate(o.date),
+          this._labelDomaine(o.domaine),
+          o.situation || '',
+          o.difficulte || '',
+          o.besoin || '',
+          o.adaptationUtilisee || o.adaptationProposee || ''
+        ]);
+        y = this._table(doc, y, ['Date', 'Domaine', 'Situation', 'Difficulté', 'Besoin', 'Adaptation'], rows, {
+          0: { cellWidth: 52 }, 1: { cellWidth: 62 }
+        });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Besoins ----
+      y = this._titreSection(doc, y, 'Besoins identifiés (' + eleve.besoins.length + ')');
+      if (!eleve.besoins.length) {
+        y = this._texteVide(doc, y, 'Aucun besoin enregistré pour cet élève.');
+      } else {
+        const rows = eleve.besoins.map((b) => [b.hypothese || '', b.priorite != null ? String(b.priorite) : '']);
+        y = this._table(doc, y, ['Hypothèse de besoin', 'Priorité'], rows, { 1: { cellWidth: 70 } });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Adaptations ----
+      y = this._titreSection(doc, y, 'Adaptations (' + eleve.adaptations.length + ')');
+      if (!eleve.adaptations.length) {
+        y = this._texteVide(doc, y, 'Aucune adaptation enregistrée pour cet élève.');
+      } else {
+        const rows = eleve.adaptations.map((a) => [
+          a.libelle || '',
+          a.utilisee ? 'Oui' : 'Non',
+          a.efficacite != null ? String(a.efficacite) : ''
+        ]);
+        y = this._table(doc, y, ['Adaptation', 'Utilisée', 'Efficacité'], rows, { 1: { cellWidth: 60 }, 2: { cellWidth: 60 } });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Objectifs ----
+      y = this._titreSection(doc, y, 'Objectifs (' + eleve.objectifs.length + ')');
+      if (!eleve.objectifs.length) {
+        y = this._texteVide(doc, y, 'Aucun objectif enregistré pour cet élève.');
+      } else {
+        const rows = eleve.objectifs.map((o) => [o.libelle || '', o.statut || '']);
+        y = this._table(doc, y, ['Objectif', 'Statut'], rows, { 1: { cellWidth: 80 } });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Journal de parcours (manuel) ----
+      const evenements = []
+        .concat((eleve.parcours.seances || []).map((e) => ({ ...e, type: 'Séance' })))
+        .concat((eleve.parcours.observations || []).map((e) => ({ ...e, type: 'Observation' })))
+        .concat((eleve.parcours.progres || []).map((e) => ({ ...e, type: 'Progrès' })))
+        .concat((eleve.parcours.bilans || []).map((e) => ({ ...e, type: 'Bilan' })))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      y = this._titreSection(doc, y, 'Journal de parcours (' + evenements.length + ')');
+      if (!evenements.length) {
+        y = this._texteVide(doc, y, 'Aucun événement de parcours manuel enregistré pour cet élève.');
+      } else {
+        const rows = evenements.map((e) => [fmtDate(e.date), e.type, e.libelle || e.resume || '']);
+        y = this._table(doc, y, ['Date', 'Type', 'Libellé'], rows, { 0: { cellWidth: 55 }, 1: { cellWidth: 70 } });
+      }
+
+      return y;
+    }
+
+    // ------------------------------------------------------------------
+    // Points d'entrée publics
+    // ------------------------------------------------------------------
+
+    /** Génère et télécharge la fiche PDF d'un seul élève. */
+    telechargerFicheEleve(identifiantSynapses) {
+      const eleve = this.coffre.getEleve(identifiantSynapses);
+      const doc = this._nouveauDocument();
+      this._construireFiche(doc, eleve, false);
+      this._piedDePage(doc);
+      doc.save(this._nomFichier(eleve));
+    }
+
+    /** Génère et télécharge un seul PDF regroupant la fiche de chaque élève du coffre
+     *  (une fiche = une ou plusieurs pages, séparées par un saut de page). */
+    telechargerToutesLesFiches() {
+      const eleves = this.coffre.donnees.eleves;
+      if (!eleves.length) throw new Error('Aucun élève dans ce coffre.');
+      const doc = this._nouveauDocument();
+      eleves.forEach((eleve, i) => this._construireFiche(doc, eleve, i > 0));
+      this._piedDePage(doc);
+      const infos = this.coffre.donnees || {};
+      const base = (infos.etablissement || infos.dispositif || 'coffre').trim();
+      doc.save(this._nomFichierSlug(base) + '_fiches-eleves_' + this._horodatage() + '.pdf');
+    }
+
+    _nomFichier(eleve) {
+      const nom = nomComplet(eleve) === '(identité non renseignée)' ? eleve.identifiantSynapses : nomComplet(eleve);
+      return this._nomFichierSlug(nom) + '_' + this._horodatage() + '.pdf';
+    }
+
+    _nomFichierSlug(txt) {
+      return (txt || 'fiche')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'fiche';
+    }
+
+    _horodatage() {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+  }
+
+  global.SynapsesExportPDF = { ExportFichePDF };
 })(window);
