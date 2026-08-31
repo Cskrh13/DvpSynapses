@@ -203,6 +203,14 @@
         el('button', { class: 'si-btn si-btn-primary', onclick: () => this._ouvrirFormulaireNouvelEleve() }, ['+ Nouvel élève'])
       ]));
 
+      if (eleves.length) {
+        sidebar.appendChild(el('button', {
+          class: 'si-btn si-btn-export-tout',
+          title: 'Télécharger une fiche PDF pour chaque élève de ce coffre',
+          onclick: () => this._telechargerPDF(null)
+        }, ['⭳ Toutes les fiches (PDF)']));
+      }
+
       const liste = el('div', { class: 'si-eleves-liste' },
         eleves.length
           ? eleves.map((e) => this._renderEleveItem(e))
@@ -282,17 +290,49 @@
           el('h2', { class: 'si-fiche-nom' }, [identite || '(identité non renseignée)']),
           btnAge
         ]),
-        el('button', {
-          class: 'si-btn si-btn-danger-outline',
-          onclick: () => {
-            if (confirm('Supprimer définitivement ' + eleve.identifiantSynapses + ' de ce coffre ?')) {
-              this.coffre.supprimerEleve(eleve.identifiantSynapses);
-              this.eleveSelectionneId = null;
-              this._render();
+        el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;' }, [
+          el('button', {
+            class: 'si-btn si-btn-primary',
+            title: 'Télécharger la fiche PDF de cet élève',
+            onclick: () => this._telechargerPDF(eleve.identifiantSynapses)
+          }, ['⭳ Fiche PDF']),
+          el('button', {
+            class: 'si-btn si-btn-danger-outline',
+            onclick: () => {
+              if (confirm('Supprimer définitivement ' + eleve.identifiantSynapses + ' de ce coffre ?')) {
+                this.coffre.supprimerEleve(eleve.identifiantSynapses);
+                this.eleveSelectionneId = null;
+                this._render();
+              }
             }
-          }
-        }, ['Supprimer l\'élève'])
+          }, ['Supprimer l\'élève'])
+        ])
       ]);
+    }
+
+    // ---- Export PDF (voir synapses-export-pdf.js, chargé optionnellement) ----
+
+    _obtenirExportPDF() {
+      if (!global.SynapsesExportPDF) return null;
+      if (!this._exportPDF) {
+        this._exportPDF = new global.SynapsesExportPDF.ExportFichePDF(this.coffre, this);
+      }
+      return this._exportPDF;
+    }
+
+    /** @param {string|null} identifiantSynapses - un élève précis, ou null pour tous les élèves du coffre. */
+    _telechargerPDF(identifiantSynapses) {
+      const exportPDF = this._obtenirExportPDF();
+      if (!exportPDF) {
+        alert('Export PDF indisponible : synapses-export-pdf.js (et jsPDF) ne sont pas chargés sur cette page.');
+        return;
+      }
+      try {
+        if (identifiantSynapses) exportPDF.telechargerFicheEleve(identifiantSynapses);
+        else exportPDF.telechargerToutesLesFiches();
+      } catch (e) {
+        alert('Impossible de générer le PDF : ' + e.message);
+      }
     }
 
     _renderOnglets(eleve) {
