@@ -222,7 +222,8 @@
         'a été essayé sur le moment. "Besoins identifiés" = ce dont l\'élève semble avoir besoin pour progresser, avec ' +
         'un niveau de priorité. "Adaptations" = les aménagements testés et leur efficacité observée. "Objectifs" = ce ' +
         'qui est visé actuellement. "Parcours de compétences proposé" = une suite d\'objectifs suggérée par ' +
-        'l\'application, à valider ou ajuster. "Journal de parcours" = une chronologie libre des étapes marquantes.';
+        'l\'application, à valider ou ajuster. "Historique des parcours proposés" = des photos datées de cette ' +
+        'suggestion, prises volontairement pour suivre son évolution. "Journal de parcours" = une chronologie libre des étapes marquantes.';
       doc.setFillColor.apply(doc, C.bg);
       doc.setDrawColor.apply(doc, C.line);
       const lignes = doc.splitTextToSize(texte, w - 2 * MARGIN - 16);
@@ -409,6 +410,26 @@
         ]);
         y = this._table(doc, y, ['#', 'Domaine', 'Objectif proposé', 'Statut', 'Origine', 'Adaptations associées'], rows, {
           0: { cellWidth: 22 }, 1: { cellWidth: 85 }, 3: { cellWidth: 60 }
+        });
+      }
+      y = this._sauteDePageSiNecessaire(doc, y);
+
+      // ---- Historique des instantanés du parcours proposé (voir suivi-individuel.js) ----
+      const historiqueParcours = (eleve.parcours.historiqueParcoursPropose || [])
+        .slice()
+        .sort((a, b) => new Date(b.date) - new Date(a.date)); // plus récent en premier
+      y = this._titreSection(doc, y, 'Historique des parcours proposés (' + historiqueParcours.length + ')',
+        'Instantanés datés, enregistrés à la demande de l\'enseignant, du parcours proposé à un moment donné — pour voir comment la proposition a évolué.');
+      if (!historiqueParcours.length) {
+        y = this._texteVide(doc, y, 'Aucun instantané enregistré pour cet élève.');
+      } else {
+        const rows = historiqueParcours.map((h) => {
+          const etapes = h.etapes || [];
+          const resume = etapes.map((e) => e.objectif).filter(Boolean).join(' → ') || '—';
+          return [fmtDate(h.date), String(etapes.length), resume];
+        });
+        y = this._table(doc, y, ['Date de l\'instantané', 'Nb. étapes', 'Étapes proposées à cette date'], rows, {
+          0: { cellWidth: 90 }, 1: { cellWidth: 55 }
         });
       }
       y = this._sauteDePageSiNecessaire(doc, y);
