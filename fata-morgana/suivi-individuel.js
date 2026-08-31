@@ -534,10 +534,35 @@
       const ui = this._obtenirGrilleAnalyseUI();
       if (ui) {
         wrap.appendChild(ui.renderParcours(eleve));
+        wrap.appendChild(el('button', {
+          class: 'si-btn',
+          title: 'Fige la liste actuelle des étapes proposées, avec la date du jour, dans l\'historique ci-dessous',
+          onclick: () => this._enregistrerInstantaneParcours(eleve)
+        }, ['📌 Enregistrer un instantané daté de ce parcours']));
       } else {
         wrap.appendChild(el('p', { class: 'si-error' }, [
           'Le moteur d\'analyse (grille-analyse.js) n\'est pas chargé : le parcours proposé n\'est pas disponible ; seul le journal manuel ci-dessous fonctionne.'
         ]));
+      }
+
+      wrap.appendChild(el('h3', { style: 'margin-top:28px;' }, ['Historique des parcours proposés']));
+      wrap.appendChild(el('p', { class: 'si-hint' }, [
+        'Chaque instantané fige, à une date donnée, la liste des étapes que l\'application proposait alors — pour voir comment ' +
+        'la proposition a évolué. Ça ne modifie jamais les besoins, adaptations ou objectifs réels de l\'élève.'
+      ]));
+      const historique = (eleve.parcours.historiqueParcoursPropose || []).slice().reverse();
+      if (!historique.length) {
+        wrap.appendChild(el('p', { class: 'si-empty' }, ['Aucun instantané enregistré pour l\'instant.']));
+      } else {
+        wrap.appendChild(el('div', { class: 'si-frise' }, historique.map((h) =>
+          el('div', { class: 'si-frise-item' }, [
+            el('div', { class: 'si-frise-date' }, [new Date(h.date).toLocaleDateString('fr-FR')]),
+            el('div', { class: 'si-frise-type' }, [(h.etapes || []).length + ' étape' + ((h.etapes || []).length > 1 ? 's' : '')]),
+            el('div', { class: 'si-frise-detail' }, [
+              (h.etapes || []).map((e) => e.objectif).filter(Boolean).join(' → ') || '—'
+            ])
+          ])
+        )));
       }
 
       wrap.appendChild(el('h3', { style: 'margin-top:28px;' }, ['Journal de parcours (manuel)']));
@@ -581,6 +606,20 @@
       const libelle = prompt('Libellé / résumé de l\'événement :');
       if (!libelle || !libelle.trim()) return;
       this.coffre.ajouterEvenementParcours(eleve.identifiantSynapses, type, { libelle: libelle.trim() });
+      this._render();
+    }
+
+    /** Fige dans l'historique de l'élève les étapes actuellement proposées
+     *  (voir Coffre.enregistrerParcoursPropose). Déclenché par le bouton
+     *  "📌 Enregistrer un instantané..." de l'onglet Parcours. */
+    _enregistrerInstantaneParcours(eleve) {
+      const ui = this._obtenirGrilleAnalyseUI();
+      if (!ui) {
+        alert('Le moteur d\'analyse (grille-analyse.js) n\'est pas chargé : impossible de calculer le parcours à figer.');
+        return;
+      }
+      const etapes = ui.moteur.proposerParcours(eleve);
+      this.coffre.enregistrerParcoursPropose(eleve.identifiantSynapses, etapes);
       this._render();
     }
 
