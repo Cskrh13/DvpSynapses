@@ -181,7 +181,8 @@
       doc.setFontSize(9);
       doc.setTextColor(185, 198, 229);
       const age = eleve.age != null ? (' · ' + eleve.age + ' an' + (eleve.age > 1 ? 's' : '')) : '';
-      doc.text(eleve.identifiantSynapses + age, MARGIN, 76);
+      const classe = eleve.classe != null ? (' · ' + eleve.classe) : '';
+      doc.text(eleve.identifiantSynapses + age + classe, MARGIN, 76);
 
       // Établissement / dispositif, aligné à droite
       doc.setFont('helvetica', 'normal');
