@@ -346,17 +346,19 @@
      * besoins, adaptations, objectifs actifs) sont conservées, sans dates
      * précises (juste l'ordre relatif).
      *
-     * L'ÂGE (eleve.age) est INTENTIONNELLEMENT EXCLU de cet instantané, malgré
-     * sa disponibilité sur l'objet élève. Décision : combiné aux observations
+     * L'ÂGE (eleve.age) et la CLASSE DE RÉFÉRENCE (eleve.classe) sont
+     * INTENTIONNELLEMENT EXCLUS de cet instantané, malgré leur disponibilité
+     * sur l'objet élève. Décision : combinés aux observations
      * détaillées (données de santé/handicap au sens de l'art. 9 RGPD) et au
      * contexte d'un dispositif à faible effectif (ULIS, UPE2A, SEGPA...), l'âge
-     * agit comme quasi-identifiant et augmente le risque de ré-identification
-     * par recoupement — d'autant qu'aucun contrat de sous-traitance (art. 28
-     * RGPD) ne lie l'enseignant au service IA externe utilisé. Le principe de
-     * minimisation (art. 5.1.c RGPD) prévaut sur le confort de calibrage que
-     * l'âge apporterait aux suggestions. L'âge reste néanmoins consultable/
-     * modifiable localement dans le coffre (aucun souci RGPD à cet usage),
-     * simplement jamais transmis hors de l'application.
+     * et la classe agissent comme quasi-identifiants et augmentent le risque de
+     * ré-identification par recoupement — d'autant qu'aucun contrat de
+     * sous-traitance (art. 28 RGPD) ne lie l'enseignant au service IA externe
+     * utilisé. Le principe de minimisation (art. 5.1.c RGPD) prévaut sur le
+     * confort de calibrage que ces données apporteraient aux suggestions.
+     * L'âge et la classe restent néanmoins consultables/modifiables localement
+     * dans le coffre (aucun souci RGPD à cet usage), simplement jamais
+     * transmis hors de l'application.
      */
     anonymiser(eleve) {
       const observations = (eleve.observations || []).map((o) => ({
