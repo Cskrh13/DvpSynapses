@@ -61,12 +61,18 @@
    *   usage interne de l'application. NE JAMAIS transmettre à une IA, même anonymisée par
    *   ailleurs : grille-analyse.js l'exclut explicitement de MoteurAnalyse.anonymiser() (voir
    *   la note dans ce fichier pour le raisonnement RGPD).
+   * @param {string|null} [classe] - classe de référence, donnée stockée uniquement dans le
+   *   coffre local, pour affichage/usage interne de l'application (même statut que `age`,
+   *   même traitement : jamais transmise à une IA, exclue de MoteurAnalyse.anonymiser()).
+   *   Idéalement, ne renseigner que les INITIALES de la classe (ex. "CM2A" plutôt que le
+   *   libellé complet), afin de réduire encore le caractère identifiant de la donnée.
    */
-  function eleveVide(identifiantSynapses, identite, age) {
+  function eleveVide(identifiantSynapses, identite, age, classe) {
     return {
       identifiantSynapses,
       identite: identite || {}, // { nom, prenom, dateNaissance, classe, ... }
       age: (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null,
+      classe: (typeof classe === 'string' && classe.trim() !== '') ? classe.trim() : null,
       parcoursScolaire: {},
       accompagnements: [],
       domainesAnalyse: {
@@ -204,16 +210,18 @@
       this._assertOuvert();
       return this._data.eleves.map((e) => ({
         identifiantSynapses: e.identifiantSynapses,
-        identite: e.identite
+        identite: e.identite,
+        age: e.age,
+        classe: e.classe
       }));
     }
 
-    ajouterEleve(identifiantSynapses, identite, age) {
+    ajouterEleve(identifiantSynapses, identite, age, classe) {
       this._assertOuvert();
       if (this._data.eleves.some((e) => e.identifiantSynapses === identifiantSynapses)) {
         throw new Error('Identifiant Synapses déjà utilisé : ' + identifiantSynapses);
       }
-      const e = eleveVide(identifiantSynapses, identite, age);
+      const e = eleveVide(identifiantSynapses, identite, age, classe);
       this._data.eleves.push(e);
       return e;
     }
@@ -223,6 +231,15 @@
     definirAge(identifiantSynapses, age) {
       const e = this.getEleve(identifiantSynapses);
       e.age = (typeof age === 'number' && isFinite(age) && age >= 0) ? Math.round(age) : null;
+      return e;
+    }
+
+    /** Modifie uniquement la classe de référence (même statut que l'âge : re-modifiable
+     *  isolément sans passer par une refonte de l'identité nominative). Idéalement,
+     *  ne renseigner que les initiales de la classe. */
+    definirClasse(identifiantSynapses, classe) {
+      const e = this.getEleve(identifiantSynapses);
+      e.classe = (typeof classe === 'string' && classe.trim() !== '') ? classe.trim() : null;
       return e;
     }
 
