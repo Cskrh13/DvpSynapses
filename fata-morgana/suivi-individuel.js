@@ -228,7 +228,8 @@
         onclick: () => { this.eleveSelectionneId = e.identifiantSynapses; this._render(); }
       }, [
         el('span', { class: 'si-eleve-id' }, [e.identifiantSynapses]),
-        el('span', { class: 'si-eleve-nom' }, [identite])
+        el('span', { class: 'si-eleve-nom' }, [identite]),
+        e.classe ? el('span', { class: 'si-eleve-classe' }, [e.classe]) : null
       ]);
     }
 
@@ -239,8 +240,9 @@
       const prenom = prompt('Prénom (optionnel) :') || '';
       const ageStr = prompt('Âge (optionnel — donnée stockée uniquement dans le coffre local, jamais transmise à une IA) :') || '';
       const age = ageStr.trim() !== '' && !isNaN(Number(ageStr)) ? Number(ageStr) : null;
+      const classe = prompt('Classe de référence (optionnel — donnée stockée uniquement dans le coffre local, jamais transmise à une IA ; idéalement, ne donner que les initiales de la classe, ex. "CM2A") :') || '';
       try {
-        this.coffre.ajouterEleve(id.trim(), { nom: nom.trim(), prenom: prenom.trim() }, age);
+        this.coffre.ajouterEleve(id.trim(), { nom: nom.trim(), prenom: prenom.trim() }, age, classe.trim());
         this.eleveSelectionneId = id.trim();
         this._render();
       } catch (e) {
@@ -284,11 +286,23 @@
         }
       }, [eleve.age != null ? (eleve.age + ' an' + (eleve.age > 1 ? 's' : '')) : 'Âge non renseigné']);
 
+      const btnClasse = el('button', {
+        class: 'si-btn si-btn-small',
+        title: 'Modifier la classe de référence (donnée stockée uniquement dans le coffre local, jamais transmise à une IA ; idéalement, ne donner que les initiales de la classe)',
+        onclick: () => {
+          const v = prompt('Classe de référence de l\'élève (idéalement, initiales seulement, ex. "CM2A") :', eleve.classe != null ? eleve.classe : '');
+          if (v === null) return;
+          this.coffre.definirClasse(eleve.identifiantSynapses, v.trim());
+          this._render();
+        }
+      }, [eleve.classe != null ? eleve.classe : 'Classe non renseignée']);
+
       return el('div', { class: 'si-fiche-entete' }, [
         el('div', {}, [
           el('div', { class: 'si-fiche-id' }, [eleve.identifiantSynapses]),
           el('h2', { class: 'si-fiche-nom' }, [identite || '(identité non renseignée)']),
-          btnAge
+          btnAge,
+          btnClasse
         ]),
         el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;' }, [
           el('button', {
