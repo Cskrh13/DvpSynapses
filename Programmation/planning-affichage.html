@@ -463,7 +463,7 @@ window.addEventListener("storage", (e)=>{
     affectations = PC.chargerAffectations();
     semaines = PC.calculerSemaines(config);
     if(semaineIdx >= semaines.length) semaineIdx = Math.max(0, semaines.length-1);
-    renderNiveauxToggle();
+    renderClassesToggle();
     renderSemaine();
   }
 });
@@ -471,7 +471,7 @@ window.addEventListener("storage", (e)=>{
 /* ---------------- Initialisation ---------------- */
 (async function init(){
   semaines = PC.calculerSemaines(config);
-  renderNiveauxToggle();
+  renderClassesToggle();
   try{
     banque = await PC.chargerBanque();
   }catch(e){ /* le planning reste affichable, sans détail de séance */ }
