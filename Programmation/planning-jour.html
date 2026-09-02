@@ -167,12 +167,38 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
 .journal-block-head input.bloc-heure{
   font-family:'IBM Plex Mono',monospace;
-  font-size:11.5px;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.2;
   border:1px solid var(--line);
   border-radius:6px;
-  padding:3px 5px;
-  width:62px;
+  padding:4px 6px;
+  width:82px;
+  min-width:82px;
+  height:30px;
+  box-sizing:border-box;
   background:#fff;
+  color:var(--ink);
+  text-align:center;
+  overflow:visible;
+}
+
+/* Chrome / Edge : réserver assez de place aux heures ET aux minutes. */
+.journal-block-head input.bloc-heure::-webkit-datetime-edit{
+  padding:0;
+}
+.journal-block-head input.bloc-heure::-webkit-datetime-edit-fields-wrapper{
+  padding:0;
+}
+.journal-block-head input.bloc-heure::-webkit-datetime-edit-hour-field,
+.journal-block-head input.bloc-heure::-webkit-datetime-edit-minute-field{
+  padding:0 1px;
+}
+.journal-block-head input.bloc-heure::-webkit-calendar-picker-indicator{
+  margin-left:3px;
+  padding:0;
+  width:13px;
+  height:13px;
 }
 
 .journal-block-head .sep{color:var(--ink-soft);}
@@ -326,10 +352,238 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .synapses-footer{margin-top:40px;padding:18px 24px;text-align:center;font-size:11px;color:var(--ink-soft);border-top:1px solid var(--line);}
 .synapses-footer div:first-child{font-weight:600;letter-spacing:.04em;}
 
+/* =========================================================
+   IMPRESSION — cahier journal
+   Une vue dédiée est générée avant window.print().
+   ========================================================= */
+
+.print-journal{display:none;}
+
 @media print{
-  header.site-header,.onboarding,.day-actions,.coffre-widget,.add-groupe-btn,.add-bloc-row,.card-foot,.synapses-footer,select.add-eleve{display:none !important;}
-  body{background:#fff;}
-  .journal-table{border:1px solid #999;}
+
+  @page{
+    size:A4 portrait;
+    margin:10mm 9mm 10mm 9mm;
+  }
+
+  html,body{
+    width:100%;
+    min-width:0;
+    background:#fff !important;
+  }
+
+  body{
+    margin:0 !important;
+    color:#111 !important;
+    font-size:10.5pt;
+  }
+
+  /* Tout ce qui sert à la navigation/édition disparaît. */
+  header.site-header,
+  .onboarding,
+  .day-toolbar,
+  #content,
+  .journal-bottom,
+  .synapses-footer,
+  .toast,
+  .modal-overlay{
+    display:none !important;
+  }
+
+  /* Vue imprimable uniquement. */
+  .print-journal{
+    display:block !important;
+    width:100%;
+    max-width:100%;
+    margin:0;
+    padding:0;
+    color:#111;
+    font-family:Arial,Helvetica,sans-serif;
+  }
+
+  .print-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:15px;
+    padding:0 0 7px;
+    margin-bottom:8px;
+    border-bottom:2px solid #222;
+  }
+
+  .print-title{
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:19pt;
+    font-weight:700;
+    line-height:1.1;
+  }
+
+  .print-date{
+    font-size:10.5pt;
+    font-weight:600;
+    text-align:right;
+    white-space:nowrap;
+  }
+
+  .print-schedule{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    width:100%;
+  }
+
+  /* Chaque ligne contient les créneaux qui se chevauchent.
+     Les créneaux successifs restent donc verticalement. */
+  .print-lane{
+    display:grid;
+    grid-template-columns:repeat(var(--print-cols,1),minmax(0,1fr));
+    gap:6px;
+    width:100%;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-block{
+    min-width:0;
+    border:1px solid #999;
+    border-radius:5px;
+    background:#fff;
+    overflow:hidden;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-block-head{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    padding:4px 6px;
+    background:#eee;
+    border-bottom:1px solid #aaa;
+    font-weight:700;
+  }
+
+  .print-time{
+    font-family:'Courier New',monospace;
+    font-size:9.5pt;
+    white-space:nowrap;
+  }
+
+  .print-label{
+    font-size:9.5pt;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .print-common{
+    padding:5px 6px 6px;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-common-title{
+    font-weight:700;
+    font-size:10.5pt;
+    margin-bottom:3px;
+  }
+
+  .print-classes{
+    display:flex;
+    flex-wrap:wrap;
+    gap:3px;
+    margin-bottom:4px;
+  }
+
+  .print-class{
+    font-size:8.5pt;
+    font-weight:700;
+    border:1px solid #aaa;
+    border-radius:10px;
+    padding:1px 5px;
+  }
+
+  .print-group{
+    padding:4px 0;
+    border-top:1px solid #ddd;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-group:first-child{
+    border-top:0;
+  }
+
+  .print-group-title{
+    font-weight:700;
+    font-size:9.5pt;
+  }
+
+  .print-group-meta{
+    font-size:8.5pt;
+    color:#333;
+    margin-top:2px;
+  }
+
+  .print-students{
+    font-size:8.2pt;
+    margin-top:3px;
+    line-height:1.25;
+  }
+
+  .print-note{
+    font-size:8.2pt;
+    margin-top:3px;
+    font-style:italic;
+  }
+
+  .print-fixed{
+    padding:6px;
+    font-weight:700;
+    font-style:italic;
+    background:#f1f1f1;
+  }
+
+  .print-bottom{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:8px;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-bottom-box{
+    border:1px solid #aaa;
+    border-radius:5px;
+    padding:5px 6px;
+    min-height:34px;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .print-bottom-label{
+    font-size:8pt;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:2px;
+  }
+
+  .print-bottom-text{
+    font-size:8.8pt;
+    white-space:pre-wrap;
+  }
+
+  /* Évite qu'un bloc soit coupé entre deux pages. */
+  .print-block,
+  .print-lane,
+  .print-group,
+  .print-common,
+  .print-bottom{
+    orphans:3;
+    widows:3;
+  }
 }
 </style>
 </head>
@@ -1135,7 +1389,497 @@ $("btn-repartir-eleves").addEventListener("click", ()=>{
   renderJour();
 });
 
-$("btn-print").addEventListener("click", ()=> window.print());
+/* ---------------- Impression ergonomique ----------------
+   La version imprimée est une vue dédiée :
+   - aucun bouton ni champ de saisie ;
+   - horaire + intitulé ;
+   - classes concernées ;
+   - adulte ;
+   - élèves ;
+   - remarques ;
+   - remarque générale et devoirs.
+
+   La vue écran n'est jamais modifiée.
+------------------------------------------------------------ */
+
+function construireVueImpression(){
+
+  const old =
+    document.getElementById("print-journal");
+
+  if(old) old.remove();
+
+  const root =
+    document.createElement("section");
+
+  root.id =
+    "print-journal";
+
+  root.className =
+    "print-journal";
+
+
+  /* ---------- En-tête ---------- */
+
+  const head =
+    document.createElement("div");
+
+  head.className =
+    "print-head";
+
+  head.innerHTML = `
+    <div class="print-title">
+      Cahier journal
+    </div>
+    <div class="print-date">
+      ${escapeHTML(
+        PC.formatDateLong(
+          PC.parseISO(iso)
+        )
+      )}
+    </div>
+  `;
+
+  root.appendChild(head);
+
+
+  /* ---------- Outils horaires ---------- */
+
+  function hm(h){
+    return PC.heureVersMin(h);
+  }
+
+  function chevauche(a,b){
+    return hm(a.debut) < hm(b.fin) &&
+           hm(b.debut) < hm(a.fin);
+  }
+
+  function contenuKey(g){
+
+    if(g.fixe){
+      return "fixe|" +
+        String(g.titre || "")
+          .trim()
+          .toLowerCase();
+    }
+
+    const ref =
+      g.seanceRef &&
+      g.seanceRef.id
+        ? String(g.seanceRef.id)
+        : "";
+
+    return [
+      "seance",
+      String(g.titre || "")
+        .trim()
+        .toLowerCase(),
+      String(g.domaineCle || "")
+        .trim()
+        .toLowerCase(),
+      ref
+    ].join("|");
+  }
+
+
+  /* ---------- Même horaire + même contenu ---------- */
+
+  const map =
+    new Map();
+
+  jour.groupes.forEach(g=>{
+
+    const key = [
+      g.debut,
+      g.fin,
+      contenuKey(g)
+    ].join("|");
+
+    if(!map.has(key)){
+      map.set(key,{
+        debut:g.debut,
+        fin:g.fin,
+        groupes:[]
+      });
+    }
+
+    map.get(key).groupes.push(g);
+
+  });
+
+
+  const blocs =
+    Array.from(map.values())
+      .sort(
+        (a,b)=>
+          hm(a.debut)-hm(b.debut) ||
+          hm(a.fin)-hm(b.fin)
+      );
+
+
+  /* ---------- Lignes de chevauchement ---------- */
+
+  const lignes = [];
+
+  blocs.forEach(bloc=>{
+
+    let placee = false;
+
+    for(const ligne of lignes){
+
+      if(!ligne.some(
+        autre=>chevauche(bloc,autre)
+      )){
+        ligne.push(bloc);
+        placee = true;
+        break;
+      }
+
+    }
+
+    if(!placee){
+      lignes.push([bloc]);
+    }
+
+  });
+
+
+  const schedule =
+    document.createElement("div");
+
+  schedule.className =
+    "print-schedule";
+
+
+  /* ---------- Une ligne après l'autre ---------- */
+
+  lignes.forEach(ligne=>{
+
+    ligne.sort(
+      (a,b)=>
+        hm(a.debut)-hm(b.debut) ||
+        hm(a.fin)-hm(b.fin)
+    );
+
+
+    const lane =
+      document.createElement("div");
+
+    lane.className =
+      "print-lane";
+
+    lane.style.setProperty(
+      "--print-cols",
+      String(ligne.length)
+    );
+
+
+    ligne.forEach(bloc=>{
+
+      const block =
+        document.createElement("article");
+
+      block.className =
+        "print-block";
+
+
+      const head =
+        document.createElement("div");
+
+      head.className =
+        "print-block-head";
+
+      const label =
+        PC.libelleBloc(
+          jour,
+          bloc.debut,
+          bloc.fin
+        ) || "";
+
+      head.innerHTML = `
+        <span class="print-time">
+          ${escapeHTML(bloc.debut)}
+          – ${escapeHTML(bloc.fin)}
+        </span>
+        <span class="print-label">
+          ${escapeHTML(label)}
+        </span>
+      `;
+
+      block.appendChild(head);
+
+
+      const tousFixes =
+        bloc.groupes.every(
+          g=>g.fixe
+        );
+
+
+      /* ---------- Brique commune ---------- */
+
+      const common =
+        document.createElement("div");
+
+      common.className =
+        "print-common";
+
+
+      const classes =
+        [...new Set(
+          bloc.groupes
+            .map(
+              g =>
+                g.niveau ||
+                g.classeId ||
+                "Classe"
+            )
+            .filter(Boolean)
+        )];
+
+
+      const titre =
+        bloc.groupes[0].titre ||
+        (tousFixes
+          ? "Créneau fixe"
+          : "Créneau commun");
+
+
+      common.innerHTML = `
+        <div class="print-common-title">
+          ${escapeHTML(titre)}
+        </div>
+
+        <div class="print-classes">
+          ${
+            classes.map(
+              c =>
+                `<span class="print-class">
+                  ${escapeHTML(c)}
+                </span>`
+            ).join("")
+          }
+        </div>
+      `;
+
+
+      /* ---------- Récréation / pause ---------- */
+
+      if(tousFixes){
+
+        common.classList.add(
+          "print-fixed"
+        );
+
+        block.appendChild(
+          common
+        );
+
+      }
+
+
+      /* ---------- Groupes indépendants ---------- */
+
+      else{
+
+        const hasDetails =
+          bloc.groupes.some(
+            g =>
+              g.adulte &&
+              (
+                g.adulte.type ||
+                g.adulte.nom
+              )
+          ) ||
+          bloc.groupes.some(
+            g =>
+              (g.eleves || []).length
+          ) ||
+          bloc.groupes.some(
+            g =>
+              String(g.remarque || "")
+                .trim()
+          );
+
+
+        /* Si plusieurs groupes partagent le contenu,
+           la liste des classes est suffisante en tête.
+           On détaille ensuite chaque groupe uniquement
+           lorsque cela apporte une information utile. */
+
+        const body =
+          document.createElement("div");
+
+        body.className =
+          "print-common";
+
+
+        body.innerHTML =
+          common.innerHTML;
+
+
+        bloc.groupes.forEach(g=>{
+
+          const group =
+            document.createElement("div");
+
+          group.className =
+            "print-group";
+
+
+          const classe =
+            g.niveau ||
+            g.classeId ||
+            "";
+
+
+          const adulte =
+            g.adulte
+              ? [
+                  g.adulte.type || "",
+                  g.adulte.nom || ""
+                ]
+                .filter(Boolean)
+                .join(" · ")
+              : "";
+
+
+          const eleves =
+            (g.eleves || [])
+              .map(id=>labelEleve(id))
+              .filter(Boolean)
+              .join(" · ");
+
+
+          group.innerHTML = `
+            <div class="print-group-title">
+              ${escapeHTML(
+                classe
+                  ? classe + " — "
+                  : ""
+              )}
+              ${escapeHTML(
+                g.titre || ""
+              )}
+            </div>
+
+            ${
+              adulte
+                ? `<div class="print-group-meta">
+                     ${escapeHTML(adulte)}
+                   </div>`
+                : ""
+            }
+
+            ${
+              eleves
+                ? `<div class="print-students">
+                     Élèves : ${escapeHTML(eleves)}
+                   </div>`
+                : ""
+            }
+
+            ${
+              String(g.remarque || "").trim()
+                ? `<div class="print-note">
+                     ${escapeHTML(g.remarque)}
+                   </div>`
+                : ""
+            }
+          `;
+
+
+          body.appendChild(
+            group
+          );
+
+        });
+
+
+        block.appendChild(
+          body
+        );
+
+      }
+
+
+      schedule.appendChild(
+        lane
+      );
+
+      lane.appendChild(
+        block
+      );
+
+    });
+
+  });
+
+
+  root.appendChild(
+    schedule
+  );
+
+
+  /* ---------- Remarque / devoirs ---------- */
+
+  if(
+    String(jour.remarque || "").trim() ||
+    String(jour.devoirs || "").trim()
+  ){
+
+    const bottom =
+      document.createElement("div");
+
+    bottom.className =
+      "print-bottom";
+
+
+    bottom.innerHTML = `
+      <div class="print-bottom-box">
+        <div class="print-bottom-label">
+          Remarque
+        </div>
+        <div class="print-bottom-text">
+          ${escapeHTML(
+            jour.remarque || ""
+          )}
+        </div>
+      </div>
+
+      <div class="print-bottom-box">
+        <div class="print-bottom-label">
+          Devoirs
+        </div>
+        <div class="print-bottom-text">
+          ${escapeHTML(
+            jour.devoirs || ""
+          )}
+        </div>
+      </div>
+    `;
+
+
+    root.appendChild(
+      bottom
+    );
+
+  }
+
+
+  document.body.appendChild(
+    root
+  );
+
+}
+
+
+$("btn-print").addEventListener(
+  "click",
+  ()=>{
+    construireVueImpression();
+    window.print();
+  }
+);
 
 $("j-remarque").addEventListener("change", e=>{ jour.remarque=e.target.value; sauver(); });
 $("j-devoirs").addEventListener("change", e=>{ jour.devoirs=e.target.value; sauver(); });
