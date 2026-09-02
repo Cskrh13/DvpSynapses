@@ -50,12 +50,9 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
    les classes restent à gauche, la navigation des semaines est centrée. */
 .toolbar{
   position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:14px;
+  display:block;
+  width:100%;
   margin-bottom:18px;
-  min-height:42px;
 }
 
 .toolbar .chip-toggle{
@@ -63,7 +60,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   gap:6px;
   flex-wrap:wrap;
   width:100%;
-  padding-right:250px;
+  padding-right:0;
 }
 
 .toolbar .chip-toggle button{
@@ -84,15 +81,14 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
 /* Navigation des semaines réellement centrée dans la page. */
 .week-nav{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
+  position:static;
+  transform:none;
+  width:100%;
   display:flex;
   align-items:center;
   justify-content:center;
   gap:10px;
-  z-index:2;
+  margin-top:12px;
 }
 
 .week-nav button{
