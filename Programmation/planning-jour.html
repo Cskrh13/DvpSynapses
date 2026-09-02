@@ -78,14 +78,213 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 /* -------- Tableau cahier journal -------- */
 .journal-table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
 .journal-table > tbody > tr > td{border-top:1px solid var(--line);vertical-align:top;padding:0;}
+
 .bloc-row-head{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--panel-raised);}
 .bloc-row-head input.bloc-label{font-family:'Fraunces',serif;font-weight:600;font-size:14px;border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 6px;width:140px;}
 .bloc-row-head input.bloc-label:hover,.bloc-row-head input.bloc-label:focus{border-color:var(--line);background:#fff;}
 .bloc-row-head input.bloc-heure{font-family:'IBM Plex Mono',monospace;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;width:64px;background:#fff;}
 .bloc-row-head .sep{color:var(--ink-soft);}
 .bloc-row-head .spacer{flex:1;}
-.bloc-groupes{display:flex;gap:10px;padding:10px 12px 14px;flex-wrap:wrap;}
-.groupe-card{flex:1 1 220px;min-width:220px;background:var(--panel-raised);border:1px solid var(--line);border-radius:8px;padding:10px 12px;}
+
+.bloc-groupes{
+  display:flex;
+  gap:10px;
+  padding:10px 12px 14px;
+  flex-wrap:wrap;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+}
+
+.groupe-card{
+  flex:1 1 220px;
+  min-width:0;
+  max-width:100%;
+  background:var(--panel-raised);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px;
+  box-sizing:border-box;
+}
+
+/* -------- Nouvelle présentation des briques -------- */
+.journal-lanes{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+}
+
+.journal-lane{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));
+  gap:10px;
+  width:100%;
+  max-width:100%;
+  padding:10px 12px;
+  box-sizing:border-box;
+  align-items:start;
+}
+
+.journal-block{
+  min-width:0;
+  max-width:100%;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:9px;
+  overflow:hidden;
+  box-sizing:border-box;
+}
+
+.journal-block-head{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  padding:7px 9px;
+  background:var(--panel-raised);
+  border-bottom:1px solid var(--line);
+}
+
+.journal-block-head input.bloc-label{
+  font-family:'Fraunces',serif;
+  font-weight:600;
+  font-size:13px;
+  border:1px solid transparent;
+  background:transparent;
+  border-radius:6px;
+  padding:3px 5px;
+  width:105px;
+  min-width:80px;
+}
+
+.journal-block-head input.bloc-label:hover,
+.journal-block-head input.bloc-label:focus{
+  border-color:var(--line);
+  background:#fff;
+}
+
+.journal-block-head input.bloc-heure{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11.5px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:3px 5px;
+  width:62px;
+  background:#fff;
+}
+
+.journal-block-head .sep{color:var(--ink-soft);}
+.journal-block-head .spacer{flex:1;}
+
+.journal-block-body{
+  min-width:0;
+  max-width:100%;
+}
+
+.groupe-commun{
+  margin:10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--panel-raised);
+  overflow:hidden;
+  min-width:0;
+  max-width:calc(100% - 20px);
+  box-sizing:border-box;
+}
+
+.groupe-commun-head{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  padding:8px 9px;
+  background:#F1EFE9;
+  border-bottom:1px solid var(--line);
+}
+
+.groupe-commun-title{
+  font-size:13px;
+  font-weight:700;
+  min-width:0;
+}
+
+.groupe-commun-classes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  min-width:0;
+}
+
+.groupe-commun-classes span{
+  display:inline-flex;
+  align-items:center;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  padding:2px 7px;
+  font-size:10px;
+  font-weight:700;
+  color:var(--ink-soft);
+}
+
+.groupe-commun-body{
+  padding:0 10px;
+  min-width:0;
+}
+
+.groupe-commun-body > .groupe-card{
+  width:100%;
+  max-width:100%;
+  margin:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  padding:8px 0;
+}
+
+.groupe-commun-body > .groupe-card + .groupe-card{
+  border-top:1px dashed var(--line);
+}
+
+.groupe-commun.fixe{
+  background:#F1EFE9;
+  color:var(--ink-soft);
+  font-style:italic;
+}
+
+.journal-block-add{
+  display:flex;
+  padding:8px 10px 10px;
+}
+
+.journal-block-add .add-groupe-btn{
+  width:100%;
+  min-width:0;
+  min-height:34px;
+}
+
+.journal-table,
+.journal-table td,
+.journal-lanes,
+.journal-lane,
+.journal-block,
+.journal-block-head,
+.journal-block-body,
+.bloc-groupes,
+.groupe-commun,
+.groupe-commun-body,
+.groupe-card{
+  max-width:100%;
+  box-sizing:border-box;
+}
+
+@media(max-width:700px){
+  .journal-lane{
+    grid-template-columns:1fr;
+  }
+}
 .groupe-card.fixe{background:#F1EFE9;font-style:italic;color:var(--ink-soft);}
 .groupe-card .row1{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
 .groupe-card select.adulte-type{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px;font-weight:700;background:#fff;}
@@ -372,73 +571,411 @@ function renderJour(){
         <button class="btn primary" id="btn-generer-jour-vide">↺ Resynchroniser avec la grille</button>
         <button class="btn" id="btn-ajouter-bloc-vide" style="margin-left:8px;">+ Ajouter un créneau</button>
       </div>`;
-    $("btn-generer-jour-vide").addEventListener("click", genererDepuisGrille);
-    $("btn-ajouter-bloc-vide").addEventListener("click", ()=> ajouterBloc());
+    $("btn-generer-jour-vide").addEventListener("click", ()=>genererDepuisGrille(false));
+    $("btn-ajouter-bloc-vide").addEventListener("click", ()=>ajouterBloc());
     return;
   }
 
+  /* =========================================================
+     PRÉSENTATION DES BRIQUES
+     =========================================================
+     Une "unité d'affichage" correspond à :
+       - même début
+       - même fin
+       - même contenu
+
+     Donc :
+       10:10-10:25 + Lecture + CP C/CP A
+       -> UNE brique commune.
+
+       10:10-10:25 + Lecture
+       10:10-10:25 + Mathématiques
+       -> DEUX briques côte à côte.
+
+     Les objets g restent indépendants dans jour.groupes.
+  ========================================================= */
+
+  function hm(h){
+    return PC.heureVersMin(h);
+  }
+
+  function chevauche(a,b){
+    return hm(a.debut) < hm(b.fin) &&
+           hm(b.debut) < hm(a.fin);
+  }
+
+  function contenuKey(g){
+    if(g.fixe){
+      return "fixe|" + String(g.titre || "").trim().toLowerCase();
+    }
+
+    const ref = g.seanceRef && g.seanceRef.id
+      ? String(g.seanceRef.id)
+      : "";
+
+    return [
+      "seance",
+      String(g.titre || "").trim().toLowerCase(),
+      String(g.domaineCle || "").trim().toLowerCase(),
+      ref
+    ].join("|");
+  }
+
+  const map = new Map();
+
+  jour.groupes.forEach(g=>{
+    const key = [
+      g.debut,
+      g.fin,
+      contenuKey(g)
+    ].join("|");
+
+    if(!map.has(key)){
+      map.set(key,{
+        debut:g.debut,
+        fin:g.fin,
+        groupes:[]
+      });
+    }
+
+    map.get(key).groupes.push(g);
+  });
+
+  const blocs = Array.from(map.values()).sort((a,b)=>{
+    return hm(a.debut)-hm(b.debut) ||
+           hm(a.fin)-hm(b.fin);
+  });
+
+  /* =========================================================
+     MISE EN LIGNES :
+     deux briques qui se chevauchent sont dans la même ligne.
+     Les briques suivantes sont placées dans la première ligne
+     compatible.
+  ========================================================= */
+
+  const lignes = [];
+
+  blocs.forEach(bloc=>{
+    let place = false;
+
+    for(const ligne of lignes){
+      if(!ligne.some(x=>chevauche(bloc,x))){
+        ligne.push(bloc);
+        place = true;
+        break;
+      }
+    }
+
+    if(!place){
+      lignes.push([bloc]);
+    }
+  });
+
   const table = document.createElement("table");
   table.className = "journal-table";
+
   const tbody = document.createElement("tbody");
 
-  PC.regrouperParBloc(jour).forEach(bloc=>{
+  lignes.forEach(ligne=>{
+    ligne.sort((a,b)=>{
+      return hm(a.debut)-hm(b.debut) ||
+             hm(a.fin)-hm(b.fin);
+    });
+
     const tr = document.createElement("tr");
     const td = document.createElement("td");
 
-    const head = document.createElement("div");
-    head.className = "bloc-row-head";
-    head.innerHTML = `
-      <input class="bloc-label" value="${escapeAttr(PC.libelleBloc(jour, bloc.debut, bloc.fin))}" data-role="label">
-      <input class="bloc-heure" value="${escapeAttr(bloc.debut)}" data-role="debut">
-      <span class="sep">–</span>
-      <input class="bloc-heure" value="${escapeAttr(bloc.fin)}" data-role="fin">
-      <span class="spacer"></span>
-      <button class="btn small danger" data-role="del-bloc">✕ Supprimer ce créneau</button>`;
-    head.querySelector('[data-role=label]').addEventListener("change", e=>{
-      jour.libellesBlocs[PC.cleBloc(bloc.debut,bloc.fin)] = e.target.value;
-      sauver();
-    });
-    head.querySelector('[data-role=debut]').addEventListener("change", e=>{
-      const ancienneCle = PC.cleBloc(bloc.debut, bloc.fin);
-      const label = jour.libellesBlocs[ancienneCle];
-      delete jour.libellesBlocs[ancienneCle];
-      bloc.groupes.forEach(g=>{ g.debut = e.target.value; g.modifie = true; });
-      if(label) jour.libellesBlocs[PC.cleBloc(e.target.value, bloc.fin)] = label;
-      sauver(); renderJour();
-    });
-    head.querySelector('[data-role=fin]').addEventListener("change", e=>{
-      const ancienneCle = PC.cleBloc(bloc.debut, bloc.fin);
-      const label = jour.libellesBlocs[ancienneCle];
-      delete jour.libellesBlocs[ancienneCle];
-      bloc.groupes.forEach(g=>{ g.fin = e.target.value; g.modifie = true; });
-      if(label) jour.libellesBlocs[PC.cleBloc(bloc.debut, e.target.value)] = label;
-      sauver(); renderJour();
-    });
-    head.querySelector('[data-role=del-bloc]').addEventListener("click", ()=>{
-      if(!confirm("Supprimer ce créneau et tous ses groupes ?")) return;
-      bloc.groupes.forEach(g=>{ if(g.origine) jour.exclusions.push(g.origine); });
-      jour.groupes = jour.groupes.filter(g=> !bloc.groupes.includes(g));
-      delete jour.libellesBlocs[PC.cleBloc(bloc.debut,bloc.fin)];
-      sauver(); renderJour();
-    });
-    td.appendChild(head);
+    const lanes = document.createElement("div");
+    lanes.className = "journal-lanes";
 
-    const groupesWrap = document.createElement("div");
-    groupesWrap.className = "bloc-groupes";
-    bloc.groupes.forEach(g=> groupesWrap.appendChild(renderGroupeCard(g)));
+    const lane = document.createElement("div");
+    lane.className = "journal-lane";
 
-    const addBtn = document.createElement("button");
-    addBtn.className = "add-groupe-btn";
-    addBtn.title = "Ajouter un groupe en parallèle sur ce créneau";
-    addBtn.textContent = "+";
-    addBtn.addEventListener("click", ()=>{
-      jour.groupes.push({ id: PC.uid("grp"), debut: bloc.debut, fin: bloc.fin, origine: null, modifie: true,
-        adulte:{type:"enseignant",nom:""}, titre:"Nouveau groupe", domaineCle:"", niveau:"", seanceRef:null, eleves:[], remarque:"", fixe:false });
-      sauver(); renderJour();
+    ligne.forEach(bloc=>{
+      const blocEl = document.createElement("div");
+      blocEl.className = "journal-block";
+
+      /* -----------------------------------------------------
+         EN-TÊTE : chaque brique possède son propre horaire.
+         Cela permet à 10:10-10:25 et 10:20-10:25 d'être
+         affichés côte à côte.
+      ----------------------------------------------------- */
+
+      const head = document.createElement("div");
+      head.className = "journal-block-head";
+
+      head.innerHTML = `
+        <input
+          class="bloc-label"
+          value="${escapeAttr(PC.libelleBloc(jour,bloc.debut,bloc.fin))}"
+          data-role="label"
+          title="Libellé du créneau"
+        >
+        <input
+          class="bloc-heure"
+          type="time"
+          value="${escapeAttr(bloc.debut)}"
+          data-role="debut"
+        >
+        <span class="sep">–</span>
+        <input
+          class="bloc-heure"
+          type="time"
+          value="${escapeAttr(bloc.fin)}"
+          data-role="fin"
+        >
+        <span class="spacer"></span>
+        <button
+          class="btn small danger"
+          data-role="del-bloc"
+          title="Supprimer cette brique et ses groupes"
+        >✕</button>
+      `;
+
+      head.querySelector('[data-role=label]').addEventListener("change",e=>{
+        jour.libellesBlocs[
+          PC.cleBloc(bloc.debut,bloc.fin)
+        ] = e.target.value;
+        sauver();
+      });
+
+      head.querySelector('[data-role=debut]').addEventListener("change",e=>{
+        const ancienneCle =
+          PC.cleBloc(bloc.debut,bloc.fin);
+
+        const label =
+          jour.libellesBlocs[ancienneCle];
+
+        delete jour.libellesBlocs[ancienneCle];
+
+        bloc.groupes.forEach(g=>{
+          g.debut = e.target.value;
+          g.modifie = true;
+        });
+
+        if(label){
+          jour.libellesBlocs[
+            PC.cleBloc(e.target.value,bloc.fin)
+          ] = label;
+        }
+
+        sauver();
+        renderJour();
+      });
+
+      head.querySelector('[data-role=fin]').addEventListener("change",e=>{
+        const ancienneCle =
+          PC.cleBloc(bloc.debut,bloc.fin);
+
+        const label =
+          jour.libellesBlocs[ancienneCle];
+
+        delete jour.libellesBlocs[ancienneCle];
+
+        bloc.groupes.forEach(g=>{
+          g.fin = e.target.value;
+          g.modifie = true;
+        });
+
+        if(label){
+          jour.libellesBlocs[
+            PC.cleBloc(bloc.debut,e.target.value)
+          ] = label;
+        }
+
+        sauver();
+        renderJour();
+      });
+
+      head.querySelector('[data-role=del-bloc]').addEventListener("click",()=>{
+        if(!confirm("Supprimer cette brique et tous ses groupes ?")) return;
+
+        bloc.groupes.forEach(g=>{
+          if(g.origine){
+            jour.exclusions.push(g.origine);
+          }
+        });
+
+        jour.groupes =
+          jour.groupes.filter(g=>!bloc.groupes.includes(g));
+
+        delete jour.libellesBlocs[
+          PC.cleBloc(bloc.debut,bloc.fin)
+        ];
+
+        sauver();
+        renderJour();
+      });
+
+      blocEl.appendChild(head);
+
+      /* -----------------------------------------------------
+         CORPS DE LA BRIQUE
+      ----------------------------------------------------- */
+
+      const body = document.createElement("div");
+      body.className = "journal-block-body";
+
+      /* Plusieurs classes + même contenu :
+         UNE seule brique avec les classes à l'intérieur. */
+      if(bloc.groupes.length > 1){
+
+        const commun =
+          document.createElement("div");
+
+        commun.className = "groupe-commun";
+
+        const classes =
+          [...new Set(
+            bloc.groupes
+              .map(g=>g.niveau || g.classeId || "Classe")
+              .filter(Boolean)
+          )];
+
+        const tousFixes =
+          bloc.groupes.every(g=>g.fixe);
+
+        const titreCommun =
+          bloc.groupes[0].titre ||
+          (tousFixes ? "Créneau fixe" : "Créneau commun");
+
+        const communHead =
+          document.createElement("div");
+
+        communHead.className =
+          "groupe-commun-head";
+
+        communHead.innerHTML = `
+          <div class="groupe-commun-title">
+            ${escapeHTML(titreCommun)}
+          </div>
+          <div class="groupe-commun-classes">
+            ${
+              classes.map(n=>
+                `<span>${escapeHTML(n)}</span>`
+              ).join("")
+            }
+          </div>
+        `;
+
+        commun.appendChild(communHead);
+
+        if(tousFixes){
+
+          commun.classList.add("fixe");
+
+          body.appendChild(commun);
+
+        }else{
+
+          /* Les groupes restent indépendants :
+             chaque carte conserve ses propres élèves,
+             adulte, remarque, suppression, etc. */
+          const communBody =
+            document.createElement("div");
+
+          communBody.className =
+            "groupe-commun-body";
+
+          bloc.groupes.forEach(g=>{
+            communBody.appendChild(
+              renderGroupeCard(g)
+            );
+          });
+
+          commun.appendChild(
+            communBody
+          );
+
+          body.appendChild(
+            commun
+          );
+        }
+
+      }else{
+
+        const groupesWrap =
+          document.createElement("div");
+
+        groupesWrap.className =
+          "bloc-groupes";
+
+        groupesWrap.appendChild(
+          renderGroupeCard(
+            bloc.groupes[0]
+          )
+        );
+
+        body.appendChild(
+          groupesWrap
+        );
+      }
+
+      /* -----------------------------------------------------
+         AJOUTER UN GROUPE
+      ----------------------------------------------------- */
+
+      const addZone =
+        document.createElement("div");
+
+      addZone.className =
+        "journal-block-add";
+
+      const addBtn =
+        document.createElement("button");
+
+      addBtn.className =
+        "add-groupe-btn";
+
+      addBtn.title =
+        "Ajouter un groupe sur cette brique";
+
+      addBtn.textContent =
+        "+ Ajouter un groupe";
+
+      addBtn.addEventListener("click",()=>{
+        jour.groupes.push({
+          id:PC.uid("grp"),
+          debut:bloc.debut,
+          fin:bloc.fin,
+          origine:null,
+          modifie:true,
+          adulte:{
+            type:"enseignant",
+            nom:""
+          },
+          titre:"Nouveau groupe",
+          domaineCle:"",
+          niveau:"",
+          seanceRef:null,
+          eleves:[],
+          remarque:"",
+          fixe:false
+        });
+
+        sauver();
+        renderJour();
+      });
+
+      addZone.appendChild(
+        addBtn
+      );
+
+      body.appendChild(
+        addZone
+      );
+
+      blocEl.appendChild(
+        body
+      );
+
+      lane.appendChild(
+        blocEl
+      );
     });
-    groupesWrap.appendChild(addBtn);
 
-    td.appendChild(groupesWrap);
+    lanes.appendChild(lane);
+    td.appendChild(lanes);
     tr.appendChild(td);
     tbody.appendChild(tr);
   });
@@ -446,11 +983,23 @@ function renderJour(){
   table.appendChild(tbody);
   content.appendChild(table);
 
-  const addBlocRow = document.createElement("div");
-  addBlocRow.className = "add-bloc-row";
-  addBlocRow.innerHTML = `<button class="btn" id="btn-add-bloc">+ Ajouter un créneau</button>`;
-  content.appendChild(addBlocRow);
-  $("btn-add-bloc").addEventListener("click", ()=> ajouterBloc());
+  const addBlocRow =
+    document.createElement("div");
+
+  addBlocRow.className =
+    "add-bloc-row";
+
+  addBlocRow.innerHTML =
+    `<button class="btn" id="btn-add-bloc">+ Ajouter un créneau</button>`;
+
+  content.appendChild(
+    addBlocRow
+  );
+
+  $("btn-add-bloc").addEventListener(
+    "click",
+    ()=>ajouterBloc()
+  );
 }
 
 function ajouterBloc(){
