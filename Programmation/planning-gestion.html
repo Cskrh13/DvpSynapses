@@ -318,8 +318,8 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 
 <div class="toast" id="toast"></div>
 
-<script src="synapses-crypto.js"></script>
-<script src="synapses-coffre.js"></script>
+<script src="../fata-morgana/synapses-crypto.js"></script>
+<script src="../fata-morgana/synapses-coffre.js"></script>
 <script src="planning-core.js"></script>
 <script>
 /* =========================================================
@@ -360,8 +360,23 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
 });
 
 /* ---------------- Coffre : ouverture / fermeture ---------------- */
-const coffre = new SynapsesCoffre.Coffre();
+// Défense en profondeur : si synapses-coffre.js / synapses-crypto.js n'ont
+// pas pu être chargés (fichier absent du déploiement, mauvais chemin, 404…),
+// on ne doit JAMAIS laisser une ReferenceError ici interrompre tout le reste
+// du script — sinon aucun bouton de la page ne répond, y compris ceux qui
+// n'ont rien à voir avec le coffre (classes, vacances, grille horaire…).
+const coffreDisponible = (typeof SynapsesCoffre !== "undefined");
+if(!coffreDisponible){
+  console.error("SynapsesCoffre est introuvable : synapses-coffre.js (et/ou synapses-crypto.js) n'a pas été chargé. Vérifiez que ces fichiers sont bien présents à côté de planning-gestion.html.");
+}
+const coffre = coffreDisponible ? new SynapsesCoffre.Coffre() : null;
 function majEtatCoffre(){
+  if(!coffreDisponible){
+    $("coffre-etat-txt").textContent = "Coffre indisponible (fichier synapses-coffre.js manquant)";
+    $("btn-coffre-ouvrir").disabled = true;
+    $("btn-coffre-ouvrir").title = "synapses-coffre.js n'a pas pu être chargé — vérifiez le déploiement.";
+    return;
+  }
   const ouvert = coffre.ouvert;
   $("coffre-dot").classList.toggle("ouvert", ouvert);
   $("coffre-etat-txt").textContent = ouvert ? "Coffre ouvert (en mémoire, session en cours)" : "Coffre fermé";
@@ -371,6 +386,7 @@ function majEtatCoffre(){
   if(ouvert) renderClasseElevesSelect();
 }
 $("btn-coffre-ouvrir").addEventListener("click", ()=>{
+  if(!coffreDisponible){ toast("Le coffre est indisponible : synapses-coffre.js n'a pas pu être chargé."); return; }
   $("coffre-erreur").style.display = "none";
   $("coffre-fichier").value = ""; $("coffre-mdp").value = "";
   $("coffre-modal-overlay").classList.add("open");
@@ -391,12 +407,12 @@ $("btn-coffre-confirmer").addEventListener("click", async ()=>{
   }
 });
 $("btn-coffre-fermer").addEventListener("click", ()=>{
-  coffre.purger();
+  if(coffre) coffre.purger();
   majEtatCoffre();
   renderClasses(); // les libellés "N élèves chargés" redeviennent 0
   toast("Coffre fermé — données retirées de la mémoire.");
 });
-window.addEventListener("beforeunload", ()=>{ coffre.purger(); });
+window.addEventListener("beforeunload", ()=>{ if(coffre) coffre.purger(); });
 
 /* ---------------- Configuration générale ---------------- */
 function renderConfig(){
