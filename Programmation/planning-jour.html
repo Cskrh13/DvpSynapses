@@ -647,29 +647,60 @@ function renderJour(){
   });
 
   /* =========================================================
-     MISE EN LIGNES :
-     deux briques qui se chevauchent sont dans la même ligne.
-     Les briques suivantes sont placées dans la première ligne
-     compatible.
-  ========================================================= */
+     ORGANISATION VERTICALE DE LA JOURNÉE
+     ---------------------------------------------------------
+     Une ligne = un groupe de créneaux qui se chevauchent.
+
+     Exemples :
+       10:10–10:25 + 10:10–10:25
+       => même ligne, côte à côte
+
+       10:10–10:25 + 10:20–10:25
+       => même ligne, côte à côte
+
+       10:10–10:25
+       10:25–10:50
+       => deux lignes, de haut en bas
+
+     On ne place donc JAMAIS un créneau plus tard dans la
+     journée sur la même ligne qu'un créneau terminé avant lui.
+     ========================================================= */
 
   const lignes = [];
+  let ligneCourante = [];
+  let finLigne = -1;
 
   blocs.forEach(bloc=>{
-    let place = false;
+    const debut = hm(bloc.debut);
+    const fin = hm(bloc.fin);
 
-    for(const ligne of lignes){
-      if(!ligne.some(x=>chevauche(bloc,x))){
-        ligne.push(bloc);
-        place = true;
-        break;
+    /*
+     * Si le nouveau bloc commence avant la fin du groupe
+     * actuellement affiché, il chevauche celui-ci :
+     * il reste sur la même ligne.
+     *
+     * Sinon, on ferme la ligne et on commence une nouvelle
+     * ligne immédiatement en dessous.
+     */
+    if(
+      ligneCourante.length &&
+      debut < finLigne
+    ){
+      ligneCourante.push(bloc);
+      finLigne = Math.max(finLigne, fin);
+    }else{
+      if(ligneCourante.length){
+        lignes.push(ligneCourante);
       }
-    }
 
-    if(!place){
-      lignes.push([bloc]);
+      ligneCourante = [bloc];
+      finLigne = fin;
     }
   });
+
+  if(ligneCourante.length){
+    lignes.push(ligneCourante);
+  }
 
   const table = document.createElement("table");
   table.className = "journal-table";
