@@ -1310,50 +1310,314 @@
    * (ou `def.classes` vide = toutes les classes) ne reçoit pas ce créneau :
    * c'est ce qui permet à deux CE2 de ne pas partager la même récréation.
    */
+   /**
+   * Applique les récréations / pauses méridiennes à la grille de chaque
+   * classe concernée.
+   *
+   * Une définition avec classes: [] s'applique à toutes les classes.
+   * Une définition avec une liste de classes ne s'applique qu'à ces classes.
+   *
+   * Chaque créneau fixe possède un identifiant stable :
+   *
+   * fixe_<classeId>_<jour>_<type>_<index>
+   *
+   * Les métadonnées _fixeJour / _fixeType / _fixeIndex sont également
+   * conservées afin de pouvoir nettoyer proprement les créneaux obsolètes.
+   */
   function appliquerCreneauxFixes(config, grilles, classeIds) {
-    const toutesLesClasses = (config.classes || []).map(c => c.id);
-    classeIds = (classeIds && classeIds.length) ? classeIds : toutesLesClasses;
-    const jours = (config.joursTravailles && config.joursTravailles.length) ? config.joursTravailles : [1, 2, 3, 4, 5];
-    const recreations = config.recreations || [];
-    const pauses = config.pauses || [];
+
+    const toutesLesClasses =
+      (config.classes || []).map(c => c.id);
+
+    // Si aucune liste de classes n'est fournie, on travaille sur toutes
+    // les classes existantes.
+    classeIds =
+      (classeIds && classeIds.length)
+        ? classeIds
+        : toutesLesClasses;
+
+    // Conversion explicite en nombres afin d'éviter les problèmes lorsque
+    // les jours ont été importés depuis un JSON.
+    const jours =
+      (config.joursTravailles && config.joursTravailles.length)
+        ? config.joursTravailles.map(Number)
+        : [1, 2, 3, 4, 5];
+
+    const recreations =
+      Array.isArray(config.recreations)
+        ? config.recreations
+        : [];
+
+    const pauses =
+      Array.isArray(config.pauses)
+        ? config.pauses
+        : [];
+
+    let ajoutes = 0;
+    let misAJour = 0;
+
+
+    // ======================================================================
+    // TRAITEMENT DE CHAQUE CLASSE
+    // ======================================================================
 
     classeIds.forEach(classeId => {
-      grilles[classeId] = grilles[classeId] || [];
 
-      jours.forEach(j => {
-        recreations.forEach((def, idx) => {
-          if (!classesDuService(config, def).includes(classeId)) return;
-          upsertCreneauFixe(grilles[classeId], classeId, j, "recreation", idx, def);
+      // Une grille doit toujours être un tableau.
+      grilles[classeId] =
+        Array.isArray(grilles[classeId])
+          ? grilles[classeId]
+          : [];
+
+      const grille =
+        grilles[classeId];
+
+
+      // ====================================================================
+      // JOURS TRAVAILLÉS
+      // ====================================================================
+
+      jours.forEach(jour => {
+
+
+        // ------------------------------------------------------------------
+        // RÉCRÉATIONS
+        // ------------------------------------------------------------------
+
+        recreations.forEach((def, index) => {
+
+          // Si la classe n'est pas concernée par ce service, on ne crée
+          // rien pour elle.
+          if (
+            !classesDuService(config, def)
+              .includes(classeId)
+          ) {
+            return;
+          }
+
+
+          const id =
+            "fixe_" +
+            classeId +
+            "_" +
+            jour +
+            "_recreation_" +
+            index;
+
+
+          // Vérifie si le créneau existe déjà.
+          const existait =
+            grille.some(
+              c =>
+                c &&
+                c.id === id
+            );
+
+
+          // Création ou mise à jour du créneau.
+          upsertCreneauFixe(
+            grille,
+            classeId,
+            jour,
+            "recreation",
+            index,
+            def
+          );
+
+
+          if (existait) {
+            misAJour++;
+          }
+          else {
+            ajoutes++;
+          }
+
         });
-        pauses.forEach((def, idx) => {
-          if (!classesDuService(config, def).includes(classeId)) return;
-          upsertCreneauFixe(grilles[classeId], classeId, j, "pause", idx, def);
+
+
+        // ------------------------------------------------------------------
+        // PAUSES MÉRIDIENNES
+        // ------------------------------------------------------------------
+
+        pauses.forEach((def, index) => {
+
+          if (
+            !classesDuService(config, def)
+              .includes(classeId)
+          ) {
+            return;
+          }
+
+
+          const id =
+            "fixe_" +
+            classeId +
+            "_" +
+            jour +
+            "_pause_" +
+            index;
+
+
+          const existait =
+            grille.some(
+              c =>
+                c &&
+                c.id === id
+            );
+
+
+          upsertCreneauFixe(
+            grille,
+            classeId,
+            jour,
+            "pause",
+            index,
+            def
+          );
+
+
+          if (existait) {
+            misAJour++;
+          }
+          else {
+            ajoutes++;
+          }
+
         });
+
       });
 
-      // Retire les occurrences fixes devenues obsolètes : jour non
-      // travaillé, classe retirée du service, ou index au-delà du nombre
-      // de récréations/pauses défini.
+
+      // ====================================================================
+      // NETTOYAGE DES CRÉNEAUX FIXES OBSOLÈTES
+      // ====================================================================
       //
-      // NB : on se base sur les métadonnées (_fixeJour/_fixeType/_fixeIndex)
-      // posées par upsertCreneauFixe, et non sur un reparsing de c.id. Ce
-      // dernier commence par "fixe_" + classeId, mais classeId (issu de
-      // uid()) contient lui-même des "_" (ex. "cls_lx8f3k2_ab3de") : un
-      // split("_") naïf décale toutes les positions et ne retrouve jamais le
-      // bon jour/type/index — ce qui supprimait systématiquement, juste
-      // après leur création, tous les créneaux qu'on venait d'appliquer.
-      grilles[classeId] = grilles[classeId].filter(c => {
-        if (!c.id || c.id.indexOf("fixe_" + classeId + "_") !== 0) return true;
-        const jr = c._fixeJour, typ = c._fixeType, idx = c._fixeIndex;
-        if (jr == null || typ == null || idx == null) return false; // créneau fixe pré-correctif, orphelin : à régénérer
-        if (jours.indexOf(jr) === -1) return false;
-        const liste = (typ === "recreation" ? recreations : pauses);
-        if (idx >= liste.length) return false;
-        return classesDuService(config, liste[idx]).includes(classeId);
-      });
+      // On conserve :
+      //
+      // - les créneaux ordinaires / séances / rituels ;
+      // - les créneaux fixes encore valides.
+      //
+      // On supprime :
+      //
+      // - les jours qui ne sont plus travaillés ;
+      // - les services supprimés ;
+      // - les services dont la classe n'est plus concernée ;
+      // - les anciens créneaux fixes ne possédant pas les métadonnées
+      //   nécessaires.
+      //
+      // IMPORTANT :
+      // On ne tente surtout pas de découper l'id avec split("_").
+      // Un classeId créé avec uid() contient lui-même des "_".
+      // ====================================================================
+
+      grilles[classeId] =
+        grille.filter(c => {
+
+          // Créneau normal : on le conserve.
+          if (
+            !c ||
+            !c.id ||
+            !c.id.startsWith(
+              "fixe_" + classeId + "_"
+            )
+          ) {
+            return true;
+          }
+
+
+          const jour =
+            Number(c._fixeJour);
+
+          const index =
+            Number(c._fixeIndex);
+
+          const type =
+            c._fixeType;
+
+
+          // Ancien créneau fixe incomplet :
+          // on le supprime afin qu'il puisse être recréé proprement.
+          if (
+            !Number.isFinite(jour) ||
+            !type ||
+            !Number.isFinite(index)
+          ) {
+            return false;
+          }
+
+
+          // Le jour n'est plus travaillé.
+          if (
+            !jours.includes(jour)
+          ) {
+            return false;
+          }
+
+
+          // Détermine la liste correspondant au type.
+          let liste = null;
+
+          if (type === "recreation") {
+            liste = recreations;
+          }
+          else if (type === "pause") {
+            liste = pauses;
+          }
+
+
+          // Type fixe inconnu.
+          if (!liste) {
+            return false;
+          }
+
+
+          // Le service n'existe plus.
+          if (
+            index < 0 ||
+            index >= liste.length
+          ) {
+            return false;
+          }
+
+
+          // La classe n'est plus concernée par ce service.
+          if (
+            !classesDuService(
+              config,
+              liste[index]
+            ).includes(classeId)
+          ) {
+            return false;
+          }
+
+
+          // Le créneau fixe est toujours valide.
+          return true;
+
+        });
+
     });
 
-    return grilles;
+
+    // ======================================================================
+    // RETOUR D'INFORMATIONS
+    // ======================================================================
+
+    return {
+
+      // Nouveaux créneaux effectivement créés.
+      ajoutes: ajoutes,
+
+      // Créneaux déjà présents mais remis à jour.
+      misAJour: misAJour,
+
+      // Total traité.
+      total:
+        ajoutes +
+        misAJour
+
+    };
+
   }
 
 
