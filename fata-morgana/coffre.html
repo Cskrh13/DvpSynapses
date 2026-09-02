@@ -500,6 +500,12 @@ const SYNAPSES_BUILD = {
 
   // Sécurité supplémentaire : purge best-effort si l'onglet se ferme sans export.
   window.addEventListener('beforeunload', ()=>{ coffre.purger(); });
+  // Filet de sécurité redondant : 'pagehide' se déclenche de façon plus
+  // fiable que 'beforeunload' sur mobile (Safari iOS notamment) et lors
+  // d'une mise en cache arrière (bfcache). Contrairement à
+  // 'visibilitychange', il ne se déclenche PAS à chaque changement d'onglet,
+  // donc il ne purge pas le coffre pendant une utilisation normale.
+  window.addEventListener('pagehide', ()=>{ coffre.purger(); });
 
   refreshLockState();
 })();
