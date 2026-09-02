@@ -416,7 +416,12 @@ function renderVacances(){
     body.appendChild(tr);
   });
   body.querySelectorAll("button[data-i]").forEach(b=>{
-    b.addEventListener("click", ()=>{ config.vacances.splice(+b.dataset.i,1); renderVacances(); });
+    b.addEventListener("click", ()=>{
+      config.vacances.splice(+b.dataset.i,1);
+      PC.sauverConfig(config);
+      renderVacances();
+      renderSummary();
+    });
   });
 }
 $("btn-add-vac").addEventListener("click", ()=>{
@@ -424,8 +429,11 @@ $("btn-add-vac").addEventListener("click", ()=>{
   if(!debut || !fin){ toast("Indiquez une date de début et de fin."); return; }
   config.vacances = config.vacances || [];
   config.vacances.push({ libelle: $("vac-libelle").value.trim(), debut, fin });
+  PC.sauverConfig(config);
   $("vac-libelle").value=""; $("vac-debut").value=""; $("vac-fin").value="";
   renderVacances();
+  renderSummary();
+  toast("Période de vacances enregistrée.");
 });
 $("btn-save-config").addEventListener("click", ()=>{
   config.rentree = $("cfg-rentree").value;
