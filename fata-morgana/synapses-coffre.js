@@ -206,13 +206,37 @@
     // (suivi-individuel.js, grille-analyse.js, parcours-eleve.js, ...)
     // ------------------------------------------------------------------
 
+    /**
+     * Liste les élèves du coffre pour les modules internes de l'application
+     * (Planning, séquences, cartographie…), qui ont besoin des VRAIES
+     * données pédagogiques de chaque élève — pas seulement de son identité.
+     *
+     * Inclut désormais, en plus de l'identité/âge/classe :
+     *  - besoins, adaptations, objectifs actifs (chaîne d'analyse §4-8) ;
+     *  - equivalenceScolaire.francais/mathematiques (niveau d'équivalence
+     *    scolaire disciplinaire, §"Analyse & IA") ;
+     *  - accompagnements (ex. AESH) et parcoursScolaire.
+     *
+     * Ceci reste strictement un instantané EN MÉMOIRE : rien n'est jamais
+     * transmis à un serveur ni persisté hors du fichier .synapses (voir §1-2
+     * de la synthèse projet). Les identifiants d'élèves utilisés par ces
+     * modules restent ELEVE-xxxx ; l'identité nominative (e.identite) n'est
+     * là que pour l'affichage local et ne doit pas être envoyée à un moteur
+     * IA (voir grille-analyse.js / MoteurAnalyse.anonymiser()).
+     */
     listerEleves() {
       this._assertOuvert();
       return this._data.eleves.map((e) => ({
         identifiantSynapses: e.identifiantSynapses,
         identite: e.identite,
         age: e.age,
-        classe: e.classe
+        classe: e.classe,
+        parcoursScolaire: e.parcoursScolaire || {},
+        accompagnements: e.accompagnements || [],
+        besoins: e.besoins || [],
+        adaptations: e.adaptations || [],
+        objectifs: e.objectifs || [],
+        equivalenceScolaire: e.equivalenceScolaire || { francais: null, mathematiques: null, transversal: null }
       }));
     }
 
