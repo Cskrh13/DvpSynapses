@@ -1922,6 +1922,7 @@
     const semaines = calculerSemaines(config || {});
     const joursTravail = new Set((config.joursTravailles || [1,2,3,4,5]).map(Number));
     const journal = chargerJournal();
+    const FIN_JOURNEE = 16 * 60 + 30; // La journée scolaire se termine à 16 h 30.
 
     const norm = v => String(v || "")
       .toLowerCase()
@@ -1930,11 +1931,53 @@
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
+    const niveaux = ["CP", "CE1", "CE2", "CM1", "CM2"];
     const niveauDe = v => {
       const s = norm(v);
       const m = s.match(/\b(cp|ce1|ce2|cm1|cm2)\b/);
       return m ? m[1].toUpperCase() : String(v || "").trim().toUpperCase();
     };
+    const rangNiveau = n => {
+      const i = niveaux.indexOf(niveauDe(n));
+      return i < 0 ? 99 : i;
+    };
+
+    // Les données du coffre peuvent avoir été créées avec des noms de champs
+    // légèrement différents. On accepte plusieurs formes pour les équivalences
+    // scolaires, l'autonomie et le besoin d'AESH.
+    const premier = (e, chemins) => {
+      for (const chemin of chemins) {
+        let v = e;
+        for (const k of chemin.split(".")) v = v && typeof v === "object" ? v[k] : undefined;
+        if (v !== undefined && v !== null && v !== "") return v;
+      }
+      return null;
+    };
+
+    const extraireNiveauEquivalent = v => {
+      if (v === null || v === undefined) return "";
+      if (typeof v === "object") {
+        return niveauDe(v.niveau || v.equivalence || v.equivalenceScolaire || v.classe || v.libelle || "");
+      }
+      const n = niveauDe(v);
+      return niveaux.includes(n) ? n : "";
+    };
+
+    const niveauFrancais = e => extraireNiveauEquivalent(premier(e, [
+      "niveauFrancais", "niveauFrançais", "niveauScolaireFrancais", "niveauScolaireFrançais",
+      "francais.niveau", "français.niveau", "equivalenceFrancais", "equivalenceFrançais",
+      "equivalenceScolaire.francais", "equivalenceScolaire.français", "niveauxScolaires.francais",
+      "niveauxScolaires.français", "francaisEquivalence", "françaisEquivalence"
+    ]));
+
+    const niveauMaths = e => extraireNiveauEquivalent(premier(e, [
+      "niveauMaths", "niveauMathematiques", "niveauMathématiques", "niveauScolaireMaths",
+      "niveauScolaireMathematiques", "niveauScolaireMathématiques", "maths.niveau", "mathematiques.niveau",
+      "mathématiques.niveau", "equivalenceMaths", "equivalenceMathematiques", "equivalenceMathématiques",
+      "equivalenceScolaire.maths", "equivalenceScolaire.mathematiques", "equivalenceScolaire.mathématiques",
+      "niveauxScolaires.maths", "niveauxScolaires.mathematiques", "niveauxScolaires.mathématiques",
+      "mathsEquivalence", "mathematiquesEquivalence", "mathématiquesEquivalence"
+    ]));
 
     const niveauEleve = e => niveauDe(
       e.niveau || e.classeNiveau || e.niveauScolaire || e.classe || ""
@@ -1953,6 +1996,31 @@
           ? (x.domaine || x.champ || x.libelle || x.contexte || "")
           : x);
       return a.concat(b).map(norm).filter(Boolean).join(" ");
+    };
+
+    const autonomieDe = e => {
+      const v = premier(e, [
+        "autonomie", "autonome", "capaciteAutonomie", "capacitéAutonomie", "niveauAutonomie",
+        "profilAutonomie", "autonomieScolaire", "travailAutonome"
+      ]);
+      if (typeof v === "boolean") return v ? 2 : 0;
+      const s = norm(v);
+      if (!s) return 0;
+      if (/^(3|4|5|tres autonome|très autonome|bonne|forte|acquis|maitrise|maitrise e|autonome)$/.test(s)) return 2;
+      if (/^(2|moyenne|en cours|partielle)$/.test(s)) return 1;
+      if (/^(0|1|faible|fragile|non|besoin aide|avec aide)$/.test(s)) return 0;
+      return /autonome|independant|independante|independance/.test(s) ? 2 : 0;
+    };
+
+    const besoinAESHDe = e => {
+      const v = premier(e, [
+        "aesh", "besoinAesh", "besoinAESH", "accompagnementAesh", "accompagnementAESH",
+        "aideHumaine", "accompagnement.humain", "accompagnement.aesh"
+      ]);
+      if (typeof v === "boolean") return v;
+      const s = norm(v);
+      if (s && /aesh|aide humaine|accompagnement humain|accompagnement aesh/.test(s)) return true;
+      return /aesh|aide humaine|accompagnement humain/.test(besoinsEleve(e));
     };
 
     const estFixe = g => !!g.fixe;
@@ -1996,9 +2064,6 @@
       stats[e.identifiantSynapses] = { francais: 0, maths: 0, lectureEcriture: 0, autres: 0 };
     });
 
-    // Les affectations manuelles existantes servent de point de départ :
-    // elles comptent comme « élève déjà dans sa classe » si le groupe porte
-    // la même classe que l'élève.
     const estDansSaClasse = (jour, e, bloc) => {
       const id = e.identifiantSynapses;
       return bloc.groupes.some(g => {
@@ -2009,45 +2074,83 @@
       });
     };
 
-    let nbAjouts = 0;
-    let nbGroupes = 0;
-
-    function profilPour(e, g) {
-      const n = niveauEleve(e);
-      const besoin = besoinsEleve(e);
-      let score = 0;
-      if (n && n === niveauDe(g.niveau || g.classeId || "")) score += 100;
-      if (estFrancais(g) && /franc|lecture|ecriture|oral|comprehension/.test(besoin)) score += 20;
-      if (estMaths(g) && /math|nombre|calcul|grandeur|geometr/.test(besoin)) score += 20;
-      if (estLectureEcriture(g) && /lecture|ecriture|comprehension|production/.test(besoin)) score += 25;
-      return score;
-    }
-
-    function choisirGroupe(bloc, e, groupes) {
-      const id = e.identifiantSynapses;
-      const n = niveauEleve(e);
+    // Une séance est caractérisée par la discipline visée et, si possible,
+    // par le niveau scolaire d'équivalence de l'élève. L'équivalence en
+    // français et celle en mathématiques sont indépendantes.
+    const objectifDiscipline = (bloc, e) => {
       const h = heureVersMin(bloc.debut);
       const duree = minutes(bloc.debut, bloc.fin);
       const estMatin = h < 12 * 60;
       const estDebutAPM = h >= 12 * 60 && h < 14 * 60 && duree === 30;
+      const n = niveauEleve(e);
+      const c = cible[n] || { francais: 0, maths: 0 };
+
+      if (estMatin) {
+        if (stats[e.identifiantSynapses].francais < c.francais) return "francais";
+        if (stats[e.identifiantSynapses].maths < c.maths) return "maths";
+        return "francais";
+      }
+      if (estDebutAPM) return "lectureEcriture";
+      return null;
+    };
+
+    const niveauPourDiscipline = (e, discipline) => {
+      if (discipline === "francais" || discipline === "lectureEcriture") return niveauFrancais(e) || niveauEleve(e);
+      if (discipline === "maths") return niveauMaths(e) || niveauEleve(e);
+      return niveauEleve(e);
+    };
+
+    const modeAutomatique = (e, discipline) => {
+      // AESH en premier : un besoin explicite d'aide humaine prime sur
+      // l'autonomie déclarée.
+      if (besoinAESHDe(e)) return "aesh";
+      // L'autonomie est réservée aux élèves déclarés capables de travailler
+      // seuls. Les élèves dont l'autonomie est inconnue restent avec un adulte.
+      if (autonomieDe(e) >= 2) return "autonomie";
+      return "enseignant";
+    };
+
+    const titreMode = {
+      enseignant: "Groupe avec l'enseignant",
+      aesh: "Groupe avec AESH",
+      autonomie: "Groupe en autonomie"
+    };
+
+    function choisirGroupe(bloc, e, groupes) {
+      const id = e.identifiantSynapses;
+      const discipline = objectifDiscipline(bloc, e);
+      const niveauEquivalent = niveauPourDiscipline(e, discipline);
+      const mode = modeAutomatique(e, discipline);
+      const n = niveauEleve(e);
+      const besoin = besoinsEleve(e);
 
       let eligibles = groupes.filter(g => !estFixe(g) && !(g.eleves || []).includes(id));
       if (!eligibles.length) return null;
 
-      // Ne pas multiplier les groupes : on réutilise en priorité un groupe
-      // automatique du même niveau et du même domaine.
-      const objectif = estMatin
-        ? (stats[id].francais < (cible[n]?.francais || 0) ? "francais" : "maths")
-        : (estDebutAPM ? "lectureEcriture" : null);
-
       const scoreG = g => {
-        let s = profilPour(e, g);
-        if (objectif === "francais" && estFrancais(g)) s += 60;
-        if (objectif === "maths" && estMaths(g)) s += 60;
-        if (objectif === "lectureEcriture" && estLectureEcriture(g)) s += 70;
-        if (!objectif && besoinsEleve(e) && domaine(g).split(/\s+/).some(m => besoinsEleve(e).includes(m))) s += 20;
-        if (niveauDe(g.niveau || "") === n) s += 30;
-        s -= ((g.eleves || []).length * 0.1);
+        let s = 0;
+        const gm = norm(g.modeGroupe || (g.adulte && g.adulte.type) || "enseignant");
+        const gn = niveauDe(g.niveauEquivalent || g.niveau || "");
+        const gd = domaine(g);
+
+        if (gm === mode) s += 180;
+        else if (mode === "aesh" && gm === "enseignant") s += 20;
+        else if (mode === "enseignant" && gm === "aesh") s -= 80;
+        else s -= 30;
+
+        if (niveauEquivalent && gn === niveauEquivalent) s += 140;
+        else if (n && gn === n) s += 35;
+
+        if (discipline === "francais" && estFrancais(g)) s += 90;
+        if (discipline === "maths" && estMaths(g)) s += 90;
+        if (discipline === "lectureEcriture" && estLectureEcriture(g)) s += 90;
+
+        if (besoin) {
+          const mots = besoin.split(/\s+/).filter(x => x.length >= 4);
+          mots.forEach(m => { if (gd.includes(m)) s += 5; });
+        }
+
+        s -= (g.eleves || []).length * 0.25;
         return s;
       };
 
@@ -2055,32 +2158,31 @@
       return eligibles[0] || null;
     }
 
+    let nbAjouts = 0;
+    let nbGroupes = 0;
+    let nbAutonomie = 0;
+    let nbAesh = 0;
+    let nbEnseignant = 0;
+
     semaines.forEach(sem => {
       JOURS.forEach(j => {
         if (!joursTravail.has(j.n)) return;
         const iso = dateISO(addDays(sem.lundi, j.n - 1));
-        const jour = genererJournalDepuisGrille(
-          iso, config, grilles, affectations || {}, {}
-        );
-        // genererJournalDepuisGrille n'a pas besoin de la banque pour créer
-        // les groupes si les affectations sont déjà présentes ; on récupère
-        // néanmoins les groupes existants dans le journal.
+        const jour = genererJournalDepuisGrille(iso, config, grilles, affectations || {}, {});
         const blocs = regrouperParBloc(jour);
 
-        // Chaque nouvelle répartition est recalculée : les groupes créés
-        // automatiquement gardent leur structure, mais leurs élèves sont
-        // vidés avant le nouveau calcul afin de tenir compte des besoins et
-        // objectifs actualisés.
-        jour.groupes.forEach(g => {
-          if (g.repartitionAuto) g.eleves = [];
-        });
+        // À chaque nouvelle génération, les groupes automatiques précédents
+        // sont reconstruits afin de ne jamais conserver un ancien mode, une
+        // ancienne équivalence ou une ancienne composition de groupe.
+        jour.groupes = jour.groupes.filter(g => !g.repartitionAuto);
 
         blocs.forEach(bloc => {
+          // Aucun groupe automatique ne doit dépasser la fin de la journée.
+          if (heureVersMin(bloc.fin) > FIN_JOURNEE) return;
+
           const recreations = bloc.groupes.filter(estRecreation);
           const travail = bloc.groupes.filter(g => !estFixe(g));
 
-          // Les élèves de classe en récréation ne peuvent pas être placés
-          // dans un groupe pédagogique sur ce créneau.
           const disponibles = eleves.filter(e => {
             const id = e.identifiantSynapses;
             if (!id) return false;
@@ -2094,55 +2196,67 @@
             if (estDansSaClasse(jour, e, bloc)) return false;
             return true;
           });
-
           if (!disponibles.length) return;
 
-          // On privilégie les groupes déjà créés automatiquement. À défaut,
-          // on crée au maximum 3 groupes de niveau dans cette plage.
+          // Les groupes existants avec un adulte sont réutilisés. Pour la
+          // répartition automatique, on crée au plus un groupe par mode :
+          // enseignant, AESH, autonomie. Le choix du mode est fait élève par
+          // élève, mais le niveau d'équivalence reste le critère de composition.
           let auto = travail.filter(g => g.repartitionAuto);
-          const niveaux = [...new Set(disponibles.map(niveauEleve).filter(Boolean))];
+          const modesNecessaires = [...new Set(disponibles.map(e => modeAutomatique(e, objectifDiscipline(bloc, e))))];
 
-          // Choix de trois niveaux maximum : les niveaux les plus représentés
-          // sont prioritaires ; les autres sont regroupés en « besoins ciblés ».
-          niveaux.sort((a,b) =>
-            disponibles.filter(e => niveauEleve(e) === b).length -
-            disponibles.filter(e => niveauEleve(e) === a).length
-          );
-          const profils = niveaux.slice(0,3);
-          if (niveaux.length > 3) profils[2] = "BESOINS_CIBLES";
-
-          profils.forEach(profil => {
+          modesNecessaires.forEach(mode => {
+            if (auto.some(g => (g.modeGroupe || "") === mode)) return;
             if (auto.length >= 3) return;
-            const existe = auto.find(g => String(g.profilAuto || "") === profil);
-            if (existe) return;
 
-            // Le groupe est créé sur la plage déjà prévue dans le planning.
+            const membres = disponibles.filter(e => modeAutomatique(e, objectifDiscipline(bloc, e)) === mode);
+            if (!membres.length) return;
+
+            const disciplines = membres.map(e => objectifDiscipline(bloc, e)).filter(Boolean);
+            const discipline = disciplines.length
+              ? ["francais","maths","lectureEcriture"].sort((a,b) =>
+                  disciplines.filter(x => x === b).length - disciplines.filter(x => x === a).length
+                )[0]
+              : "";
+            const niveauxEquiv = membres.map(e => niveauPourDiscipline(e, discipline)).filter(Boolean);
+            const niveauEquivalent = niveauxEquiv.length
+              ? niveauxEquiv.sort((a,b) => niveauxEquiv.filter(x => x === b).length - niveauxEquiv.filter(x => x === a).length)[0]
+              : "";
+
             const g = {
               id: uid("grp"),
               debut: bloc.debut,
               fin: bloc.fin,
               origine: null,
               modifie: true,
-              adulte: { type: "enseignant", nom: "" },
-              titre: profil === "BESOINS_CIBLES"
-                ? "Groupe besoins ciblés"
-                : "Groupe " + profil,
-              domaineCle: "",
-              niveau: profil === "BESOINS_CIBLES" ? "" : profil,
+              adulte: mode === "enseignant" ? { type: "enseignant", nom: "" }
+                   : mode === "aesh" ? { type: "aesh", nom: "" }
+                   : null,
+              modeGroupe: mode,
+              titre: titreMode[mode],
+              domaineCle: discipline === "francais" ? "francais" : discipline === "maths" ? "maths" : discipline,
+              niveau: niveauEquivalent || "",
+              niveauEquivalent: niveauEquivalent || "",
               classeId: "",
               seanceRef: null,
               eleves: [],
-              remarque: "Groupe créé automatiquement selon niveau, besoins et objectifs.",
+              remarque: mode === "autonomie"
+                ? "Groupe automatique réservé aux élèves capables de travailler en autonomie."
+                : "Groupe créé automatiquement selon le mode d'accompagnement, le niveau d'équivalence en français/mathématiques, les besoins et les objectifs.",
               fixe: false,
               repartitionAuto: true,
-              profilAuto: profil
+              profilAuto: mode + (niveauEquivalent ? "|" + niveauEquivalent : "")
             };
             jour.groupes.push(g);
             auto.push(g);
             nbGroupes++;
+            if (mode === "autonomie") nbAutonomie++;
+            else if (mode === "aesh") nbAesh++;
+            else nbEnseignant++;
           });
 
-          const groupesDisponibles = jour.groupes.filter(g => !estFixe(g) && !estRecreation(g))
+          const groupesDisponibles = jour.groupes
+            .filter(g => !estFixe(g) && !estRecreation(g))
             .filter(g => g.repartitionAuto || !g.classeId);
 
           disponibles.forEach(e => {
@@ -2151,25 +2265,56 @@
             const g = choisirGroupe(bloc, e, groupesDisponibles);
             if (!g) return;
 
-            // Un groupe auto de niveau différent n'est accepté que si aucun
-            // groupe du bon niveau n'est disponible.
-            const n = niveauEleve(e);
-            const bonNiveau = groupesDisponibles.find(x =>
-              x !== g && niveauDe(x.niveau || "") === n
-            );
-            if (bonNiveau) {
-              const g2 = choisirGroupe(bloc, e, [bonNiveau]);
-              if (g2) {
-                // on utilise le groupe le plus pertinent.
-                if ((g2.eleves || []).length <= (g.eleves || []).length + 2) {
-                  g.eleves.push(id);
+            // Une différence de niveau d'équivalence en français ou en maths
+            // est prioritaire sur le niveau administratif de la classe.
+            const discipline = objectifDiscipline(bloc, e);
+            const eq = niveauPourDiscipline(e, discipline);
+            const gm = norm(g.modeGroupe || "enseignant");
+            const mode = modeAutomatique(e, discipline);
+            if (gm !== mode) return;
+            if (eq && g.niveauEquivalent && eq !== g.niveauEquivalent) {
+              // S'il existe un autre groupe automatique du même mode et de la
+              // bonne équivalence, on le choisit plutôt que de mélanger les niveaux.
+              const meilleur = groupesDisponibles.find(x =>
+                x !== g && (x.modeGroupe || "") === mode &&
+                niveauDe(x.niveauEquivalent || x.niveau || "") === eq
+              );
+              if (meilleur) {
+                if (!(meilleur.eleves || []).includes(id)) {
+                  meilleur.eleves.push(id);
                   nbAjouts++;
-                  if (estFrancais(g2)) stats[id].francais += minutes(bloc.debut, bloc.fin);
-                  else if (estMaths(g2)) stats[id].maths += minutes(bloc.debut, bloc.fin);
-                  else if (estLectureEcriture(g2)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+                  if (estFrancais(meilleur)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+                  else if (estMaths(meilleur)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+                  else if (estLectureEcriture(meilleur)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
                   else stats[id].autres += minutes(bloc.debut, bloc.fin);
-                  return;
                 }
+                return;
+              }
+              // Aucun groupe du bon niveau : ne mélange pas artificiellement
+              // les équivalences si un groupe dédié peut être créé.
+              if (auto.length < 3) {
+                const g2 = {
+                  id: uid("grp"), debut: bloc.debut, fin: bloc.fin, origine: null,
+                  modifie: true,
+                  adulte: mode === "enseignant" ? { type: "enseignant", nom: "" } : mode === "aesh" ? { type: "aesh", nom: "" } : null,
+                  modeGroupe: mode,
+                  titre: titreMode[mode] + " · " + eq,
+                  domaineCle: discipline === "francais" ? "francais" : discipline === "maths" ? "maths" : discipline,
+                  niveau: eq, niveauEquivalent: eq, classeId: "", seanceRef: null,
+                  eleves: [],
+                  remarque: "Groupe automatique composé selon l'équivalence scolaire de la discipline.",
+                  fixe: false, repartitionAuto: true, profilAuto: mode + "|" + eq
+                };
+                jour.groupes.push(g2); auto.push(g2); groupesDisponibles.push(g2); nbGroupes++;
+                if (mode === "autonomie") nbAutonomie++;
+                else if (mode === "aesh") nbAesh++;
+                else nbEnseignant++;
+                g2.eleves.push(id); nbAjouts++;
+                if (discipline === "francais" || estFrancais(g2)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+                else if (discipline === "maths" || estMaths(g2)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+                else if (discipline === "lectureEcriture" || estLectureEcriture(g2)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+                else stats[id].autres += minutes(bloc.debut, bloc.fin);
+                return;
               }
             }
 
@@ -2177,9 +2322,9 @@
             if (!g.eleves.includes(id)) {
               g.eleves.push(id);
               nbAjouts++;
-              if (estFrancais(g)) stats[id].francais += minutes(bloc.debut, bloc.fin);
-              else if (estMaths(g)) stats[id].maths += minutes(bloc.debut, bloc.fin);
-              else if (estLectureEcriture(g)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+              if (discipline === "francais" || estFrancais(g)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+              else if (discipline === "maths" || estMaths(g)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+              else if (discipline === "lectureEcriture" || estLectureEcriture(g)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
               else stats[id].autres += minutes(bloc.debut, bloc.fin);
             }
           });
@@ -2194,10 +2339,12 @@
       jours: Object.keys(journal).length,
       ajouts: nbAjouts,
       groupes: nbGroupes,
-      objectifs: {
-        cycle2: { francais: "10 h/semaine", maths: "5 h/semaine" },
-        cycle3: { francais: "8 h/semaine", maths: "5 h/semaine" }
-      }
+      groupesEnseignant: nbEnseignant,
+      groupesAesh: nbAesh,
+      groupesAutonomie: nbAutonomie,
+      finJournee: "16:30",
+      equivalences: true,
+      cibles: "CP-CE2 : français 10 h / maths 5 h ; CM1-CM2 : français 8 h / maths 5 h"
     };
   }
 
