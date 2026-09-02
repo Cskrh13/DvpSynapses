@@ -1283,12 +1283,22 @@
     const id = "fixe_" + classeId + "_" + jour + "_" + type + "_" + index;
     let c = liste.find(x => x.id === id);
     if (!c) {
-      c = { id: id, jour: jour, debut: def.debut, fin: def.fin, type: type, libelle: def.label || "", domaineCle: "" };
+      c = {
+        id: id, jour: jour, debut: def.debut, fin: def.fin, type: type,
+        libelle: def.label || "", domaineCle: "",
+        // Métadonnées stockées explicitement : l'id ne peut pas être reparsé
+        // de façon fiable puisque classeId (via uid()) contient lui-même des
+        // "_" (ex. "cls_lx8f3k2_ab3de"), ce qui décale tout split("_").
+        _fixeJour: jour, _fixeType: type, _fixeIndex: index
+      };
       liste.push(c);
     } else {
       c.debut = def.debut;
       c.fin = def.fin;
       c.libelle = def.label || "";
+      c._fixeJour = jour;
+      c._fixeType = type;
+      c._fixeIndex = index;
     }
     return c;
   }
@@ -1324,10 +1334,18 @@
       // Retire les occurrences fixes devenues obsolètes : jour non
       // travaillé, classe retirée du service, ou index au-delà du nombre
       // de récréations/pauses défini.
+      //
+      // NB : on se base sur les métadonnées (_fixeJour/_fixeType/_fixeIndex)
+      // posées par upsertCreneauFixe, et non sur un reparsing de c.id. Ce
+      // dernier commence par "fixe_" + classeId, mais classeId (issu de
+      // uid()) contient lui-même des "_" (ex. "cls_lx8f3k2_ab3de") : un
+      // split("_") naïf décale toutes les positions et ne retrouve jamais le
+      // bon jour/type/index — ce qui supprimait systématiquement, juste
+      // après leur création, tous les créneaux qu'on venait d'appliquer.
       grilles[classeId] = grilles[classeId].filter(c => {
         if (!c.id || c.id.indexOf("fixe_" + classeId + "_") !== 0) return true;
-        const parts = c.id.split("_"); // ["fixe", classeId, jour, type, index]
-        const jr = +parts[2], typ = parts[3], idx = +parts[4];
+        const jr = c._fixeJour, typ = c._fixeType, idx = c._fixeIndex;
+        if (jr == null || typ == null || idx == null) return false; // créneau fixe pré-correctif, orphelin : à régénérer
         if (jours.indexOf(jr) === -1) return false;
         const liste = (typ === "recreation" ? recreations : pauses);
         if (idx >= liste.length) return false;
