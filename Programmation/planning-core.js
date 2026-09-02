@@ -717,6 +717,9 @@
                   id:
                     sea.id,
 
+                  domaineCle:
+                    cle,
+
                   seqId:
                     seq.id,
 
@@ -873,6 +876,9 @@
 
           id:
             sea.id,
+
+          domaineCle:
+            cle,
 
           seqId:
             sea.sequence_id,
@@ -1613,48 +1619,268 @@
    *    déplacé : on ne redistribue que les élèves absents de tous les
    *    groupes de cette plage horaire.
    */
+  /**
+   * Répartition des élèves pour une journée.
+   *
+   * Règles métier :
+   *  - les élèves ne sont PAS enfermés dans leur classe : la classe sert
+   *    surtout à connaître le niveau et à appliquer les récréations ;
+   *  - un créneau comporte au maximum 3 groupes de travail ;
+   *  - les besoins/objectifs actifs et le niveau sont les critères principaux ;
+   *  - si la classe de l'élève est en récréation sur la plage, l'élève va
+   *    dans la récréation de sa classe ;
+   *  - sinon, il est placé dans un groupe de travail avec un enseignant ;
+   *  - la répartition est recalculée à chaque clic sur « Répartir les élèves ».
+   */
   function repartirElevesAuto(iso, journalJour, coffre) {
     if (!coffre || !coffre.ouvert) return journalJour;
+
     const eleves = coffre.listerEleves ? coffre.listerEleves() : [];
     if (!eleves.length) return journalJour;
 
+    const norm = v => String(v || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+    const niveauDe = v => {
+      const s = norm(v);
+      const m = s.match(/\b(tps|ps|ms|gs|cp|ce1|ce2|cm1|cm2)\b/);
+      return m ? m[1] : s;
+    };
+
+    const mots = v => norm(v)
+      .split(/\s+/)
+      .filter(x => x.length >= 3);
+
     function besoinsEtObjectifs(e) {
-      const b = (e.besoins || []).map(x => String(x.domaine || x.champ || x.hypothese || "").toLowerCase());
-      const o = (e.objectifs || [])
-        .filter(x => !x.statut || x.statut === "actif")
-        .map(x => String(x.domaine || x.libelle || x.contexte || "").toLowerCase());
-      return b.concat(o);
+      const besoins = (e.besoins || []).map(x =>
+        x && typeof x === "object"
+          ? (x.domaine || x.champ || x.hypothese || x.libelle || "")
+          : x
+      );
+      const objectifs = (e.objectifs || [])
+        .filter(x => !x || !x.statut || x.statut === "actif")
+        .map(x =>
+          x && typeof x === "object"
+            ? (x.domaine || x.libelle || x.contexte || x.champ || "")
+            : x
+        );
+      return besoins.concat(objectifs).map(norm).filter(Boolean);
     }
 
+    function niveauEleve(e) {
+      return niveauDe(
+        e.niveau || e.classeNiveau || e.classe || e.niveauScolaire || ""
+      );
+    }
+
+    function classeEleve(e) {
+      return norm(
+        e.classeId || e.classe || e.classeNom || e.groupeClasse || ""
+      );
+    }
+
+    function classeDuGroupe(g) {
+      return norm(g.classeId || g.classe || g.niveau || "");
+    }
+
+    function estRecreation(g) {
+      return g.fixe && String(g.origine || "").indexOf("__fixe_") === -1
+        ? String(g.titre || "").toLowerCase().indexOf("récré") !== -1
+        : g.fixe && String(g.titre || "").toLowerCase().indexOf("récré") !== -1;
+    }
+
+    function scoreBesoin(e, g) {
+      const besoins = besoinsEtObjectifs(e);
+      if (!besoins.length) return 0;
+
+      const cible = norm(
+        String(g.domaineCle || "") + " " +
+        String(g.titre || "")
+      );
+      const cibleMots = mots(cible);
+      let score = 0;
+
+      besoins.forEach(b => {
+        if (!b) return;
+        if (cible.indexOf(b) !== -1 || b.indexOf(cible) !== -1) {
+          score += 8;
+          return;
+        }
+        const bm = mots(b);
+        bm.forEach(m => {
+          if (cibleMots.some(x => x === m || x.indexOf(m) === 0 || m.indexOf(x) === 0)) score += 3;
+          else if (m.length >= 4 && cible.indexOf(m.slice(0, 4)) !== -1) score += 2;
+        });
+      });
+      return score;
+    }
+
+    function scoreNiveau(e, g) {
+      const ne = niveauEleve(e);
+      const ng = niveauDe(g.niveau || g.classeId || "");
+      if (!ne || !ng) return 0;
+      return ne === ng ? 4 : 0;
+    }
+
+    function groupeScore(e, g) {
+      return scoreBesoin(e, g) + scoreNiveau(e, g);
+    }
+
+    function classesRecreation(bloc) {
+      return bloc.groupes.filter(g => {
+        if (!g.fixe) return false;
+        const t = norm(g.titre);
+        return t.includes("recre") || t.includes("récré");
+      });
+    }
+
+    function appartientARecreation(e, g) {
+      const ec = classeEleve(e);
+      const gc = classeDuGroupe(g);
+      const en = niveauEleve(e);
+      const gn = niveauDe(g.niveau || g.classeId || "");
+      if (ec && gc && (ec === gc || gc.indexOf(ec) !== -1 || ec.indexOf(gc) !== -1)) return true;
+      return !!(en && gn && en === gn && !ec);
+    }
+
+    // Les groupes sont regroupés par horaire exact. On travaille ensuite
+    // sur chaque plage indépendamment afin qu'un élève puisse changer de
+    // groupe d'un créneau à l'autre.
     regrouperParBloc(journalJour).forEach(bloc => {
-      const groupesSeance = bloc.groupes.filter(g => !g.fixe);
-      if (!groupesSeance.length) return;
+      const fixes = bloc.groupes.filter(g => g.fixe);
+      const recreations = classesRecreation(bloc);
+      const travail = bloc.groupes.filter(g => !g.fixe);
 
-      const dejaPlaces = new Set();
-      groupesSeance.forEach(g => (g.eleves || []).forEach(id => dejaPlaces.add(id)));
+      // Réinitialisation : la commande « Répartir » repart d'une situation
+      // propre pour les groupes de travail. Les récréations reçoivent aussi
+      // les élèves concernés automatiquement.
+      travail.forEach(g => {
+        g.eleves = [];
+      });
+      fixes.forEach(g => {
+        g.eleves = [];
+      });
 
+      const places = new Map();
+
+      // 1) Récréations : priorité absolue pour les élèves dont la classe
+      // est concernée. On ne leur attribue aucun groupe de travail.
       eleves.forEach(e => {
         const id = e.identifiantSynapses;
-        if (dejaPlaces.has(id)) return;
+        if (!id) return;
+        const rec = recreations.find(g => appartientARecreation(e, g));
+        if (rec) {
+          rec.eleves.push(id);
+          places.set(id, rec.id);
+        }
+      });
 
-        const mots = besoinsEtObjectifs(e);
-        let meilleur = null, meilleurScore = -1;
-        groupesSeance.forEach(g => {
-          const cle = String(g.domaineCle || g.titre || "").toLowerCase();
-          let score = 0;
-          mots.forEach(m => {
-            if (!m) return;
-            if (cle.indexOf(m.slice(0, 4)) !== -1 || m.indexOf(cle.split("::")[0] || cle) !== -1) score++;
+      // 2) Jusqu'à 3 groupes de travail. Si plus de 3 groupes existent dans
+      // les données historiques, on choisit les trois groupes couvrant le
+      // mieux les besoins/niveaux des élèves restant à placer.
+      let candidats = travail.slice();
+
+      if (candidats.length > 3) {
+        const restants = eleves.filter(e => !places.has(e.identifiantSynapses));
+        const choisis = [];
+
+        while (choisis.length < 3 && candidats.length) {
+          let meilleur = null;
+          let meilleurGain = -1;
+          candidats.forEach(g => {
+            let gain = 0;
+            restants.forEach(e => {
+              const s = groupeScore(e, g);
+              if (s > gain) gain = s;
+            });
+            // Favorise les groupes de l'enseignant et les groupes déjà
+            // explicitement préparés dans le cahier journal.
+            if (g.adulte && norm(g.adulte.type) === "enseignant") gain += 1;
+            if (gain > meilleurGain) {
+              meilleurGain = gain;
+              meilleur = g;
+            }
           });
-          if (score > meilleurScore) { meilleurScore = score; meilleur = g; }
+          if (!meilleur) break;
+          choisis.push(meilleur);
+          candidats = candidats.filter(g => g !== meilleur);
+        }
+        travail.forEach(g => {
+          g._repartitionInactif = !choisis.includes(g);
+        });
+        candidats = choisis;
+      } else {
+        travail.forEach(g => { g._repartitionInactif = false; });
+      }
+
+      // S'il n'existe aucun groupe de travail pour accueillir les élèves qui
+      // ne sont pas en récréation, on crée un groupe enseignant unique.
+      if (!candidats.length) {
+        const id = uid("grp");
+        const debut = bloc.debut;
+        const fin = bloc.fin;
+        const g = {
+          id,
+          debut,
+          fin,
+          origine: null,
+          modifie: true,
+          adulte: { type: "enseignant", nom: "" },
+          titre: "Groupe avec l'enseignant",
+          domaineCle: "",
+          niveau: "",
+          classeId: "",
+          seanceRef: null,
+          eleves: [],
+          remarque: "Créé automatiquement pour les élèves hors récréation.",
+          fixe: false,
+          repartitionAuto: true
+        };
+        journalJour.groupes.push(g);
+        candidats = [g];
+      }
+
+      // 3) Attribution : besoins d'abord, niveau ensuite, puis équilibrage.
+      const restants = eleves.filter(e => !places.has(e.identifiantSynapses));
+      restants.forEach(e => {
+        const id = e.identifiantSynapses;
+        if (!id) return;
+
+        let meilleur = null;
+        let meilleurScore = -Infinity;
+
+        candidats.forEach(g => {
+          const score = groupeScore(e, g);
+          const charge = (g.eleves || []).length;
+          // Le nombre d'élèves sert uniquement à départager les groupes
+          // ayant une pertinence comparable.
+          const total = score * 100 - charge;
+          if (total > meilleurScore) {
+            meilleurScore = total;
+            meilleur = g;
+          }
         });
 
-        if (meilleurScore <= 0) {
-          // Aucune correspondance : on équilibre sur le groupe le moins chargé.
-          meilleur = groupesSeance.reduce((min, g) => ((g.eleves||[]).length < (min.eleves||[]).length ? g : min), groupesSeance[0]);
+        if (meilleur) {
+          meilleur.eleves = meilleur.eleves || [];
+          meilleur.eleves.push(id);
+          places.set(id, meilleur.id);
         }
-        if (meilleur) { meilleur.eleves = meilleur.eleves || []; meilleur.eleves.push(id); dejaPlaces.add(id); }
       });
+
+      // 4) Nettoyage des groupes créés automatiquement qui resteraient vides.
+      journalJour.groupes = journalJour.groupes.filter(g =>
+        !g.repartitionAuto || (g.eleves && g.eleves.length)
+      );
+    });
+
+    // Retire le marqueur technique avant sauvegarde.
+    journalJour.groupes.forEach(g => {
+      delete g._repartitionInactif;
     });
 
     const journal = chargerJournal();
@@ -1720,6 +1946,83 @@
     if (paquet.journal) { sauverJournal(paquet.journal); applique.push("cahier journal"); }
     return applique;
   }
+
+  // ========================================================================
+  // IMPORT DE SÉQUENCES / SÉANCES
+  // ========================================================================
+
+  /**
+   * Importe une bibliothèque JSON de séquences/séances dans le stockage
+   * local utilisé par chargerBanque(). Plusieurs formats sont acceptés :
+   *  - { sequences: [...], seances: [...] }
+   *  - { planif_sequences: [...], planif_seances: [...] }
+   *  - { sequence: {...}, seances: [...] }
+   *  - tableau de séquences, chacune pouvant contenir `seances`.
+   *
+   * L'import est un ajout/fusion par identifiant : les éléments existants
+   * sont remplacés seulement lorsqu'un même identifiant est réimporté.
+   */
+  function importerBibliothequeJSON(payload) {
+    if (!payload) throw new Error("Fichier de séquences/séances vide.");
+
+    let sequences = [];
+    let seances = [];
+
+    if (Array.isArray(payload)) {
+      if (payload.some(x => Array.isArray(x && x.seances))) {
+        sequences = payload;
+        payload.forEach(seq => (seq.seances || []).forEach(sea => {
+          seances.push(Object.assign({}, sea, {
+            sequence_id: sea.sequence_id || seq.id
+          }));
+        }));
+      } else {
+        seances = payload;
+      }
+    } else if (typeof payload === "object") {
+      sequences = Array.isArray(payload.sequences)
+        ? payload.sequences
+        : Array.isArray(payload.planif_sequences)
+          ? payload.planif_sequences
+          : payload.sequence
+            ? [payload.sequence]
+            : [];
+      seances = Array.isArray(payload.seances)
+        ? payload.seances
+        : Array.isArray(payload.planif_seances)
+          ? payload.planif_seances
+          : [];
+
+      sequences.forEach(seq => (seq.seances || []).forEach(sea => {
+        seances.push(Object.assign({}, sea, {
+          sequence_id: sea.sequence_id || seq.id
+        }));
+      }));
+    }
+
+    const anciensSeq = JSON.parse(localStorage.getItem("planif_sequences") || "[]");
+    const anciennesSea = JSON.parse(localStorage.getItem("planif_seances") || "[]");
+
+    const fusion = (anciens, nouveaux) => {
+      const map = new Map(anciens.filter(Boolean).map(x => [x.id, x]));
+      nouveaux.filter(x => x && x.id).forEach(x => map.set(x.id, x));
+      return Array.from(map.values());
+    };
+
+    const seqFinales = fusion(anciensSeq, sequences);
+    const seaFinales = fusion(anciennesSea, seances);
+
+    localStorage.setItem("planif_sequences", JSON.stringify(seqFinales));
+    localStorage.setItem("planif_seances", JSON.stringify(seaFinales));
+
+    return {
+      sequences: sequences.filter(x => x && x.id).length,
+      seances: seances.filter(x => x && x.id).length,
+      totalSequences: seqFinales.length,
+      totalSeances: seaFinales.length
+    };
+  }
+
 
   // ========================================================================
   // CALENDRIER
@@ -2159,6 +2462,7 @@
     // Banque
     chargerBanque,
     chargerDerouleDeItem,
+    importerBibliothequeJSON,
 
     // Configuration
     chargerConfig,
