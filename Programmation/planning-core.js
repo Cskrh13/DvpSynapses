@@ -2065,7 +2065,10 @@
         // genererJournalDepuisGrille n'a pas besoin de la banque pour créer
         // les groupes si les affectations sont déjà présentes ; on récupère
         // néanmoins les groupes existants dans le journal.
-        const blocs = regrouperParBloc(jour);
+        const blocs = regrouperParBloc(jour).filter(bloc => heureVersMin(bloc.fin) <= (16 * 60 + 30));
+
+        // La journée scolaire se termine à 16h30 : aucun groupe automatique
+        // n'est créé ni alimenté sur un créneau qui dépasse cette limite.
 
         // Chaque nouvelle répartition est recalculée : les groupes créés
         // automatiquement gardent leur structure, mais leurs élèves sont
