@@ -278,8 +278,18 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     <section class="card">
       <h2>Génération du planning</h2>
       <p class="hint">Répartit automatiquement, pour chaque créneau de type « Séance », la prochaine séance disponible du domaine choisi (fichiers du dépôt + séances créées dans « Séquences &amp; séances »). Les créneaux déjà modifiés à la main dans la page d'affichage <strong>ne sont jamais écrasés</strong>.</p>
-      <button class="btn primary" id="btn-generer">Générer / mettre à jour le planning</button>
-      <span id="gen-status" style="margin-left:12px;color:var(--ink-soft);font-size:13.5px;"></span>
+      <div class="row" style="align-items:center;gap:10px;">
+        <button class="btn primary" id="btn-generer">Générer / mettre à jour le planning</button>
+        <button class="btn" id="btn-repartir-eleves">👥 Ajouter et répartir automatiquement les élèves</button>
+        <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
+      </div>
+      <p class="hint" style="margin-top:14px;">
+        <strong>Répartition automatique :</strong> les élèves sont regroupés prioritairement par niveau, puis selon leurs besoins et objectifs.
+        Le matin, le moteur privilégie le français et les mathématiques ; en début d'après-midi, il privilégie une plage de 30 minutes de lecture/écriture.
+        Les volumes hebdomadaires de référence sont de <strong>10 h de français + 5 h de mathématiques en CP-CE1-CE2</strong> et
+        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau ne sont pas ajoutés à un groupe.
+        Maximum <strong>3 groupes automatiques par créneau</strong>.
+      </p>
       <div class="summary-grid" id="summary"></div>
     </section>
   </div>
@@ -741,6 +751,26 @@ $("btn-generer").addEventListener("click", async ()=>{
     toast("Planning généré avec succès.");
   }catch(e){
     $("gen-status").textContent = "Erreur : " + e.message;
+  }
+});
+$("btn-repartir-eleves").addEventListener("click", async ()=>{
+  if(!config.rentree){ toast("Renseignez une date de rentrée avant de répartir."); return; }
+  if(!config.classes.length){ toast("Créez au moins une classe."); return; }
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de répartir les élèves."); return; }
+  $("gen-status").textContent = "Construction de la répartition hebdomadaire…";
+  try{
+    // On génère d'abord les séances du planning, puis on construit les
+    // groupes d'élèves sur chaque journée de classe.
+    const affectationsExistantes = PC.chargerAffectations();
+    const nouvelles = await PC.genererAffectations(config.classes, config, grilles, affectationsExistantes);
+    PC.sauverAffectations(nouvelles);
+    const statsEleves = PC.repartirElevesSemaineAuto(config, grilles, nouvelles, coffre);
+    $("gen-status").textContent =
+      `${statsEleves.ajouts} affectation(s) d'élève et ${statsEleves.groupes} groupe(s) automatique(s) créés.`;
+    toast("Répartition des élèves terminée.");
+  }catch(e){
+    $("gen-status").textContent = "Erreur : " + (e.message || e);
+    toast("Répartition impossible.");
   }
 });
 
