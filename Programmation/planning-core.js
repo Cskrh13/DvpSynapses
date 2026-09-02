@@ -1889,6 +1889,318 @@
     return journalJour;
   }
 
+  /**
+   * Construit une répartition hebdomadaire automatique des élèves.
+   *
+   * Référentiel horaire utilisé (BO n°44 du 26/11/2015) :
+   *   - CP/CE1/CE2 : Français 10 h, Mathématiques 5 h / semaine.
+   *   - CM1/CM2    : Français 8 h, Mathématiques 5 h / semaine.
+   *
+   * Le moteur ne remplace pas les choix manuels :
+   *   - un élève déjà affecté manuellement dans sa classe sur un créneau
+   *     n'est pas ajouté à un groupe de soutien sur ce créneau ;
+   *   - les récréations sont prioritaires ;
+   *   - maximum 3 groupes automatiques par créneau ;
+   *   - les groupes sont d'abord constitués par niveau, puis affinés
+   *     par besoins/objectifs ;
+   *   - le matin, priorité Français/Mathématiques ;
+   *   - en début d'après-midi, une plage de 30 min est prioritairement
+   *     utilisée pour lecture/écriture ;
+   *   - les créneaux restants servent à combler les objectifs/besoins.
+   *
+   * Les identifiants d'élèves restent en mémoire via le coffre : aucune donnée
+   * nominative n'est enregistrée dans la configuration.
+   */
+  function repartirElevesSemaineAuto(config, grilles, affectations, coffre) {
+    if (!coffre || !coffre.ouvert) {
+      throw new Error("Ouvrez le coffre avant de répartir les élèves.");
+    }
+
+    const eleves = coffre.listerEleves ? coffre.listerEleves() : [];
+    if (!eleves.length) throw new Error("Aucun élève disponible dans le coffre.");
+
+    const semaines = calculerSemaines(config || {});
+    const joursTravail = new Set((config.joursTravailles || [1,2,3,4,5]).map(Number));
+    const journal = chargerJournal();
+
+    const norm = v => String(v || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+    const niveauDe = v => {
+      const s = norm(v);
+      const m = s.match(/\b(cp|ce1|ce2|cm1|cm2)\b/);
+      return m ? m[1].toUpperCase() : String(v || "").trim().toUpperCase();
+    };
+
+    const niveauEleve = e => niveauDe(
+      e.niveau || e.classeNiveau || e.niveauScolaire || e.classe || ""
+    );
+
+    const classeEleve = e => norm(
+      e.classeId || e.classe || e.classeNom || e.groupeClasse || ""
+    );
+
+    const besoinsEleve = e => {
+      const a = (e.besoins || []).map(x => typeof x === "object"
+        ? (x.domaine || x.champ || x.libelle || x.hypothese || "")
+        : x);
+      const b = (e.objectifs || []).filter(x => !x || !x.statut || x.statut === "actif")
+        .map(x => typeof x === "object"
+          ? (x.domaine || x.champ || x.libelle || x.contexte || "")
+          : x);
+      return a.concat(b).map(norm).filter(Boolean).join(" ");
+    };
+
+    const estFixe = g => !!g.fixe;
+    const estRecreation = g => {
+      const t = norm(g.titre || g.libelle || "");
+      return estFixe(g) && (t.includes("recre") || t.includes("pause meridienne"));
+    };
+
+    const domaine = g => norm(
+      (g.domaineCle || "") + " " + (g.titre || "") + " " + (g.seanceRef && g.seanceRef.titre || "")
+    );
+
+    const estFrancais = g => {
+      const d = domaine(g);
+      return d.includes("franc") || d.includes("lecture") || d.includes("ecriture") ||
+             d.includes("oral") || d.includes("comprehension");
+    };
+    const estMaths = g => {
+      const d = domaine(g);
+      return d.includes("math") || d.includes("nombres") || d.includes("calcul") ||
+             d.includes("grandeurs") || d.includes("geometr");
+    };
+    const estLectureEcriture = g => {
+      const d = domaine(g);
+      return d.includes("lecture") || d.includes("ecriture") ||
+             d.includes("comprehension") || d.includes("production");
+    };
+
+    const minutes = (a,b) => Math.max(0, heureVersMin(b) - heureVersMin(a));
+    const cible = {
+      CP:  { francais: 600, maths: 300 },
+      CE1: { francais: 600, maths: 300 },
+      CE2: { francais: 600, maths: 300 },
+      CM1: { francais: 480, maths: 300 },
+      CM2: { francais: 480, maths: 300 }
+    };
+
+    const ids = new Map(eleves.map(e => [e.identifiantSynapses, e]).filter(x => x[0]));
+    const stats = {};
+    eleves.forEach(e => {
+      stats[e.identifiantSynapses] = { francais: 0, maths: 0, lectureEcriture: 0, autres: 0 };
+    });
+
+    // Les affectations manuelles existantes servent de point de départ :
+    // elles comptent comme « élève déjà dans sa classe » si le groupe porte
+    // la même classe que l'élève.
+    const estDansSaClasse = (jour, e, bloc) => {
+      const id = e.identifiantSynapses;
+      return bloc.groupes.some(g => {
+        if (estFixe(g) || !g.modifie || !(g.eleves || []).includes(id)) return false;
+        const gc = norm(g.classeId || g.classe || "");
+        const ec = classeEleve(e);
+        return gc && ec && (gc === ec || gc.includes(ec) || ec.includes(gc));
+      });
+    };
+
+    let nbAjouts = 0;
+    let nbGroupes = 0;
+
+    function profilPour(e, g) {
+      const n = niveauEleve(e);
+      const besoin = besoinsEleve(e);
+      let score = 0;
+      if (n && n === niveauDe(g.niveau || g.classeId || "")) score += 100;
+      if (estFrancais(g) && /franc|lecture|ecriture|oral|comprehension/.test(besoin)) score += 20;
+      if (estMaths(g) && /math|nombre|calcul|grandeur|geometr/.test(besoin)) score += 20;
+      if (estLectureEcriture(g) && /lecture|ecriture|comprehension|production/.test(besoin)) score += 25;
+      return score;
+    }
+
+    function choisirGroupe(bloc, e, groupes) {
+      const id = e.identifiantSynapses;
+      const n = niveauEleve(e);
+      const h = heureVersMin(bloc.debut);
+      const duree = minutes(bloc.debut, bloc.fin);
+      const estMatin = h < 12 * 60;
+      const estDebutAPM = h >= 12 * 60 && h < 14 * 60 && duree === 30;
+
+      let eligibles = groupes.filter(g => !estFixe(g) && !(g.eleves || []).includes(id));
+      if (!eligibles.length) return null;
+
+      // Ne pas multiplier les groupes : on réutilise en priorité un groupe
+      // automatique du même niveau et du même domaine.
+      const objectif = estMatin
+        ? (stats[id].francais < (cible[n]?.francais || 0) ? "francais" : "maths")
+        : (estDebutAPM ? "lectureEcriture" : null);
+
+      const scoreG = g => {
+        let s = profilPour(e, g);
+        if (objectif === "francais" && estFrancais(g)) s += 60;
+        if (objectif === "maths" && estMaths(g)) s += 60;
+        if (objectif === "lectureEcriture" && estLectureEcriture(g)) s += 70;
+        if (!objectif && besoinsEleve(e) && domaine(g).split(/\s+/).some(m => besoinsEleve(e).includes(m))) s += 20;
+        if (niveauDe(g.niveau || "") === n) s += 30;
+        s -= ((g.eleves || []).length * 0.1);
+        return s;
+      };
+
+      eligibles.sort((a,b) => scoreG(b) - scoreG(a));
+      return eligibles[0] || null;
+    }
+
+    semaines.forEach(sem => {
+      JOURS.forEach(j => {
+        if (!joursTravail.has(j.n)) return;
+        const iso = dateISO(addDays(sem.lundi, j.n - 1));
+        const jour = genererJournalDepuisGrille(
+          iso, config, grilles, affectations || {}, {}
+        );
+        // genererJournalDepuisGrille n'a pas besoin de la banque pour créer
+        // les groupes si les affectations sont déjà présentes ; on récupère
+        // néanmoins les groupes existants dans le journal.
+        const blocs = regrouperParBloc(jour);
+
+        // Chaque nouvelle répartition est recalculée : les groupes créés
+        // automatiquement gardent leur structure, mais leurs élèves sont
+        // vidés avant le nouveau calcul afin de tenir compte des besoins et
+        // objectifs actualisés.
+        jour.groupes.forEach(g => {
+          if (g.repartitionAuto) g.eleves = [];
+        });
+
+        blocs.forEach(bloc => {
+          const recreations = bloc.groupes.filter(estRecreation);
+          const travail = bloc.groupes.filter(g => !estFixe(g));
+
+          // Les élèves de classe en récréation ne peuvent pas être placés
+          // dans un groupe pédagogique sur ce créneau.
+          const disponibles = eleves.filter(e => {
+            const id = e.identifiantSynapses;
+            if (!id) return false;
+            if (recreations.some(r => {
+              const rc = norm(r.classeId || r.classe || "");
+              const ec = classeEleve(e);
+              const rn = niveauDe(r.niveau || r.classeId || "");
+              return (rc && ec && (rc === ec || rc.includes(ec) || ec.includes(rc))) ||
+                     (!ec && rn && rn === niveauEleve(e));
+            })) return false;
+            if (estDansSaClasse(jour, e, bloc)) return false;
+            return true;
+          });
+
+          if (!disponibles.length) return;
+
+          // On privilégie les groupes déjà créés automatiquement. À défaut,
+          // on crée au maximum 3 groupes de niveau dans cette plage.
+          let auto = travail.filter(g => g.repartitionAuto);
+          const niveaux = [...new Set(disponibles.map(niveauEleve).filter(Boolean))];
+
+          // Choix de trois niveaux maximum : les niveaux les plus représentés
+          // sont prioritaires ; les autres sont regroupés en « besoins ciblés ».
+          niveaux.sort((a,b) =>
+            disponibles.filter(e => niveauEleve(e) === b).length -
+            disponibles.filter(e => niveauEleve(e) === a).length
+          );
+          const profils = niveaux.slice(0,3);
+          if (niveaux.length > 3) profils[2] = "BESOINS_CIBLES";
+
+          profils.forEach(profil => {
+            if (auto.length >= 3) return;
+            const existe = auto.find(g => String(g.profilAuto || "") === profil);
+            if (existe) return;
+
+            // Le groupe est créé sur la plage déjà prévue dans le planning.
+            const g = {
+              id: uid("grp"),
+              debut: bloc.debut,
+              fin: bloc.fin,
+              origine: null,
+              modifie: true,
+              adulte: { type: "enseignant", nom: "" },
+              titre: profil === "BESOINS_CIBLES"
+                ? "Groupe besoins ciblés"
+                : "Groupe " + profil,
+              domaineCle: "",
+              niveau: profil === "BESOINS_CIBLES" ? "" : profil,
+              classeId: "",
+              seanceRef: null,
+              eleves: [],
+              remarque: "Groupe créé automatiquement selon niveau, besoins et objectifs.",
+              fixe: false,
+              repartitionAuto: true,
+              profilAuto: profil
+            };
+            jour.groupes.push(g);
+            auto.push(g);
+            nbGroupes++;
+          });
+
+          const groupesDisponibles = jour.groupes.filter(g => !estFixe(g) && !estRecreation(g))
+            .filter(g => g.repartitionAuto || !g.classeId);
+
+          disponibles.forEach(e => {
+            const id = e.identifiantSynapses;
+            if (!ids.has(id)) return;
+            const g = choisirGroupe(bloc, e, groupesDisponibles);
+            if (!g) return;
+
+            // Un groupe auto de niveau différent n'est accepté que si aucun
+            // groupe du bon niveau n'est disponible.
+            const n = niveauEleve(e);
+            const bonNiveau = groupesDisponibles.find(x =>
+              x !== g && niveauDe(x.niveau || "") === n
+            );
+            if (bonNiveau) {
+              const g2 = choisirGroupe(bloc, e, [bonNiveau]);
+              if (g2) {
+                // on utilise le groupe le plus pertinent.
+                if ((g2.eleves || []).length <= (g.eleves || []).length + 2) {
+                  g.eleves.push(id);
+                  nbAjouts++;
+                  if (estFrancais(g2)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+                  else if (estMaths(g2)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+                  else if (estLectureEcriture(g2)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+                  else stats[id].autres += minutes(bloc.debut, bloc.fin);
+                  return;
+                }
+              }
+            }
+
+            g.eleves = g.eleves || [];
+            if (!g.eleves.includes(id)) {
+              g.eleves.push(id);
+              nbAjouts++;
+              if (estFrancais(g)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+              else if (estMaths(g)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+              else if (estLectureEcriture(g)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+              else stats[id].autres += minutes(bloc.debut, bloc.fin);
+            }
+          });
+        });
+
+        journal[iso] = jour;
+      });
+    });
+
+    sauverJournal(journal);
+    return {
+      jours: Object.keys(journal).length,
+      ajouts: nbAjouts,
+      groupes: nbGroupes,
+      objectifs: {
+        cycle2: { francais: "10 h/semaine", maths: "5 h/semaine" },
+        cycle3: { francais: "8 h/semaine", maths: "5 h/semaine" }
+      }
+    };
+  }
+
   // ========================================================================
   // IMPORT / EXPORT JSON DU PLANNING (fichier téléchargeable, hors USB)
   // ========================================================================
@@ -2504,6 +2816,7 @@
     libelleBloc,
     genererJournalDepuisGrille,
     repartirElevesAuto,
+    repartirElevesSemaineAuto,
 
     // Import / export JSON
     exporterPlanningJSON,
