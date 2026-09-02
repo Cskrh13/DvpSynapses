@@ -320,7 +320,7 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 
 <script src="../fata-morgana/synapses-crypto.js"></script>
 <script src="../fata-morgana/synapses-coffre.js"></script>
-<script src="planning-core.js"></script>
+<script src="planning-core.js?v=20260902-grille-fix"></script>
 <script>
 /* =========================================================
    SYNAPSES — AUTHOR MARKER
@@ -356,6 +356,7 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
     document.querySelectorAll(".tab-panel").forEach(x=>x.classList.remove("active"));
     b.classList.add("active");
     $(b.dataset.tab).classList.add("active");
+    if (b.dataset.tab === "tab-grille") renderGrilleTabs();
   });
 });
 
@@ -544,11 +545,12 @@ $("btn-appliquer-fixes").addEventListener("click", ()=>{
   if(!config.classes.length){ toast("Créez au moins une classe avant d'appliquer."); return; }
   if(!(config.joursTravailles||[]).length){ toast("Cochez au moins un jour travaillé."); return; }
   PC.sauverConfig(config);
-  PC.appliquerCreneauxFixes(config, grilles, config.classes.map(c=>c.id));
+  const statsFixes = PC.appliquerCreneauxFixes(config, grilles, config.classes.map(c=>c.id));
   PC.sauverGrilles(grilles);
-  $("fixes-status").textContent = "Appliqué le " + new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + ".";
-  toast("Récréations et pauses appliquées à la grille.");
-  renderGrilleBody();
+  const nbFixes = statsFixes?.total ?? config.classes.reduce((n, cl) => n + (grilles[cl.id] || []).filter(c => c.id?.startsWith("fixe_" + cl.id + "_")).length, 0);
+  $("fixes-status").textContent = nbFixes + " créneau(x) fixe(s) présent(s) dans les grilles — appliqué le " + new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + ".";
+  toast(nbFixes + " créneau(x) fixe(s) appliqué(s) aux classes.");
+  renderGrilleTabs();
   renderSummary();
 });
 
