@@ -68,6 +68,69 @@
     }
   };
 
+  // Référentiel horaire officiel — arrêté du 9-11-2015 (BO n°44 du
+  // 26/11/2015, MENE1526553A) : horaires d'enseignement à l'école
+  // élémentaire, 24 h de classe par semaine.
+  // https://www.education.gouv.fr/bo/15/Hebdo44/MENE1526553A.htm
+  //
+  // Utilisé pour :
+  //  - vérifier le volume horaire des classes (déjà utilisé pour
+  //    français/mathématiques dans repartirElevesSemaineAuto) ;
+  //  - construire les groupes de besoin ULIS (élèves du coffre non
+  //    affectés à une classe) sur les créneaux libres du cahier journal,
+  //    en visant le même volume horaire hebdomadaire par domaine que
+  //    leurs pairs, au prorata de leur équivalence scolaire.
+  //
+  // Valeurs en minutes / semaine.
+  const BO_VOLUMES_HEBDO = {
+    cycle2: { // CP, CE1, CE2
+      francais: 600,              // 10 h
+      mathematiques: 300,         // 5 h
+      eps: 180,                   // 3 h
+      languesVivantes: 90,        // 1 h 30
+      artsEducationMusicale: 120, // 2 h (arts plastiques + éducation musicale)
+      emc: 30,                    // 0 h 30
+      questionnerLeMonde: 120     // 2 h
+    },
+    cycle3: { // CM1, CM2
+      francais: 480,              // 8 h
+      mathematiques: 300,         // 5 h
+      eps: 180,                   // 3 h
+      languesVivantes: 90,        // 1 h 30
+      artsEducationMusicale: 120, // 2 h
+      emc: 30,                    // 0 h 30
+      histoireGeographie: 120,    // 2 h
+      sciencesTechnologie: 120    // 2 h
+    }
+  };
+
+  function cycleDuNiveau(niveau) {
+    const n = String(niveau || "").toUpperCase();
+    if (["CP", "CE1", "CE2"].indexOf(n) !== -1) return "cycle2";
+    if (["CM1", "CM2"].indexOf(n) !== -1) return "cycle3";
+    return null; // TPS/PS/MS/GS (cycle 1) : hors grille horaire BO n°44
+  }
+
+  // Association domaineCle (grille des créneaux) → clé du référentiel
+  // BO_VOLUMES_HEBDO. Reste tolérante : reconnaît les variantes usuelles
+  // de libellés utilisées dans la banque de séquences/séances.
+  function domaineBoDe(texte) {
+    const t = String(texte || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (/franc|lecture|ecriture|oral|vocabulaire|grammaire/.test(t)) return "francais";
+    if (/math|nombre|calcul|grandeur|geometr/.test(t)) return "mathematiques";
+    if (/\beps\b|sport|motric|education physique/.test(t)) return "eps";
+    if (/langue|anglais|lve/.test(t)) return "languesVivantes";
+    if (/art|musi|chant|dessin/.test(t)) return "artsEducationMusicale";
+    if (/\bemc\b|moral|civi/.test(t)) return "emc";
+    if (/histoire|geographie/.test(t)) return "histoireGeographie"; // cycle3
+    if (/science|technolog/.test(t)) return "sciencesTechnologie"; // cycle3
+    if (/questionner le monde|decouverte du monde|\bqlm\b/.test(t)) return "questionnerLeMonde"; // cycle2
+    return null;
+  }
+
 
   // ========================================================================
   // STOCKAGE LOCAL
@@ -2329,6 +2392,330 @@
   }
 
   // ========================================================================
+  // GROUPES DE BESOIN ULIS — élèves du coffre non affectés à une classe
+  // ========================================================================
+  //
+  // Règle métier : un élève du coffre qui n'est rattaché à aucune classe
+  // (classeId/classe vide) est un élève ULIS suivi directement par
+  // l'enseignant. Il n'a pas d'emploi du temps de classe : ses séances se
+  // construisent donc sur les créneaux réellement LIBRES du cahier
+  // journal de l'enseignant, c'est-à-dire les plages de la journée où
+  // aucune classe (config.classes) n'a de créneau "séance" ou "autre"
+  // dans sa grille — l'enseignant n'est alors affecté à aucune classe.
+  //
+  // Le volume horaire hebdomadaire visé par domaine suit le référentiel
+  // officiel BO n°44 du 26/11/2015 (BO_VOLUMES_HEBDO ci-dessus), au
+  // prorata du niveau d'équivalence scolaire de chaque élève (et non de
+  // son âge), exactement comme pour les groupes de classe.
+  //
+  // Cette fonction ÉCRASE le cahier journal sur les créneaux qu'elle
+  // gère : elle fait partie de la génération du planning et non d'une
+  // simple suggestion consultée à part.
+
+  /**
+   * Détermine, pour un jour donné, les plages horaires « libres » pour
+   * l'enseignant ULIS : les intervalles de temps sur lesquels AUCUNE
+   * classe de la configuration n'a de créneau dans sa grille ce jour-là.
+   * Retourne une liste de {debut, fin} triée et fusionnée.
+   */
+  function plagesLibresEnseignant(jourSemaine, config, grilles) {
+    const classes = (config.classes && config.classes.length) ? config.classes : [];
+    const bornes = new Set();
+    const occupations = [];
+
+    classes.forEach(classe => {
+      (grilles[classe.id] || [])
+        .filter(c => c.jour === jourSemaine)
+        .forEach(c => {
+          occupations.push([heureVersMin(c.debut), heureVersMin(c.fin)]);
+          bornes.add(heureVersMin(c.debut));
+          bornes.add(heureVersMin(c.fin));
+        });
+    });
+
+    if (!occupations.length) return []; // pas de journée d'école connue ce jour-là
+
+    const debutJournee = Math.min(...occupations.map(o => o[0]));
+    const finJournee = Math.max(...occupations.map(o => o[1]));
+    occupations.sort((a, b) => a[0] - b[0]);
+
+    const libres = [];
+    let curseur = debutJournee;
+    occupations.forEach(([d, f]) => {
+      if (d > curseur) libres.push([curseur, d]);
+      if (f > curseur) curseur = f;
+    });
+    if (curseur < finJournee) libres.push([curseur, finJournee]);
+
+    const minToHeure = m => pad2(Math.floor(m / 60)) + ":" + pad2(m % 60);
+    return libres
+      .filter(([d, f]) => f - d >= 15) // on ignore les micro-interstices
+      .map(([d, f]) => ({ debut: minToHeure(d), fin: minToHeure(f) }));
+  }
+
+  /**
+   * Construit les groupes de besoin ULIS sur les créneaux libres du
+   * cahier journal, semaine par semaine, en écrasant les groupes
+   * automatiques ULIS précédemment générés (repartitionAuto + profilUlis).
+   *
+   * Ne touche jamais :
+   *  - aux créneaux de classe (fixe ou non) ;
+   *  - à un groupe ULIS que l'enseignant a modifié à la main
+   *    (modifie:true sans repartitionAuto).
+   */
+  function genererGroupesBesoinULIS(config, grilles, coffre) {
+    if (!coffre || !coffre.ouvert) {
+      throw new Error("Ouvrez le coffre avant de générer les groupes ULIS.");
+    }
+
+    const norm = v => String(v || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+    const niveauDe = v => {
+      const s = norm(v);
+      const m = s.match(/\b(tps|ps|ms|gs|cp|ce1|ce2|cm1|cm2)\b/);
+      return m ? m[1].toUpperCase() : String(v || "").trim().toUpperCase();
+    };
+
+    const niveauEleve = e => niveauDe(e.niveau || e.classeNiveau || e.niveauScolaire || e.classe || "");
+
+    const niveauEquivalentSujet = (e, matiere) => {
+      const eq = e.equivalenceScolaire && e.equivalenceScolaire[matiere];
+      const v = eq && eq.niveauEquivalent;
+      return v ? niveauDe(v) : niveauEleve(e);
+    };
+
+    const classeEleve = e => norm(e.classeId || e.classe || e.classeNom || e.groupeClasse || "");
+
+    // Élève ULIS = présent dans le coffre, sans classe de rattachement.
+    const estElevesUlis = e => !classeEleve(e);
+
+    const besoinsEtObjectifs = e => {
+      const besoins = (e.besoins || []).map(x =>
+        x && typeof x === "object" ? (x.domaine || x.champ || x.hypothese || x.libelle || "") : x
+      );
+      const objectifs = (e.objectifs || [])
+        .filter(x => !x || !x.statut || x.statut === "actif")
+        .map(x => x && typeof x === "object" ? (x.domaine || x.libelle || x.contexte || x.champ || "") : x);
+      return besoins.concat(objectifs).map(norm).filter(Boolean);
+    };
+
+    const eleves = (coffre.listerEleves ? coffre.listerEleves() : []).filter(estElevesUlis);
+    if (!eleves.length) {
+      return { jours: 0, groupes: 0, ajouts: 0, message: "Aucun élève ULIS (sans classe) dans le coffre." };
+    }
+
+    const semaines = calculerSemaines(config || {});
+    const joursTravail = new Set((config.joursTravailles || [1, 2, 3, 4, 5]).map(Number));
+    const journal = chargerJournal();
+
+    // Domaines BO à couvrir, dans l'ordre de priorité (français/maths
+    // d'abord, comme pour les classes), pour chaque cycle représenté
+    // parmi les élèves ULIS suivis.
+    const ORDRE_DOMAINES = [
+      "francais", "mathematiques", "eps", "languesVivantes",
+      "questionnerLeMonde", "histoireGeographie", "sciencesTechnologie",
+      "artsEducationMusicale", "emc"
+    ];
+
+    let nbJours = 0;
+    let nbGroupes = 0;
+    let nbAjouts = 0;
+
+    // Minutes déjà couvertes par élève et par domaine BO, remises à zéro
+    // à chaque semaine (le volume horaire du BO n°44 est hebdomadaire).
+    let stats = new Map();
+    function initStats() {
+      stats = new Map(eleves.map(e => [e.identifiantSynapses, {}]));
+    }
+
+    semaines.forEach(sem => {
+      initStats();
+
+      JOURS.forEach(j => {
+        if (!joursTravail.has(j.n)) return;
+
+        const libres = plagesLibresEnseignant(j.n, config, grilles);
+        if (!libres.length) return;
+
+        const iso = dateISO(addDays(sem.lundi, j.n - 1));
+        const jour = journalPourDate(iso, journal);
+        nbJours++;
+
+        // On repart de zéro pour les groupes ULIS automatiques de ce
+        // jour : ils sont entièrement reconstruits (écrasés), pas
+        // seulement leur liste d'élèves — sauf ceux retouchés à la main.
+        jour.groupes = jour.groupes.filter(g => !(g.profilUlis && g.repartitionAuto && !g.personnalise));
+
+        libres.forEach(plage => {
+          // Un créneau ULIS n'est généré que s'il est réellement libre :
+          // aucun groupe (fixe ou non) du cahier journal ne chevauche déjà
+          // cette plage sans être un ancien groupe ULIS auto qu'on vient
+          // de retirer ci-dessus.
+          const occupe = jour.groupes.some(g => {
+            const dg = heureVersMin(g.debut), fg = heureVersMin(g.fin);
+            const dp = heureVersMin(plage.debut), fp = heureVersMin(plage.fin);
+            return dg < fp && fg > dp;
+          });
+          if (occupe) return;
+
+          // Pour chaque élève ULIS, on choisit le domaine BO le plus en
+          // retard par rapport à l'objectif hebdomadaire de son cycle.
+          function domaineCibleDe(e) {
+            const cycle = cycleDuNiveau(niveauEleve(e)) || "cycle2";
+            const cibles = BO_VOLUMES_HEBDO[cycle];
+            const fait = stats.get(e.identifiantSynapses) || {};
+            const besoins = besoinsEtObjectifs(e);
+
+            let meilleur = null, meilleurEcart = -Infinity;
+            ORDRE_DOMAINES.forEach(dom => {
+              if (cibles[dom] === undefined) return;
+              const restant = cibles[dom] - (fait[dom] || 0);
+              if (restant <= 0) return;
+              // Un domaine explicitement mentionné dans les besoins/
+              // objectifs actifs de l'élève est favorisé.
+              const bonus = besoins.some(b => domaineBoDe(b) === dom) ? 200 : 0;
+              const ecart = restant + bonus;
+              if (ecart > meilleurEcart) { meilleurEcart = ecart; meilleur = dom; }
+            });
+            return meilleur || "francais";
+          }
+
+          // Regroupement par domaine cible puis par niveau d'équivalence
+          // scolaire dans ce domaine (groupes de besoin), avec un maximum
+          // de 3 groupes simultanés sur la plage, comme pour les classes.
+          const parGroupe = new Map(); // clé "domaine|niveau" -> {eleves, domaine, niveau}
+          eleves.forEach(e => {
+            const dom = domaineCibleDe(e);
+            const niv = /francais|mathematiques/.test(dom)
+              ? niveauEquivalentSujet(e, dom === "francais" ? "francais" : "mathematiques")
+              : niveauEleve(e);
+            const cle = dom + "|" + (niv || "");
+            if (!parGroupe.has(cle)) parGroupe.set(cle, { domaine: dom, niveau: niv, eleves: [] });
+            parGroupe.get(cle).eleves.push(e);
+          });
+
+          let entrees = Array.from(parGroupe.values());
+          if (entrees.length > 3) {
+            // On fusionne les groupes les moins fournis dans le groupe du
+            // même domaine le plus proche pour tenir dans la limite de 3.
+            entrees.sort((a, b) => b.eleves.length - a.eleves.length);
+            const gardes = entrees.slice(0, 2);
+            const reste = entrees.slice(2);
+            const fusion = { domaine: "mixte", niveau: "", eleves: [] };
+            reste.forEach(x => fusion.eleves.push(...x.eleves));
+            entrees = gardes.concat([fusion]);
+          }
+
+          const libelleDomaine = {
+            francais: "Français", mathematiques: "Mathématiques", eps: "EPS",
+            languesVivantes: "Langues vivantes", questionnerLeMonde: "Questionner le monde",
+            histoireGeographie: "Histoire-géographie", sciencesTechnologie: "Sciences et technologie",
+            artsEducationMusicale: "Arts / éducation musicale", emc: "EMC", mixte: "Besoins ciblés"
+          };
+
+          entrees.forEach(entree => {
+            if (!entree.eleves.length) return;
+            const titre = "ULIS — " + (libelleDomaine[entree.domaine] || entree.domaine) +
+              (entree.niveau ? " (" + entree.niveau + ")" : "");
+            const g = {
+              id: uid("grp"),
+              debut: plage.debut,
+              fin: plage.fin,
+              origine: null,
+              modifie: true,
+              adulte: { type: "enseignant", nom: "" },
+              titre: titre,
+              domaineCle: entree.domaine,
+              niveau: entree.niveau || "",
+              classeId: "",
+              seanceRef: null,
+              eleves: entree.eleves.map(e => e.identifiantSynapses).filter(Boolean),
+              remarque: "Groupe de besoin ULIS généré automatiquement (créneau libre du cahier journal, référentiel BO n°44 du 26/11/2015).",
+              fixe: false,
+              repartitionAuto: true,
+              personnalise: false,
+              profilUlis: true
+            };
+            jour.groupes.push(g);
+            nbGroupes++;
+            nbAjouts += g.eleves.length;
+
+            const dureeMin = heureVersMin(plage.fin) - heureVersMin(plage.debut);
+            entree.eleves.forEach(e => {
+              const fait = stats.get(e.identifiantSynapses) || {};
+              fait[entree.domaine] = (fait[entree.domaine] || 0) + dureeMin;
+              stats.set(e.identifiantSynapses, fait);
+            });
+          });
+        });
+
+        journal[iso] = jour;
+      });
+    });
+
+    sauverJournal(journal);
+    return {
+      jours: nbJours,
+      groupes: nbGroupes,
+      ajouts: nbAjouts,
+      eleves: eleves.length,
+      referentiel: "BO n°44 du 26/11/2015 (MENE1526553A)"
+    };
+  }
+
+  /**
+   * Génération complète et unifiée du planning.
+   *
+   *  1. Séquences/séances de classe, uniquement sur les créneaux encore
+   *     libres du cahier journal (genererAffectations).
+   *  2. Reconstruction du cahier journal à partir des grilles de classe
+   *     pour toutes les semaines de l'année (genererJournalDepuisGrille),
+   *     dans le respect des retouches manuelles déjà enregistrées.
+   *  3. Groupes de besoin ULIS pour les élèves du coffre non affectés à
+   *     une classe, sur les créneaux qui restent libres (dans l'emploi du
+   *     temps de l'enseignant), au regard du volume horaire BO n°44.
+   *
+   * Cette fonction ÉCRASE le cahier journal existant sur tous les
+   * créneaux qu'elle génère (elle ne touche jamais un créneau que
+   * l'enseignant a modifié à la main).
+   */
+  async function genererPlanningComplet(config, grilles, affectationsExistantes, coffre) {
+    if (!config.rentree) throw new Error("Renseignez une date de rentrée avant de générer.");
+    if (!config.classes || !config.classes.length) throw new Error("Créez au moins une classe.");
+
+    // 1) Séquences/séances de classe (créneaux libres uniquement).
+    const affectations = await genererAffectations(config.classes, config, grilles, affectationsExistantes || {});
+    sauverAffectations(affectations);
+
+    // 2) Cahier journal reconstruit à partir des grilles, pour chaque
+    // semaine/jour de l'année, avec la banque de séquences chargée.
+    const banque = await chargerBanque();
+    const semaines = calculerSemaines(config);
+    const joursTravail = new Set((config.joursTravailles || [1, 2, 3, 4, 5]).map(Number));
+    semaines.forEach(sem => {
+      JOURS.forEach(j => {
+        if (!joursTravail.has(j.n)) return;
+        const iso = dateISO(addDays(sem.lundi, j.n - 1));
+        genererJournalDepuisGrille(iso, config, grilles, affectations, banque);
+      });
+    });
+
+    // 3) Groupes de besoin ULIS, uniquement sur les créneaux qui restent
+    // libres dans l'emploi du temps de l'enseignant.
+    let ulis = { jours: 0, groupes: 0, ajouts: 0, eleves: 0 };
+    if (coffre && coffre.ouvert) {
+      ulis = genererGroupesBesoinULIS(config, grilles, coffre);
+    }
+
+    return { affectations, ulis };
+  }
+
+  // ========================================================================
   // IMPORT / EXPORT JSON DU PLANNING (fichier téléchargeable, hors USB)
   // ========================================================================
 
@@ -2597,9 +2984,31 @@
   // ========================================================================
 
   /**
+   * Un créneau du cahier journal est considéré « libre » pour la
+   * génération automatique tant que personne n'y a touché à la main.
+   *
+   * On retrouve le groupe correspondant via son origine
+   * (classeId + "__" + creneauId, voir genererJournalDepuisGrille) : s'il
+   * existe et porte modifie:true, l'enseignant l'a explicitement retouché
+   * dans le cahier journal (contenu, adulte, élèves, suppression…) et la
+   * génération automatique ne doit pas l'écraser. Sinon, le créneau est
+   * libre et peut recevoir la prochaine séance de la séquence en cours.
+   */
+  function creneauLibreDansJournal(journal, iso, classeId, creneauId) {
+    const jour = journal[iso];
+    if (!jour || !jour.groupes) return true;
+    const origine = classeId + "__" + creneauId;
+    const g = jour.groupes.find(x => x.origine === origine);
+    return !g || !g.modifie;
+  }
+
+  /**
    * Génère automatiquement les séances dans les créneaux correspondants.
    *
-   * Les affectations marquées manuel:true sont conservées.
+   * Les affectations marquées manuel:true sont conservées, ainsi que tout
+   * créneau que l'enseignant a modifié à la main dans le cahier journal :
+   * la génération de séquences/séances n'a lieu QUE sur les créneaux
+   * encore libres du cahier journal (voir creneauLibreDansJournal).
    */
   async function genererAffectations(
     classes,
@@ -2616,6 +3025,14 @@
       calculerSemaines(
         config
       );
+
+
+    // Le cahier journal fait foi : un créneau déjà retouché à la main
+    // (contenu, groupes, élèves…) n'est jamais réécrit par la génération
+    // automatique des séquences/séances, même si l'affectation brute ne
+    // porte pas manuel:true.
+    const journalActuel =
+      chargerJournal();
 
 
     const affectations =
@@ -2804,6 +3221,24 @@
                       }
 
 
+                      // La génération de séquences/séances n'a lieu que
+                      // sur les créneaux encore libres du cahier journal
+                      // (aucune retouche manuelle enregistrée dessus).
+
+                      if (
+                        !creneauLibreDansJournal(
+                          journalActuel,
+                          iso,
+                          niveau,
+                          creneau.id
+                        )
+                      ) {
+
+                        return;
+
+                      }
+
+
                       const seance =
                         prochaineSeance(
                           creneau.domaineCle
@@ -2933,6 +3368,12 @@
 
     // Génération
     genererAffectations,
+    genererPlanningComplet,
+
+    // Référentiel horaire BO n°44 du 26/11/2015
+    BO_VOLUMES_HEBDO,
+    cycleDuNiveau,
+    domaineBoDe,
 
     // Cahier journal
     chargerJournal,
@@ -2944,6 +3385,8 @@
     genererJournalDepuisGrille,
     repartirElevesAuto,
     repartirElevesSemaineAuto,
+    genererGroupesBesoinULIS,
+    plagesLibresEnseignant,
 
     // Import / export JSON
     exporterPlanningJSON,
