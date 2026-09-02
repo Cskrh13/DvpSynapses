@@ -425,6 +425,12 @@ $("btn-coffre-fermer").addEventListener("click", ()=>{
   toast("Coffre fermé — données retirées de la mémoire.");
 });
 window.addEventListener("beforeunload", ()=>{ if(coffre) coffre.purger(); });
+// Filet de sécurité redondant : 'pagehide' se déclenche de façon plus
+// fiable que 'beforeunload' sur mobile (Safari iOS notamment) et lors
+// d'une mise en cache arrière (bfcache). Contrairement à
+// 'visibilitychange', il ne se déclenche PAS à chaque changement d'onglet,
+// donc il ne purge pas le coffre pendant une utilisation normale.
+window.addEventListener("pagehide", ()=>{ if(coffre) coffre.purger(); });
 
 /* ---------------- Configuration générale ---------------- */
 function renderConfig(){
