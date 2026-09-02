@@ -1677,6 +1677,23 @@
       );
     }
 
+    // Niveau d'équivalence scolaire DISCIPLINAIRE (voir coffre : onglet
+    // "Analyse & IA", Coffre.enregistrerEquivalenceScolaire), utilisé en
+    // priorité sur le niveau de classe brut lorsqu'il est disponible : un
+    // élève peut être en CM1 mais avoir un niveau équivalent CE1 en français.
+    function niveauEquivalentSujet(e, matiere) {
+      const eq = e.equivalenceScolaire && e.equivalenceScolaire[matiere];
+      const v = eq && eq.niveauEquivalent;
+      return v ? niveauDe(v) : niveauEleve(e);
+    }
+
+    function aAesh(e) {
+      return (e.accompagnements || []).some(a => {
+        const s = typeof a === "object" ? (a.type || a.libelle || a.nom || "") : a;
+        return norm(s).indexOf("aesh") !== -1;
+      });
+    }
+
     function classeEleve(e) {
       return norm(
         e.classeId || e.classe || e.classeNom || e.groupeClasse || ""
@@ -1720,7 +1737,12 @@
     }
 
     function scoreNiveau(e, g) {
-      const ne = niveauEleve(e);
+      const cible = norm(String(g.domaineCle || "") + " " + String(g.titre || ""));
+      const estFrancaisG = /franc|lecture|ecriture|oral|comprehension/.test(cible);
+      const estMathsG = /math|nombre|calcul|grandeur|geometr/.test(cible);
+      const ne = estFrancaisG ? niveauEquivalentSujet(e, "francais")
+        : estMathsG ? niveauEquivalentSujet(e, "mathematiques")
+        : niveauEleve(e);
       const ng = niveauDe(g.niveau || g.classeId || "");
       if (!ne || !ng) return 0;
       return ne === ng ? 4 : 0;
@@ -1838,7 +1860,8 @@
           eleves: [],
           remarque: "Créé automatiquement pour les élèves hors récréation.",
           fixe: false,
-          repartitionAuto: true
+          repartitionAuto: true,
+          personnalise: false
         };
         journalJour.groupes.push(g);
         candidats = [g];
@@ -1940,6 +1963,34 @@
       e.niveau || e.classeNiveau || e.niveauScolaire || e.classe || ""
     );
 
+    // Niveau d'équivalence scolaire DISCIPLINAIRE (français / mathématiques),
+    // saisi par l'enseignant dans le coffre (onglet "Analyse & IA"). On
+    // l'utilise en priorité sur le niveau de classe brut quand il existe :
+    // c'est la vraie donnée individuelle de l'élève, pas une approximation.
+    const niveauEquivalentSujet = (e, matiere) => {
+      const eq = e.equivalenceScolaire && e.equivalenceScolaire[matiere];
+      const v = eq && eq.niveauEquivalent;
+      return v ? niveauDe(v) : niveauEleve(e);
+    };
+
+    // Accompagnement humain déclaré (ex. AESH) : lu depuis e.accompagnements,
+    // seule vraie source de cette information dans le coffre (aucune donnée
+    // n'est jamais inventée ici).
+    const aAesh = e => (e.accompagnements || []).some(a => {
+      const s = typeof a === "object" ? (a.type || a.libelle || a.nom || "") : a;
+      return norm(s).indexOf("aesh") !== -1;
+    });
+
+    // Autonomie déclarée : seulement si explicitement renseignée dans le
+    // coffre (accompagnements) — jamais supposée par défaut, conformément à
+    // l'aide affichée dans Planning — Gestion ("uniquement pour les élèves
+    // déclarés capables de travailler seuls").
+    const autonomieDeclaree = e => (e.accompagnements || []).some(a => {
+      const s = typeof a === "object" ? (a.type || a.libelle || a.nom || "") : a;
+      const n = norm(s);
+      return n.indexOf("autonomie") !== -1 || n.indexOf("autonome") !== -1;
+    });
+
     const classeEleve = e => norm(
       e.classeId || e.classe || e.classeNom || e.groupeClasse || ""
     );
@@ -2011,12 +2062,18 @@
 
     let nbAjouts = 0;
     let nbGroupes = 0;
+    let nbGroupesEnseignant = 0;
+    let nbGroupesAesh = 0;
+    let nbGroupesAutonomie = 0;
 
     function profilPour(e, g) {
-      const n = niveauEleve(e);
+      const ng = niveauDe(g.niveau || g.classeId || "");
+      const n = estFrancais(g) ? niveauEquivalentSujet(e, "francais")
+        : estMaths(g) ? niveauEquivalentSujet(e, "mathematiques")
+        : niveauEleve(e);
       const besoin = besoinsEleve(e);
       let score = 0;
-      if (n && n === niveauDe(g.niveau || g.classeId || "")) score += 100;
+      if (n && n === ng) score += 100;
       if (estFrancais(g) && /franc|lecture|ecriture|oral|comprehension/.test(besoin)) score += 20;
       if (estMaths(g) && /math|nombre|calcul|grandeur|geometr/.test(besoin)) score += 20;
       if (estLectureEcriture(g) && /lecture|ecriture|comprehension|production/.test(besoin)) score += 25;
@@ -2062,6 +2119,21 @@
         const jour = genererJournalDepuisGrille(
           iso, config, grilles, affectations || {}, {}
         );
+
+        // Chaque nouvelle répartition est recalculée à partir de zéro pour
+        // les groupes créés automatiquement : on les SUPPRIME et on les
+        // reconstruit entièrement (pas seulement leur liste d'élèves), afin
+        // que la structure elle-même (groupes de niveau, AESH, autonomie)
+        // reflète l'algorithme actuel et les données réelles du coffre.
+        // Seule exception, conforme à la « priorité cahier journal » : un
+        // groupe automatique que l'enseignant a explicitement personnalisé
+        // (personnalise=true, posé par planning-jour.html dès qu'il modifie
+        // le titre, l'adulte, la séance ou les élèves à la main) est
+        // entièrement préservé, structure ET élèves compris. Ce filtrage a
+        // lieu AVANT le calcul des blocs (regrouperParBloc), pour que les
+        // références de groupes utilisées plus bas soient à jour.
+        jour.groupes = jour.groupes.filter(g => !(g.repartitionAuto && !g.personnalise));
+
         // genererJournalDepuisGrille n'a pas besoin de la banque pour créer
         // les groupes si les affectations sont déjà présentes ; on récupère
         // néanmoins les groupes existants dans le journal.
@@ -2070,13 +2142,6 @@
         // La journée scolaire se termine à 16h30 : aucun groupe automatique
         // n'est créé ni alimenté sur un créneau qui dépasse cette limite.
 
-        // Chaque nouvelle répartition est recalculée : les groupes créés
-        // automatiquement gardent leur structure, mais leurs élèves sont
-        // vidés avant le nouveau calcul afin de tenir compte des besoins et
-        // objectifs actualisés.
-        jour.groupes.forEach(g => {
-          if (g.repartitionAuto) g.eleves = [];
-        });
 
         blocs.forEach(bloc => {
           const recreations = bloc.groupes.filter(estRecreation);
@@ -2101,21 +2166,72 @@
           if (!disponibles.length) return;
 
           // On privilégie les groupes déjà créés automatiquement. À défaut,
-          // on crée au maximum 3 groupes de niveau dans cette plage.
+          // on crée au maximum 3 groupes dans cette plage, en réservant en
+          // priorité une place à un groupe AESH et/ou un groupe autonomie
+          // lorsque de vraies données du coffre le justifient (voir §"Ajouter
+          // et répartir automatiquement les élèves" dans Planning — Gestion).
           let auto = travail.filter(g => g.repartitionAuto);
-          const niveaux = [...new Set(disponibles.map(niveauEleve).filter(Boolean))];
+          const MAX_GROUPES = 3;
 
-          // Choix de trois niveaux maximum : les niveaux les plus représentés
-          // sont prioritaires ; les autres sont regroupés en « besoins ciblés ».
+          // Élèves accompagnés par une AESH sur ce créneau (donnée réelle du
+          // coffre : e.accompagnements) : ils vont dans un groupe dédié avec
+          // un adulte de type "aesh", quel que soit leur niveau.
+          const elevesAesh = disponibles.filter(aAesh);
+          // Élèves déclarés capables de travailler seuls (donnée réelle du
+          // coffre) et non AESH sur ce créneau : groupe en autonomie, sans
+          // adulte affecté.
+          const elevesAutonomes = disponibles.filter(e => !aAesh(e) && autonomieDeclaree(e));
+          const elevesStandard = disponibles.filter(e => !aAesh(e) && !autonomieDeclaree(e));
+
+          function assurerGroupeSpecial(profil, titre, adulte) {
+            if (auto.length >= MAX_GROUPES) return auto.find(g => g.profilAuto === profil) || null;
+            let g = auto.find(g => g.profilAuto === profil);
+            if (g) return g;
+            g = {
+              id: uid("grp"),
+              debut: bloc.debut,
+              fin: bloc.fin,
+              origine: null,
+              modifie: true,
+              adulte: adulte,
+              titre: titre,
+              domaineCle: "",
+              niveau: "",
+              classeId: "",
+              seanceRef: null,
+              eleves: [],
+              remarque: profil === "AESH"
+                ? "Groupe créé automatiquement : élèves accompagnés par une AESH sur ce créneau (donnée du coffre)."
+                : "Groupe créé automatiquement : élèves déclarés en autonomie sur ce créneau (donnée du coffre).",
+              fixe: false,
+              repartitionAuto: true,
+              personnalise: false,
+              profilAuto: profil
+            };
+            jour.groupes.push(g);
+            auto.push(g);
+            nbGroupes++;
+            if (profil === "AESH") nbGroupesAesh++; else nbGroupesAutonomie++;
+            return g;
+          }
+
+          let groupeAesh = null, groupeAutonomie = null;
+          if (elevesAesh.length) groupeAesh = assurerGroupeSpecial("AESH", "Groupe AESH", { type: "aesh", nom: "" });
+          if (elevesAutonomes.length) groupeAutonomie = assurerGroupeSpecial("AUTONOMIE", "Groupe autonomie", null);
+
+          // Places de groupes de niveau restantes (enseignant), sur les
+          // élèves ne relevant ni de l'AESH ni de l'autonomie déclarée.
+          const placesRestantes = Math.max(0, MAX_GROUPES - auto.length);
+          const niveaux = [...new Set(elevesStandard.map(niveauEleve).filter(Boolean))];
           niveaux.sort((a,b) =>
-            disponibles.filter(e => niveauEleve(e) === b).length -
-            disponibles.filter(e => niveauEleve(e) === a).length
+            elevesStandard.filter(e => niveauEleve(e) === b).length -
+            elevesStandard.filter(e => niveauEleve(e) === a).length
           );
-          const profils = niveaux.slice(0,3);
-          if (niveaux.length > 3) profils[2] = "BESOINS_CIBLES";
+          const profils = niveaux.slice(0, placesRestantes);
+          if (niveaux.length > placesRestantes && placesRestantes > 0) profils[placesRestantes - 1] = "BESOINS_CIBLES";
 
           profils.forEach(profil => {
-            if (auto.length >= 3) return;
+            if (auto.length >= MAX_GROUPES) return;
             const existe = auto.find(g => String(g.profilAuto || "") === profil);
             if (existe) return;
 
@@ -2138,17 +2254,38 @@
               remarque: "Groupe créé automatiquement selon niveau, besoins et objectifs.",
               fixe: false,
               repartitionAuto: true,
+              personnalise: false,
               profilAuto: profil
             };
             jour.groupes.push(g);
             auto.push(g);
             nbGroupes++;
+            nbGroupesEnseignant++;
           });
 
           const groupesDisponibles = jour.groupes.filter(g => !estFixe(g) && !estRecreation(g))
-            .filter(g => g.repartitionAuto || !g.classeId);
+            .filter(g => g.repartitionAuto || !g.classeId)
+            .filter(g => g.profilAuto !== "AESH" && g.profilAuto !== "AUTONOMIE");
 
-          disponibles.forEach(e => {
+          function placerEleve(e, g, note) {
+            const id = e.identifiantSynapses;
+            g.eleves = g.eleves || [];
+            if (g.eleves.includes(id)) return;
+            g.eleves.push(id);
+            nbAjouts++;
+            if (estFrancais(g)) stats[id].francais += minutes(bloc.debut, bloc.fin);
+            else if (estMaths(g)) stats[id].maths += minutes(bloc.debut, bloc.fin);
+            else if (estLectureEcriture(g)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
+            else stats[id].autres += minutes(bloc.debut, bloc.fin);
+          }
+
+          // Placement prioritaire : AESH puis autonomie, avec repli sur le
+          // circuit standard si le groupe spécial n'a pas pu être créé
+          // (limite de 3 groupes déjà atteinte par des créneaux fixes).
+          elevesAesh.forEach(e => { if (ids.has(e.identifiantSynapses)) { if (groupeAesh) placerEleve(e, groupeAesh); else elevesStandard.push(e); } });
+          elevesAutonomes.forEach(e => { if (ids.has(e.identifiantSynapses)) { if (groupeAutonomie) placerEleve(e, groupeAutonomie); else elevesStandard.push(e); } });
+
+          elevesStandard.forEach(e => {
             const id = e.identifiantSynapses;
             if (!ids.has(id)) return;
             const g = choisirGroupe(bloc, e, groupesDisponibles);
@@ -2162,29 +2299,13 @@
             );
             if (bonNiveau) {
               const g2 = choisirGroupe(bloc, e, [bonNiveau]);
-              if (g2) {
-                // on utilise le groupe le plus pertinent.
-                if ((g2.eleves || []).length <= (g.eleves || []).length + 2) {
-                  g.eleves.push(id);
-                  nbAjouts++;
-                  if (estFrancais(g2)) stats[id].francais += minutes(bloc.debut, bloc.fin);
-                  else if (estMaths(g2)) stats[id].maths += minutes(bloc.debut, bloc.fin);
-                  else if (estLectureEcriture(g2)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
-                  else stats[id].autres += minutes(bloc.debut, bloc.fin);
-                  return;
-                }
+              if (g2 && (g2.eleves || []).length <= (g.eleves || []).length + 2) {
+                placerEleve(e, g2);
+                return;
               }
             }
 
-            g.eleves = g.eleves || [];
-            if (!g.eleves.includes(id)) {
-              g.eleves.push(id);
-              nbAjouts++;
-              if (estFrancais(g)) stats[id].francais += minutes(bloc.debut, bloc.fin);
-              else if (estMaths(g)) stats[id].maths += minutes(bloc.debut, bloc.fin);
-              else if (estLectureEcriture(g)) stats[id].lectureEcriture += minutes(bloc.debut, bloc.fin);
-              else stats[id].autres += minutes(bloc.debut, bloc.fin);
-            }
+            placerEleve(e, g);
           });
         });
 
@@ -2197,6 +2318,9 @@
       jours: Object.keys(journal).length,
       ajouts: nbAjouts,
       groupes: nbGroupes,
+      groupesEnseignant: nbGroupesEnseignant,
+      groupesAesh: nbGroupesAesh,
+      groupesAutonomie: nbGroupesAutonomie,
       objectifs: {
         cycle2: { francais: "10 h/semaine", maths: "5 h/semaine" },
         cycle3: { francais: "8 h/semaine", maths: "5 h/semaine" }
