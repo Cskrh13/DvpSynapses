@@ -284,10 +284,11 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
-        <strong>Répartition automatique :</strong> les élèves sont regroupés prioritairement par niveau, puis selon leurs besoins et objectifs.
-        Le matin, le moteur privilégie le français et les mathématiques ; en début d'après-midi, il privilégie une plage de 30 minutes de lecture/écriture.
+        <strong>Répartition automatique :</strong> la journée scolaire est bornée à <strong>16 h 30</strong>. Le moteur compose les groupes en croisant le niveau de classe avec le <strong>niveau scolaire d'équivalence en français et en mathématiques</strong> de chaque élève.
+        Il sélectionne automatiquement le mode le plus adapté : <strong>groupe avec enseignant</strong>, <strong>groupe avec AESH</strong> lorsque l'aide humaine est renseignée, ou <strong>groupe en autonomie</strong> uniquement pour les élèves déclarés capables de travailler seuls.
+        Le matin, priorité au français et aux mathématiques ; en début d'après-midi, priorité à une plage de 30 minutes de lecture/écriture.
         Les volumes hebdomadaires de référence sont de <strong>10 h de français + 5 h de mathématiques en CP-CE1-CE2</strong> et
-        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau ne sont pas ajoutés à un groupe.
+        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau ne sont pas ajoutés à un groupe automatique.
         Maximum <strong>3 groupes automatiques par créneau</strong>.
       </p>
       <div class="summary-grid" id="summary"></div>
@@ -766,7 +767,7 @@ $("btn-repartir-eleves").addEventListener("click", async ()=>{
     PC.sauverAffectations(nouvelles);
     const statsEleves = PC.repartirElevesSemaineAuto(config, grilles, nouvelles, coffre);
     $("gen-status").textContent =
-      `${statsEleves.ajouts} affectation(s) d'élève et ${statsEleves.groupes} groupe(s) automatique(s) créés.`;
+      `${statsEleves.ajouts} affectation(s) d'élève · ${statsEleves.groupes} groupe(s) automatique(s) : ${statsEleves.groupesEnseignant || 0} enseignant, ${statsEleves.groupesAesh || 0} AESH, ${statsEleves.groupesAutonomie || 0} autonomie · journée jusqu'à 16 h 30.`;
     toast("Répartition des élèves terminée.");
   }catch(e){
     $("gen-status").textContent = "Erreur : " + (e.message || e);
