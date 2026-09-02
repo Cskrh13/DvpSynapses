@@ -1382,7 +1382,7 @@ function renderGroupeCard(g){
       chip.className="eleve-chip";
       chip.innerHTML=`${escapeHTML(labelEleve(id))} <button title="Retirer">✕</button>`;
       chip.querySelector("button").addEventListener("click",()=>{
-        g.eleves=g.eleves.filter(x=>x!==id); sauver(); renderChips();
+        g.eleves=g.eleves.filter(x=>x!==id); marquerPersonnalise(); sauver(); renderChips();
         card.querySelector('[data-role=add-eleve]').innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
       });
       chips.appendChild(chip);
@@ -1390,21 +1390,30 @@ function renderGroupeCard(g){
   }
   renderChips();
 
-  card.querySelector(".groupe-titre").addEventListener("change",e=>{g.titre=e.target.value;g.modifie=true;sauver();renderJour();});
-  card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;g.modifie=true;sauver();});
-  card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;g.modifie=true;sauver();});
+  // Marque le groupe comme touché à la main. Pour un groupe créé par la
+  // répartition automatique (repartitionAuto), on pose aussi `personnalise`
+  // : c'est ce second indicateur qui le protège désormais d'être supprimé
+  // et reconstruit au prochain clic sur « Répartir les élèves » — sans lui,
+  // la structure des groupes auto (niveaux, AESH, autonomie) est toujours
+  // recalculée à neuf à chaque exécution, seuls les groupes réellement
+  // personnalisés par l'enseignant restent intacts.
+  function marquerPersonnalise(){ g.modifie = true; if(g.repartitionAuto) g.personnalise = true; }
+
+  card.querySelector(".groupe-titre").addEventListener("change",e=>{g.titre=e.target.value;marquerPersonnalise();sauver();renderJour();});
+  card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;marquerPersonnalise();sauver();});
+  card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
   card.querySelector('[data-role=seance]').addEventListener("change",e=>{
     const item=sessionItems.find(x=>x.id===e.target.value);
-    if(!item){g.seanceRef=null;g.domaineCle="";g.modifie=true;sauver();renderJour();return;}
+    if(!item){g.seanceRef=null;g.domaineCle="";marquerPersonnalise();sauver();renderJour();return;}
     g.seanceRef={id:item.id,source:item.source,fichier:item.fichier||null};
     g.titre=item.titre||item.type||g.titre||"Séance";
     g.domaineCle=item._domaineCle||g.domaineCle||"";
     g.niveau=g.niveau||item._niveau||"";
-    g.modifie=true;sauver();renderJour();
+    marquerPersonnalise();sauver();renderJour();
   });
   card.querySelector('[data-role=add-eleve]').addEventListener("change",e=>{
-    const id=e.target.value;if(!id)return;g.eleves=g.eleves||[];if(!g.eleves.includes(id))g.eleves.push(id);sauver();renderChips();
+    const id=e.target.value;if(!id)return;g.eleves=g.eleves||[];if(!g.eleves.includes(id))g.eleves.push(id);marquerPersonnalise();sauver();renderChips();
     e.target.innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
   });
   card.querySelector('[data-role=del-groupe]').addEventListener("click",()=>{
