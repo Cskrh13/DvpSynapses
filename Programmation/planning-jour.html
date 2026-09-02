@@ -1436,7 +1436,13 @@ function genererPromptIA(){
   const out=$("prompt-ia"); if(!out)return;
   const map=new Map();
   if(coffreOuvert()) coffre.listerEleves().forEach(e=>map.set(e.identifiantSynapses,e));
-  const groupes=(jour&&jour.groupes?jour.groupes:[]).slice().sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+  // Les créneaux fixes (récréations, pause méridienne, etc.) ne sont pas
+  // des séances d'apprentissage et ne doivent pas apparaître dans le prompt
+  // destiné à préparer les devoirs.
+  const groupes=(jour&&jour.groupes?jour.groupes:[])
+    .filter(g=>!g.fixe && g._fixeType!=='recreation' && g._fixeType!=='pause')
+    .slice()
+    .sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
   const L=[];
   L.push("Tu es un enseignant du premier degré. Prépare des devoirs courts, réalistes et directement liés aux apprentissages travaillés aujourd'hui.");
   L.push(`Date : ${PC.formatDateLong(PC.parseISO(iso))}`);
