@@ -751,13 +751,21 @@ $("btn-generer").addEventListener("click", async ()=>{
   if(!config.classes.length){ toast("Créez au moins une classe."); return; }
   $("gen-status").textContent = "Génération en cours…";
   try{
+    // Génération unifiée : séquences/séances de classe sur les créneaux
+    // encore libres du cahier journal, reconstruction du cahier journal,
+    // puis groupes de besoin ULIS (élèves du coffre sans classe) sur les
+    // créneaux libres restants, selon le volume horaire BO n°44 du
+    // 26/11/2015. Cette étape écrase le cahier journal sur les créneaux
+    // qu'elle génère (jamais ceux modifiés à la main).
     const affectationsExistantes = PC.chargerAffectations();
-    const nouvelles = await PC.genererAffectations(config.classes, config, grilles, affectationsExistantes);
-    PC.sauverAffectations(nouvelles);
-    $("gen-status").textContent = "Planning généré. Consultez la page « Planning — Affichage ».";
+    const resultat = await PC.genererPlanningComplet(config, grilles, affectationsExistantes, coffre);
+    const u = resultat.ulis;
+    $("gen-status").textContent = (coffre && coffre.ouvert)
+      ? `Planning généré. ULIS : ${u.groupes} groupe(s) de besoin sur les créneaux libres (${u.ajouts} affectation(s) d'élève, ${u.eleves} élève(s) sans classe) — référentiel BO n°44 du 26/11/2015. Consultez « Planning — Affichage ».`
+      : "Planning généré (ouvrez le coffre pour générer aussi les groupes de besoin ULIS). Consultez « Planning — Affichage ».";
     toast("Planning généré avec succès.");
   }catch(e){
-    $("gen-status").textContent = "Erreur : " + e.message;
+    $("gen-status").textContent = "Erreur : " + (e.message || e);
   }
 });
 $("btn-repartir-eleves").addEventListener("click", async ()=>{
