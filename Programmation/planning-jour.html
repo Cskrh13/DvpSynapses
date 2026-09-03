@@ -1512,12 +1512,29 @@ async function genererDepuisGrille(silencieux){
 }
 $("btn-generer-jour").addEventListener("click", ()=> genererDepuisGrille(false));
 
-$("btn-repartir-eleves").addEventListener("click", ()=>{
+$("btn-repartir-eleves").addEventListener("click", async ()=>{
   if(!coffreOuvert()){ toast("Ouvrez le coffre pour répartir les élèves."); openModal('modal-coffre'); return; }
-  const journal = PC.chargerJournal();
-  jour = PC.journalPourDate(iso, journal);
-  PC.repartirElevesAuto(iso, jour, coffre);
-  toast("Répartition proposée — vérifiez et ajustez si besoin.");
+  // Toujours relire l'état le plus récent avant de générer.
+  config = PC.chargerConfig();
+  grilles = PC.chargerGrilles();
+  if(typeof PC.genererGroupesBesoinULIS !== "function"){
+    toast("Version de planning-core.js obsolète : rechargez la page (ou redéployez les fichiers).");
+    return;
+  }
+  try{
+    // 1) Groupes de besoin ULIS sur les créneaux libres (élèves du
+    // coffre, selon leur classe de référence) — écrase le cahier
+    // journal pour ces créneaux, référentiel BO n°44 du 26/11/2015.
+    const resultatUlis = PC.genererGroupesBesoinULIS(config, grilles, coffre);
+    // 2) Relit le jour affiché (potentiellement modifié ci-dessus) puis
+    // complète/ajuste manuellement les groupes de classe existants.
+    const journal = PC.chargerJournal();
+    jour = PC.journalPourDate(iso, journal);
+    PC.repartirElevesAuto(iso, jour, coffre);
+    toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) sur ${resultatUlis.jours} jour(s)) — vérifiez et ajustez si besoin.`);
+  }catch(e){
+    toast("Erreur lors de la répartition : " + (e.message || e));
+  }
   renderJour();
 });
 
