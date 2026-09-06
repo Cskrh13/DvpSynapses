@@ -219,10 +219,24 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     <!-- =============== CLASSES =============== -->
     <section class="card">
       <h2>Classes</h2>
-      <p class="hint">Créez ici une ou plusieurs classes (deux CE2 peuvent coexister sans partager ni récréation ni grille horaire). Chaque classe a son propre onglet dans « Grille horaire type » et dans « Planning — Affichage ».</p>
+      <p class="hint">Créez ici une ou plusieurs classes (deux CE2 peuvent coexister sans partager ni récréation ni grille horaire). Chaque classe a son propre onglet dans « Grille horaire type » et dans « Planning — Affichage ». Un <strong>dispositif</strong> (ULIS, SEGPA, RASED) se crée de la même façon qu'une classe, mais n'est pas rattaché à un niveau unique.</p>
       <div class="row">
+        <div class="field"><label>Type</label>
+          <select id="classe-type">
+            <option value="classe">Classe standard</option>
+            <option value="dispositif">Dispositif (ULIS / SEGPA / RASED)</option>
+          </select>
+        </div>
+        <div class="field" id="classe-dispositif-champ" style="display:none;">
+          <label>Dispositif</label>
+          <select id="classe-dispositif">
+            <option value="ULIS">ULIS</option>
+            <option value="SEGPA">SEGPA</option>
+            <option value="RASED">RASED</option>
+          </select>
+        </div>
+        <div class="field" id="classe-niveau-champ"><label>Niveau</label><select id="classe-niveau"></select></div>
         <div class="field"><label>Nom de la classe</label><input type="text" id="classe-nom" placeholder="Ex. : CE2 A" style="width:180px;"></div>
-        <div class="field"><label>Niveau</label><select id="classe-niveau"></select></div>
         <button class="btn primary" id="btn-add-classe">+ Créer la classe</button>
       </div>
       <div class="summary-grid" id="classes-list" style="margin-top:16px;"></div>
@@ -659,6 +673,21 @@ function renderClasseNiveauSelect(sel){
 }
 renderClasseNiveauSelect($("classe-niveau"));
 
+/* Bascule Classe standard / Dispositif (ULIS, SEGPA, RASED) dans le formulaire de création */
+function majFormeClasseSelonType(){
+  const estDispositif = $("classe-type").value === "dispositif";
+  $("classe-dispositif-champ").style.display = estDispositif ? "" : "none";
+  $("classe-niveau-champ").style.display = estDispositif ? "none" : "";
+  if(estDispositif && !$("classe-nom").value.trim()){
+    $("classe-nom").placeholder = $("classe-dispositif").value;
+  } else if(!estDispositif){
+    $("classe-nom").placeholder = "Ex. : CE2 A";
+  }
+}
+$("classe-type").addEventListener("change", majFormeClasseSelonType);
+$("classe-dispositif").addEventListener("change", majFormeClasseSelonType);
+majFormeClasseSelonType();
+
 function renderClasses(){
   const wrap = $("classes-list");
   wrap.innerHTML = "";
@@ -668,7 +697,7 @@ function renderClasses(){
     div.className = "classe-card";
     div.innerHTML = `
       <span class="swatch" style="background:${cl.couleur};"></span>
-      <div class="infos"><b>${cl.nom}</b><span class="niveau">${cl.niveau}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span></div>
+      <div class="infos"><b>${cl.nom}${cl.dispositif?' <span style="font-weight:600;font-size:10.5px;color:var(--navy);border:1px solid var(--navy);border-radius:10px;padding:1px 7px;margin-left:4px;">Dispositif '+cl.dispositif+'</span>':""}</b><span class="niveau">${cl.dispositif?"":cl.niveau}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span></div>
       <button class="btn sm danger" data-del-classe="${cl.id}">Supprimer</button>
     `;
     div.querySelector("[data-del-classe]").addEventListener("click", ()=>{
@@ -684,11 +713,14 @@ function renderClasses(){
   if(!wrap.children.length) wrap.innerHTML = '<div class="empty-hint">Aucune classe créée pour l\'instant.</div>';
 }
 $("btn-add-classe").addEventListener("click", ()=>{
-  const nom = $("classe-nom").value.trim();
+  const estDispositif = $("classe-type").value === "dispositif";
+  const dispositif = estDispositif ? $("classe-dispositif").value : null;
+  const nom = $("classe-nom").value.trim() || (estDispositif ? dispositif : "");
   if(!nom){ toast("Indiquez un nom de classe."); return; }
-  PC.creerClasse(config, nom, $("classe-niveau").value);
+  PC.creerClasse(config, nom, estDispositif ? "" : $("classe-niveau").value, dispositif);
   PC.sauverConfig(config);
   $("classe-nom").value = "";
+  majFormeClasseSelonType();
   renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
   if(typeof renderAffectationTab === "function") renderAffectationTab();
 });
