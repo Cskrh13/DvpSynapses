@@ -281,6 +281,21 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
       <h2>Grille horaire type (hebdomadaire)</h2>
       <p class="hint">Définissez, pour chaque classe, les créneaux du lundi au vendredi : séances (rattachées à un domaine — remplies automatiquement à la génération), récréations, pauses ou autres rituels. Cette grille se répète sur toutes les semaines de classe.</p>
       <div class="niveau-tabs" id="grille-classe-tabs"></div>
+
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span class="hint" style="margin:0;">Classe affichée : <strong id="grille-classe-nom-actions">—</strong></span>
+        <div class="row" style="gap:8px;">
+          <button class="btn danger" id="btn-reset-grille">🗑️ Réinitialiser l'emploi du temps</button>
+          <div class="field" style="min-width:190px;">
+            <select id="grille-telecharger-format">
+              <option value="">⬇ Télécharger…</option>
+              <option value="doc">Word (.doc)</option>
+              <option value="pdf">PDF (.pdf)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div id="grille-body"></div>
 
       <div class="ia-atelier">
@@ -308,6 +323,7 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
         </div>
         <p class="hint" style="margin-top:10px;">
           Chaque ligne reconnue crée ou met à jour un créneau (jour + heure de début identiques). Le titre saisi ou récupéré est toujours ajouté <strong>sous forme de texte</strong> dans le créneau : vous pouvez le modifier librement ensuite, comme n'importe quel créneau rempli à la main.
+          <strong>Ce texte prime toujours</strong> sur les séances déjà existantes dans la banque (fichiers ou « Séquences &amp; séances ») : rien n'est réassigné automatiquement à une séance existante, ni ici ni lors de la génération du planning. C'est volontairement à vous de décider, ensuite, si un créneau doit être relié à une séquence/séance précise — l'outil ne le fait jamais à votre place.
         </p>
       </div>
     </section>
@@ -389,6 +405,8 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="../fata-morgana/synapses-crypto.js"></script>
 <script src="../fata-morgana/synapses-coffre.js"></script>
 <script src="planning-core.js"></script>
@@ -722,6 +740,7 @@ function renderGrilleTabs(){
   });
   renderGrilleBody();
   if(typeof refreshIaAtelier === "function") refreshIaAtelier();
+  if(typeof refreshGrilleClasseNomActions === "function") refreshGrilleClasseNomActions();
 }
 
 function domainesDisponibles(classeId){
@@ -825,6 +844,156 @@ function renderCreneauRow(c, domaines){
   });
   return row;
 }
+
+/* ---------------- Réinitialisation de l'emploi du temps d'une classe ---------------- */
+
+function refreshGrilleClasseNomActions(){
+  const cl = PC.classeById(config, grilleClasseCourant);
+  $("grille-classe-nom-actions").textContent = cl ? cl.nom : "—";
+}
+
+$("btn-reset-grille").addEventListener("click", ()=>{
+  if(!grilleClasseCourant){ toast("Sélectionnez d'abord une classe."); return; }
+  const cl = PC.classeById(config, grilleClasseCourant);
+  const nom = cl ? cl.nom : "cette classe";
+  const confirme = confirm(
+    `Réinitialiser l'emploi du temps de « ${nom} » ?\n\n` +
+    "Tous les créneaux de cette classe seront supprimés (séances, titres saisis ou importés, récréations, pauses, autres rituels).\n" +
+    "Seules les informations de la configuration générale (jours travaillés, récréations et pauses définies dans « Jours travaillés & horaires fixes ») seront remises en place automatiquement.\n\n" +
+    "Cette action est irréversible."
+  );
+  if(!confirme) return;
+  grilles[grilleClasseCourant] = [];
+  PC.appliquerCreneauxFixes(config, grilles, [grilleClasseCourant]);
+  PC.sauverGrilles(grilles);
+  renderGrilleBody();
+  if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
+  toast(`Emploi du temps de « ${nom} » réinitialisé.`);
+});
+
+/* ---------------- Téléchargement de l'emploi du temps (Word / PDF) ---------------- */
+
+function slugify(str){
+  return (str||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,60) || "classe";
+}
+function escapeHTMLTexte(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function libelleCreneauExport(c, domaines){
+  if(c.type === "seance"){
+    const dom = domaines.find(d=>d.cle===c.domaineCle);
+    const domLabel = dom ? dom.label : (c.domaineCle || "Séance");
+    const titre = (c.titre||"").trim();
+    return titre ? `${domLabel} — ${titre}` : domLabel;
+  }
+  const libelle = (c.libelle && c.libelle.trim()) ? c.libelle.trim() : null;
+  const typeLabel = (PC.TYPES_CRENEAU[c.type] || {}).label || c.type;
+  return libelle || typeLabel;
+}
+
+// [ [jourNom, "HH:MM–HH:MM", texte], ... ], uniquement pour les jours
+// travaillés (config générale), un jour sans créneau reste visible avec
+// une ligne "Aucun créneau" plutôt que de disparaître silencieusement.
+function construireLignesGrillePourExport(classeId){
+  const domaines = domainesDisponibles(classeId);
+  const joursActifs = (config.joursTravailles && config.joursTravailles.length) ? config.joursTravailles.map(Number) : [1,2,3,4,5];
+  const grille = grilles[classeId] || [];
+  const lignes = [];
+  PC.JOURS.filter(j=>joursActifs.includes(j.n)).forEach(j=>{
+    const creneaux = grille.filter(c=>c.jour===j.n).sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+    if(!creneaux.length){ lignes.push([j.nom, "—", "Aucun créneau"]); return; }
+    creneaux.forEach(c=> lignes.push([j.nom, `${c.debut}–${c.fin}`, libelleCreneauExport(c, domaines)]));
+  });
+  return lignes;
+}
+
+function telechargerGrillePDF(classeId){
+  const cl = PC.classeById(config, classeId);
+  if(!cl) return;
+  if(!(window.jspdf && window.jspdf.jsPDF)){
+    alert("La bibliothèque PDF (jsPDF) n'a pas pu être chargée (connexion internet nécessaire au premier chargement de la page). Réessayez, ou choisissez le format Word.");
+    return;
+  }
+  const JsPDF = window.jspdf.jsPDF;
+  const doc = new JsPDF({ unit:"pt", format:"a4", orientation:"portrait" });
+  const navy = [30,42,74], accent = [46,94,170], line = [222,219,210], inkSoft = [91,95,107];
+
+  doc.setFillColor(navy[0],navy[1],navy[2]);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 58, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text("Emploi du temps — " + cl.nom, 36, 34);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10);
+  doc.text("Niveau " + cl.niveau, 36, 49);
+
+  const lignes = construireLignesGrillePourExport(classeId);
+  doc.autoTable({
+    startY: 72,
+    head: [["Jour","Horaire","Séance / créneau"]],
+    body: lignes,
+    theme: "grid",
+    styles: { font:"helvetica", fontSize:9.5, cellPadding:6, textColor:[32,36,46], lineColor: line, lineWidth:0.5 },
+    headStyles: { fillColor: accent, textColor:255, fontStyle:"bold" },
+    columnStyles: { 0:{cellWidth:78}, 1:{cellWidth:88} },
+    didParseCell: (data)=>{
+      if(data.section==="body" && data.column.index===2 && data.cell.raw==="Aucun créneau"){
+        data.cell.styles.textColor = inkSoft;
+        data.cell.styles.fontStyle = "italic";
+      }
+    }
+  });
+
+  doc.save(slugify(cl.nom) + "-emploi-du-temps.pdf");
+}
+
+function telechargerGrilleDoc(classeId){
+  const cl = PC.classeById(config, classeId);
+  if(!cl) return;
+  const lignes = construireLignesGrillePourExport(classeId);
+  const rowsHTML = lignes.map(([jour,horaire,texte])=>
+    `<tr>
+      <td style="padding:5px 9px;border:1px solid #DEDBD2;">${escapeHTMLTexte(jour)}</td>
+      <td style="padding:5px 9px;border:1px solid #DEDBD2;">${escapeHTMLTexte(horaire)}</td>
+      <td style="padding:5px 9px;border:1px solid #DEDBD2;${texte==="Aucun créneau"?"color:#5B5F6B;font-style:italic;":""}">${escapeHTMLTexte(texte)}</td>
+    </tr>`
+  ).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{font-family:Calibri,Arial,sans-serif;color:#20242E;}
+  h1{font-size:20px;color:#1E2A4A;margin-bottom:2px;}
+  p.sub{color:#5B5F6B;margin-top:0;font-size:12px;}
+  table{border-collapse:collapse;width:100%;margin-top:14px;}
+  th{background:#1E2A4A;color:#fff;padding:6px 9px;text-align:left;font-size:12px;}
+  td{font-size:12px;}
+</style></head>
+<body>
+  <h1>Emploi du temps — ${escapeHTMLTexte(cl.nom)}</h1>
+  <p class="sub">Niveau ${escapeHTMLTexte(cl.niveau)} — généré depuis Synapses, Grand Planificateur pédagogique.</p>
+  <table>
+    <thead><tr><th>Jour</th><th>Horaire</th><th>Séance / créneau</th></tr></thead>
+    <tbody>${rowsHTML}</tbody>
+  </table>
+</body></html>`;
+
+  const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = slugify(cl.nom) + "-emploi-du-temps.doc";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("grille-telecharger-format").addEventListener("change", (e)=>{
+  const format = e.target.value;
+  e.target.value = "";
+  if(!format) return;
+  if(!grilleClasseCourant){ toast("Sélectionnez d'abord une classe."); return; }
+  if(format === "pdf") telechargerGrillePDF(grilleClasseCourant);
+  else if(format === "doc") telechargerGrilleDoc(grilleClasseCourant);
+  toast("Téléchargement lancé.");
+});
 
 /* ---------------- Atelier IA : import d'un emploi du temps ---------------- */
 
