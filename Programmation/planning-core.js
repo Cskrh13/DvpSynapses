@@ -577,6 +577,11 @@
 
   }
 
+  /** Deux plages [aDebut,aFin) et [bDebut,bFin) (en minutes) se chevauchent-elles ? */
+  function chevaucheMin(aDebut, aFin, bDebut, bFin) {
+    return aDebut < bFin && bDebut < aFin;
+  }
+
 
   // ========================================================================
   // CHARGEMENT DES JSON
@@ -1283,6 +1288,10 @@
 
   function classeById(config, classeId) {
     return (config.classes || []).find(c => c.id === classeId) || null;
+  }
+
+  function dispositifById(config, dispositifId) {
+    return (config.dispositifs || []).find(d => d.id === dispositifId) || null;
   }
 
   /** Identifiants des classes concernées par un service (récréation/pause) :
@@ -3755,6 +3764,7 @@
     formatDateLong,
     formatDateShort,
     heureVersMin,
+    chevaucheMin,
 
     // Banque
     chargerBanque,
@@ -3774,6 +3784,7 @@
     creerClasse,
     supprimerClasse,
     classeById,
+    dispositifById,
     classesDuService,
 
     // Grilles
