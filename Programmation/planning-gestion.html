@@ -1277,8 +1277,8 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
     if(jourN===null || !debut || !fin){ ignores++; return; }
 
     const type = ["seance","recreation","pause","autre"].includes(l.type) ? l.type : typeCreneauDepuisMatiere(l.nom);
-    const domaineCle = type==="seance" ? trouverDomaineCle(grilleClasseCourant, nom) : "";
     const nom = (l.nom || "").trim();
+    const domaineCle = type==="seance" ? trouverDomaineCle(grilleClasseCourant, nom) : "";
 
     const existant = grilles[grilleClasseCourant].find(c=> c.jour===jourN && c.debut===debut);
     if(existant){
