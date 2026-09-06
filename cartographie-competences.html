@@ -79,10 +79,10 @@ header.site-header{position:relative;z-index:20;flex:0 0 auto;background:var(--n
 .navrow{margin:7px 0;font-size:12px;color:var(--ink-soft);line-height:1.45}
 
 /* ===== Barre de zoom / navigation caméra ===== */
-.bottom{position:absolute;z-index:12;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(24,40,55,.1);backdrop-filter:blur(8px)}
-.bottom button{font-size:16px;line-height:1;padding:8px 11px;border:0;background:transparent;border-radius:999px;color:var(--ink-soft);cursor:pointer}
-.bottom button:hover{background:#eef1f4;color:var(--ink)}
-.bottom button.active{background:var(--accent-sky);color:#fff}
+.zoombar{position:absolute;z-index:12;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(24,40,55,.1);backdrop-filter:blur(8px)}
+.zoombar button{font-size:16px;line-height:1;padding:8px 11px;border:0;background:transparent;border-radius:999px;color:var(--ink-soft);cursor:pointer}
+.zoombar button:hover{background:#eef1f4;color:var(--ink)}
+.zoombar button.active{background:var(--accent-sky);color:#fff}
 #zoomRange{width:120px;accent-color:var(--accent-sky)}
 #relationMenu{position:absolute;z-index:13;left:50%;bottom:66px;transform:translateX(-50%);display:none;gap:6px;padding:6px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.96);box-shadow:0 8px 24px rgba(24,40,55,.12);backdrop-filter:blur(8px)}
 #relationMenu.open{display:flex}
@@ -125,7 +125,7 @@ header.site-header{position:relative;z-index:20;flex:0 0 auto;background:var(--n
   .toolbar{padding:12px 14px 14px}
   .tb-label{min-width:auto;width:100%}
   #legend{right:12px;bottom:70px;width:180px}
-  .bottom{bottom:8px}
+  .zoombar{bottom:8px}
   #panel{right:8px;top:8px;width:calc(100vw - 16px)}
 }
 </style>
@@ -178,7 +178,7 @@ header.site-header{position:relative;z-index:20;flex:0 0 auto;background:var(--n
 <button id="showAncestors">Chemin des antécédents</button>
 <button id="clearRelations">Effacer</button>
 </div>
-<div class="bottom">
+<div class="zoombar">
   <button id="home" title="Recentrer">⌂</button>
   <button id="minus" title="Zoom arrière">−</button>
   <input id="zoomRange" type="range" min="0.015" max="2.4" step="0.005" value="0.015" aria-label="Zoom">
