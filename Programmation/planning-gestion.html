@@ -796,9 +796,42 @@ $("btn-charger-eleves-classe").addEventListener("click", ()=>{
   const classeId = $("classe-cible-eleves").value;
   if(!classeId){ toast("Créez une classe d'abord."); return; }
   const cl = PC.classeById(config, classeId);
-  const eleves = (coffre.donnees.eleves||[]).filter(e=> (e.classe||"").toLowerCase() === (cl.nom||"").toLowerCase() || (e.classe||"").toLowerCase() === (cl.niveau||"").toLowerCase());
-  const aCharger = eleves.length ? eleves : (coffre.donnees.eleves||[]); // à défaut de correspondance de classe, propose toute la liste
-  elevesParClasse[classeId] = aCharger.map(e=>({ identifiantSynapses: e.identifiantSynapses, nom: (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses }));
+  if(!cl){ toast("Classe introuvable."); return; }
+
+  // IMPORTANT : la classe de référence de l'élève est lue via l'API du coffre,
+  // comme dans coffre.html / synapses-coffre.js. On ne lit pas directement une
+  // autre source de données et surtout on ne prend JAMAIS tous les élèves en
+  // secours si aucune correspondance n'est trouvée.
+  const elevesDuCoffre = coffre.listerEleves();
+  const normaliserClasse = (v) => String(v ?? "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  const nomClasse = normaliserClasse(cl.nom);
+  const niveauClasse = normaliserClasse(cl.niveau);
+  const eleves = elevesDuCoffre.filter(e=>{
+    // synapses-coffre.listerEleves() expose la classe de référence sous e.classe.
+    // On conserve aussi e.identite.classe pour la compatibilité avec d'anciens
+    // coffres dans lesquels cette information pouvait être recopiée dans identité.
+    const classeEleve = normaliserClasse(e.classe || (e.identite && e.identite.classe));
+    return classeEleve && (classeEleve === nomClasse || (niveauClasse && classeEleve === niveauClasse));
+  });
+
+  // Aucune correspondance = aucun élève chargé. Il ne faut surtout pas
+  // transformer l'absence de classe renseignée en affectation à la classe.
+  elevesParClasse[classeId] = eleves.map(e=>({
+    identifiantSynapses: e.identifiantSynapses,
+    nom: (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses
+  }));
+  if(!eleves.length){
+    renderClasses();
+    renderClasseElevesListe();
+    if(typeof renderAffgGrille === "function" && $("affg-classe").value === classeId) renderAffgGrille();
+    toast("Aucun élève du coffre n'est affecté à « " + cl.nom + " ». Aucun élève n'a été chargé.");
+    return;
+  }
   renderClasses();
   renderClasseElevesListe();
   if(typeof renderAffgGrille === "function" && $("affg-classe").value === classeId) renderAffgGrille();
