@@ -1227,11 +1227,12 @@
     return config.classes || [];
   }
 
-  function creerClasse(config, nom, niveau) {
+  function creerClasse(config, nom, niveau, dispositif) {
     const cl = {
       id: uid("cls"),
-      nom: (nom || niveau || "Classe").trim(),
+      nom: (nom || niveau || dispositif || "Classe").trim(),
       niveau: niveau || "",
+      dispositif: dispositif || null, // "ULIS" | "SEGPA" | "RASED" | null (classe standard)
       couleur: PALETTE_CLASSES[config.classes.length % PALETTE_CLASSES.length]
     };
     config.classes.push(cl);
