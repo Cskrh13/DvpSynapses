@@ -2040,6 +2040,72 @@
         }
       });
 
+      // 1 bis) Scission d'un groupe unique en groupes de besoin.
+      // Le cas le plus courant est celui d'un seul groupe de travail sur le
+      // créneau (ex. une classe entière en français) : sans cela, tous les
+      // élèves y seraient replacés tels quels et « Répartir les élèves » ne
+      // ferait jamais que reproduire le cahier journal existant. On scinde
+      // donc ce groupe unique en 2 ou 3 groupes de besoin (même contenu
+      // pédagogique, niveaux/besoins différenciés), à condition qu'il reste
+      // au moins deux élèves à placer sur ce créneau.
+      if (travail.length === 1) {
+        const modele = travail[0];
+        const restantsAScinder = eleves.filter(e => !places.has(e.identifiantSynapses));
+        if (restantsAScinder.length > 1) {
+          const cible = norm(String(modele.domaineCle || "") + " " + String(modele.titre || ""));
+          const estFrancaisG = /franc|lecture|ecriture|oral|comprehension/.test(cible);
+          const estMathsG = /math|nombre|calcul|grandeur|geometr/.test(cible);
+          const clusters = new Map();
+          restantsAScinder.forEach(e => {
+            const niv = estFrancaisG ? niveauEquivalentSujet(e, "francais")
+              : estMathsG ? niveauEquivalentSujet(e, "mathematiques")
+              : niveauEleve(e);
+            const cle = niv || "?";
+            if (!clusters.has(cle)) clusters.set(cle, []);
+            clusters.get(cle).push(e);
+          });
+
+          let cles = Array.from(clusters.keys());
+          if (cles.length > 1) {
+            // Au-delà de 3 groupes de besoin distincts, on fusionne les plus
+            // petits ensemble pour respecter la limite de 3 groupes simultanés.
+            if (cles.length > 3) {
+              cles.sort((a, b) => clusters.get(b).length - clusters.get(a).length);
+              const gardees = cles.slice(0, 2);
+              const reste = cles.slice(2);
+              const fusion = [];
+              reste.forEach(c => fusion.push(...clusters.get(c)));
+              clusters.set("mixte", fusion);
+              cles = gardees.concat(["mixte"]);
+            }
+
+            const nouveaux = cles.map((cle, i) => Object.assign({}, modele, {
+              id: uid("grp"),
+              titre: modele.titre + (cle && cle !== "mixte" && cle !== "?" ? " — " + cle.toUpperCase() : " — Groupe " + (i + 1)),
+              eleves: [],
+              adulte: i === 0 ? modele.adulte : { type: "enseignant", nom: "" },
+              origine: i === 0 ? modele.origine : null,
+              modifie: true,
+              repartitionAuto: true,
+              personnalise: false
+            }));
+
+            cles.forEach((cle, i) => {
+              const g = nouveaux[i];
+              clusters.get(cle).forEach(e => {
+                g.eleves.push(e.identifiantSynapses);
+                places.set(e.identifiantSynapses, g.id);
+              });
+            });
+
+            const idx = journalJour.groupes.indexOf(modele);
+            if (idx !== -1) journalJour.groupes.splice(idx, 1, ...nouveaux);
+            travail.length = 0;
+            nouveaux.forEach(g => travail.push(g));
+          }
+        }
+      }
+
       // 2) Jusqu'à 3 groupes de travail. Si plus de 3 groupes existent dans
       // les données historiques, on choisit les trois groupes couvrant le
       // mieux les besoins/niveaux des élèves restant à placer.
