@@ -130,6 +130,24 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     font-weight: 600;
     letter-spacing: .04em;
 }
+
+/* ---- Affectation : grille créneaux × élèves ---- */
+.affg-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);}
+table.affg{border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
+table.affg th,table.affg td{padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px dashed var(--line);}
+table.affg thead th{background:var(--panel-raised);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:2;}
+table.affg td.affg-creneau,table.affg th.affg-creneau-head{
+  position:sticky;left:0;background:#fff;z-index:1;text-align:left;min-width:230px;max-width:320px;white-space:normal;
+  box-shadow:2px 0 0 var(--line);
+}
+table.affg thead th.affg-creneau-head{z-index:3;}
+table.affg td.affg-eleve-cell{text-align:center;}
+table.affg .affg-jour-sep td{border-top:2px solid var(--navy);}
+table.affg .affg-jour-label{font-weight:700;color:var(--navy);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px;}
+table.affg .affg-horaire{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
+table.affg .affg-libelle{margin-top:1px;}
+table.affg input[type="checkbox"]{width:16px;height:16px;cursor:pointer;}
+table.affg td.affg-eleve-cell.exclu{background:#FBEEE9;}
 </style>
 </head>
 <body>
@@ -219,24 +237,10 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     <!-- =============== CLASSES =============== -->
     <section class="card">
       <h2>Classes</h2>
-      <p class="hint">Créez ici une ou plusieurs classes (deux CE2 peuvent coexister sans partager ni récréation ni grille horaire). Chaque classe a son propre onglet dans « Grille horaire type » et dans « Planning — Affichage ». Un <strong>dispositif</strong> (ULIS, SEGPA, RASED) se crée de la même façon qu'une classe, mais n'est pas rattaché à un niveau unique.</p>
+      <p class="hint">Créez ici une ou plusieurs classes (deux CE2 peuvent coexister sans partager ni récréation ni grille horaire). Chaque classe a son propre onglet dans « Grille horaire type » et dans « Planning — Affichage ».</p>
       <div class="row">
-        <div class="field"><label>Type</label>
-          <select id="classe-type">
-            <option value="classe">Classe standard</option>
-            <option value="dispositif">Dispositif (ULIS / SEGPA / RASED)</option>
-          </select>
-        </div>
-        <div class="field" id="classe-dispositif-champ" style="display:none;">
-          <label>Dispositif</label>
-          <select id="classe-dispositif">
-            <option value="ULIS">ULIS</option>
-            <option value="SEGPA">SEGPA</option>
-            <option value="RASED">RASED</option>
-          </select>
-        </div>
-        <div class="field" id="classe-niveau-champ"><label>Niveau</label><select id="classe-niveau"></select></div>
         <div class="field"><label>Nom de la classe</label><input type="text" id="classe-nom" placeholder="Ex. : CE2 A" style="width:180px;"></div>
+        <div class="field"><label>Niveau</label><select id="classe-niveau"></select></div>
         <button class="btn primary" id="btn-add-classe">+ Créer la classe</button>
       </div>
       <div class="summary-grid" id="classes-list" style="margin-top:16px;"></div>
@@ -345,9 +349,20 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 
   <!-- =============== ONGLET : AFFECTATION =============== -->
   <div class="tab-panel" id="tab-affectation">
+
     <section class="card">
-      <h2>Affecter un élève à un créneau de classe</h2>
-      <p class="hint">Rattache un élève du coffre à un créneau précis (récurrent, chaque semaine) d'une classe — par exemple une inclusion partielle en classe ordinaire. Cette affectation est enregistrée en mémoire et <strong>empêche la génération automatique</strong> (bouton « Générer » / « Répartir les élèves ») de proposer à nouveau cet élève sur ce même créneau : aucun doublon.</p>
+      <h2>Affectation des élèves de la classe, créneau par créneau</h2>
+      <p class="hint">Reprend tous les créneaux de la grille horaire type de la classe (séances, récréations, pauses, autres rituels). Chaque colonne est un élève réellement chargé depuis le coffre dans cette classe (onglet « Configuration générale » → « Charger les élèves du coffre dans une classe »). <strong>Par défaut, tous les élèves sont affectés à tous les créneaux</strong> : c'est à vous de décocher un élève sur un créneau précis pour l'en retirer (sortie, groupe de besoin ailleurs, décloisonnement…). Rien n'est jamais écrit sur le disque avec le nom des élèves : seuls des identifiants Synapses sont mémorisés pour les décochages.</p>
+      <div class="row" style="margin-bottom:14px;">
+        <div class="field"><label>Classe</label><select id="affg-classe"></select></div>
+      </div>
+      <div id="affg-sans-coffre" class="empty-hint" style="display:none;"></div>
+      <div id="affg-wrap"></div>
+    </section>
+
+    <section class="card">
+      <h2>Inclusion ponctuelle d'un élève extérieur à la classe</h2>
+      <p class="hint">Rattache un élève du coffre (qui n'est pas dans la liste ci-dessus, par exemple un élève ULIS en inclusion partielle) à un créneau précis (récurrent, chaque semaine) de cette classe. Cette affectation est enregistrée en mémoire et <strong>empêche la génération automatique</strong> (bouton « Générer » / « Répartir les élèves ») de proposer à nouveau cet élève sur ce même créneau : aucun doublon.</p>
       <div id="affectation-sans-coffre" class="empty-hint" style="display:none;">Ouvrez le coffre pour choisir un élève à affecter.</div>
       <div id="affectation-form-bloc">
         <div class="row">
@@ -450,7 +465,6 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
 let banque = {}; // rempli au chargement
-let domainesSocle = []; // catalogue générique des domaines du socle (competences.json), rempli au chargement
 let grilleClasseCourant = null;
 
 /* ---------------- Onglets ---------------- */
@@ -491,6 +505,7 @@ function majEtatCoffre(){
   $("classe-eleves-bloc").style.display = ouvert ? "" : "none";
   if(ouvert) renderClasseElevesSelect();
   if(typeof renderAffectationEleveSelect === "function"){ renderAffectationEleveSelect(); renderAffectationListe(); }
+  if(typeof renderAffgGrille === "function") renderAffgGrille();
 }
 $("btn-coffre-ouvrir").addEventListener("click", ()=>{
   if(!coffreDisponible){ toast("Le coffre est indisponible : synapses-coffre.js n'a pas pu être chargé."); return; }
@@ -674,21 +689,6 @@ function renderClasseNiveauSelect(sel){
 }
 renderClasseNiveauSelect($("classe-niveau"));
 
-/* Bascule Classe standard / Dispositif (ULIS, SEGPA, RASED) dans le formulaire de création */
-function majFormeClasseSelonType(){
-  const estDispositif = $("classe-type").value === "dispositif";
-  $("classe-dispositif-champ").style.display = estDispositif ? "" : "none";
-  $("classe-niveau-champ").style.display = estDispositif ? "none" : "";
-  if(estDispositif && !$("classe-nom").value.trim()){
-    $("classe-nom").placeholder = $("classe-dispositif").value;
-  } else if(!estDispositif){
-    $("classe-nom").placeholder = "Ex. : CE2 A";
-  }
-}
-$("classe-type").addEventListener("change", majFormeClasseSelonType);
-$("classe-dispositif").addEventListener("change", majFormeClasseSelonType);
-majFormeClasseSelonType();
-
 function renderClasses(){
   const wrap = $("classes-list");
   wrap.innerHTML = "";
@@ -698,7 +698,7 @@ function renderClasses(){
     div.className = "classe-card";
     div.innerHTML = `
       <span class="swatch" style="background:${cl.couleur};"></span>
-      <div class="infos"><b>${cl.nom}${cl.dispositif?' <span style="font-weight:600;font-size:10.5px;color:var(--navy);border:1px solid var(--navy);border-radius:10px;padding:1px 7px;margin-left:4px;">Dispositif '+cl.dispositif+'</span>':""}</b><span class="niveau">${cl.dispositif?"":cl.niveau}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span></div>
+      <div class="infos"><b>${cl.nom}</b><span class="niveau">${cl.niveau}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span></div>
       <button class="btn sm danger" data-del-classe="${cl.id}">Supprimer</button>
     `;
     div.querySelector("[data-del-classe]").addEventListener("click", ()=>{
@@ -714,14 +714,11 @@ function renderClasses(){
   if(!wrap.children.length) wrap.innerHTML = '<div class="empty-hint">Aucune classe créée pour l\'instant.</div>';
 }
 $("btn-add-classe").addEventListener("click", ()=>{
-  const estDispositif = $("classe-type").value === "dispositif";
-  const dispositif = estDispositif ? $("classe-dispositif").value : null;
-  const nom = $("classe-nom").value.trim() || (estDispositif ? dispositif : "");
+  const nom = $("classe-nom").value.trim();
   if(!nom){ toast("Indiquez un nom de classe."); return; }
-  PC.creerClasse(config, nom, estDispositif ? "" : $("classe-niveau").value, dispositif);
+  PC.creerClasse(config, nom, $("classe-niveau").value);
   PC.sauverConfig(config);
   $("classe-nom").value = "";
-  majFormeClasseSelonType();
   renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
   if(typeof renderAffectationTab === "function") renderAffectationTab();
 });
@@ -741,6 +738,7 @@ $("btn-charger-eleves-classe").addEventListener("click", ()=>{
   elevesParClasse[classeId] = aCharger.map(e=>({ identifiantSynapses: e.identifiantSynapses, nom: (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses }));
   renderClasses();
   renderClasseElevesListe();
+  if(typeof renderAffgGrille === "function" && $("affg-classe").value === classeId) renderAffgGrille();
   toast(elevesParClasse[classeId].length + " élève(s) chargé(s) dans « " + cl.nom + " » (en mémoire uniquement).");
 });
 function renderClasseElevesListe(){
@@ -776,52 +774,10 @@ function renderGrilleTabs(){
   if(typeof refreshGrilleClasseNomActions === "function") refreshGrilleClasseNomActions();
 }
 
-// Liste des domaines proposés dans la grille horaire (colonne « Nom »).
-// Toujours construite à partir du catalogue générique du socle
-// (Programmation/data/competences.json) : un domaine (« Lecture »,
-// « Grammaire et orthographe », « Histoire »…) doit rester sélectionnable
-// même si aucune séance n'existe encore pour lui. Quand une banque de
-// séances existe déjà pour ce domaine (index.json), on réutilise sa clé
-// composée ("discipline::domaine") pour ne rien casser de la génération
-// automatique et de l'affichage ; sinon on retombe sur l'identifiant brut
-// du domaine (ex. "lecture"), reconnaissable et stable.
 function domainesDisponibles(classeId){
   const cl = PC.classeById(config, classeId);
   const parNiveau = (cl && banque[cl.niveau]) || {};
-
-  // Clés déjà connues dans la banque de séances de ce niveau, indexées par
-  // identifiant de domaine (partie après "::", ou clé entière si pas de "::").
-  const banqueParDomaineId = {};
-  Object.entries(parNiveau).forEach(([cle, b])=>{
-    const idDom = cle.includes("::") ? cle.split("::").pop() : cle;
-    banqueParDomaineId[idDom] = { cle, label: b.label, count: b.items.length };
-  });
-
-  const dejaVus = new Set();
-  const liste = [];
-
-  // 1) Le catalogue générique du socle en premier : toujours complet,
-  //    indépendamment des séances déjà écrites.
-  domainesSocle.forEach(d=>{
-    const trouve = banqueParDomaineId[d.id];
-    const label = d.discipline ? `${d.discipline} — ${d.nom}` : d.nom;
-    liste.push({
-      cle: trouve ? trouve.cle : d.id,
-      label: trouve ? trouve.label : label,
-      count: trouve ? trouve.count : 0
-    });
-    dejaVus.add(trouve ? trouve.cle : d.id);
-  });
-
-  // 2) Domaines présents dans la banque mais absents du catalogue générique
-  //    (compatibilité : rien n'est jamais perdu).
-  Object.entries(parNiveau).forEach(([cle,b])=>{
-    if(dejaVus.has(cle)) return;
-    liste.push({ cle, label: b.label, count: b.items.length });
-    dejaVus.add(cle);
-  });
-
-  return liste;
+  return Object.entries(parNiveau).map(([cle,b])=>({cle,label:b.label,count:b.items.length}));
 }
 
 // Titres des séances déjà existantes dans la banque pour un domaine donné
@@ -1076,18 +1032,9 @@ function genererPromptIa(){
   const cl = PC.classeById(config, grilleClasseCourant);
   if(!cl) return "Créez et sélectionnez d'abord une classe.";
   const domaines = domainesDisponibles(grilleClasseCourant);
-  // On ne montre à l'IA que le nom du domaine (partie après le tiret), sans le
-  // préfixe de discipline : c'est cette forme courte, la plus proche de ce
-  // qu'on lit sur un emploi du temps papier, qu'on lui demande de renvoyer.
-  const nomsDomaines = domaines.map(d=>{
-    const parties = d.label.split(" — ");
-    return parties.length > 1 ? parties.slice(1).join(" — ") : d.label;
-  });
-  const nomsUniques = [...new Set(nomsDomaines)];
-  const domainesTxt = nomsUniques.length
-    ? nomsUniques.map(n=>`- ${n}`).join("\n")
-    : "- (aucun domaine chargé pour l'instant — indique simplement la matière telle qu'elle apparaît sur le document)";
-  const exempleDomaine = nomsUniques[0] || "Lecture";
+  const domainesTxt = domaines.length
+    ? domaines.map(d=>`- ${d.label}`).join("\n")
+    : "- (aucun domaine chargé pour l'instant — indiquez simplement la matière telle qu'elle apparaît sur le document)";
   return (
 `Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (fichier Excel, PDF, Word, ou photo/scan d'un emploi du temps papier).
 
@@ -1100,21 +1047,14 @@ Analyse le document joint et renvoie UNIQUEMENT un tableau JSON (rien d'autre, p
   {"jour":"Lundi","debut":"09:45","fin":"10:00","matiere":"Récréation","titre":""}
 ]
 
-Règles, dans cet ordre de priorité :
-
-1. "matiere" est OBLIGATOIRE et doit être rempli EN PREMIER, avant même de chercher un titre. C'est le nom du domaine générique du socle correspondant au créneau — jamais un titre de séance précis. Choisis-le dans la liste ci-dessous en le recopiant tel quel, sans le reformuler ni le raccourcir :
+Règles :
+- "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
+- "debut" et "fin" sont au format HH:MM (24h).
+- "matiere" est le nom du domaine/de la matière tel qu'il figure sur le document (par exemple : ${domaines.length? domaines[0].label : "Lecture"}). Utilise si possible l'un des domaines suivants, en les reformulant le moins possible :
 ${domainesTxt}
-   Si le document utilise un intitulé différent mais reconnaissable (ex. "Maths" au lieu de "Mathématiques"), rapproche-toi du nom le plus proche de cette liste. Si vraiment aucun ne correspond, recopie l'intitulé exact du document.
-
-2. "titre" est OPTIONNEL et vient TOUJOURS après "matiere" : ce n'est le titre précis de LA séance (ex. « Séance 3 — entraînement à la fluence », « La monnaie », « Le passé composé ») que si le document l'indique explicitement à côté ou en dessous du nom de la matière. Ne déduis, n'invente et ne complète jamais un titre à partir du seul nom de la matière : par exemple, pour la matière "${exempleDomaine}" sans autre précision sur le document, laisse "titre" en chaîne vide ("").
-
-3. "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
-
-4. "debut" et "fin" sont au format HH:MM (24h).
-
-5. Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
-
-6. Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
+- "titre" est le titre précis de la séance s'il est indiqué sur le document (ex. « Séance 3 — entraînement à la fluence »). Laisse une chaîne vide si le document n'indique qu'une matière générale, sans titre de séance précis.
+- Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
+- Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
 
 Réponds uniquement avec ce tableau JSON.`
   );
@@ -1275,6 +1215,100 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
 
 /* ---------------- Affectation élève ↔ créneau ---------------- */
 let affectationsEleves = PC.chargerAffectationsEleves();
+let exclusionsCreneau = PC.chargerExclusionsCreneau();
+
+/* ---- Grille de présence créneau × élève (roster réel de la classe, chargé depuis le coffre) ---- */
+
+function renderAffgClasseSelect(){
+  const sel = $("affg-classe");
+  const prev = sel.value;
+  sel.innerHTML = config.classes.map(cl=>`<option value="${cl.id}">${cl.nom}</option>`).join("") || '<option value="">Aucune classe</option>';
+  if(prev && config.classes.some(c=>c.id===prev)) sel.value = prev;
+}
+
+function renderAffgGrille(){
+  const wrap = $("affg-wrap");
+  const hint = $("affg-sans-coffre");
+  const classeId = $("affg-classe").value;
+  wrap.innerHTML = "";
+
+  if(!classeId){ hint.style.display = ""; hint.textContent = "Créez et sélectionnez une classe."; return; }
+  if(!(coffre && coffre.ouvert)){
+    hint.style.display = "";
+    hint.textContent = "Ouvrez le coffre, puis chargez les élèves de cette classe depuis l'onglet « Configuration générale » (« Charger les élèves du coffre dans une classe ») pour afficher la grille de présence.";
+    return;
+  }
+  // Roster réel : identique à celui chargé par "Charger les élèves du
+  // coffre dans cette classe" — même source (coffre.donnees.eleves), même
+  // mémoire éphémère `elevesParClasse`, jamais une liste vide de secours.
+  const roster = elevesParClasse[classeId] || [];
+  if(!roster.length){
+    hint.style.display = "";
+    hint.textContent = "Aucun élève chargé dans cette classe pour l'instant. Rendez-vous dans « Configuration générale » → « Charger les élèves du coffre dans une classe ».";
+    return;
+  }
+  hint.style.display = "none";
+
+  const domaines = domainesDisponibles(classeId);
+  const creneaux = (grilles[classeId]||[]).slice().sort((a,b)=> a.jour-b.jour || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+  if(!creneaux.length){
+    wrap.innerHTML = '<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe pour l\'instant (onglet « Grille horaire type »).</div>';
+    return;
+  }
+
+  const scrollDiv = document.createElement("div");
+  scrollDiv.className = "affg-scroll";
+  const table = document.createElement("table");
+  table.className = "affg";
+
+  const thead = document.createElement("thead");
+  const trHead = document.createElement("tr");
+  trHead.innerHTML = `<th class="affg-creneau-head">Créneau</th>` +
+    roster.map(e=>`<th>${escapeHTMLTexte(e.nom)}</th>`).join("");
+  thead.appendChild(trHead);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  let jourPrecedent = null;
+  creneaux.forEach(c=>{
+    const tr = document.createElement("tr");
+    if(jourPrecedent !== null && jourPrecedent !== c.jour) tr.classList.add("affg-jour-sep");
+    jourPrecedent = c.jour;
+
+    const jourNom = (PC.JOURS.find(j=>j.n===c.jour)||{}).nom || c.jour;
+    const libelle = libelleCreneauExport(c, domaines);
+    const tdCreneau = document.createElement("td");
+    tdCreneau.className = "affg-creneau";
+    tdCreneau.innerHTML = `<span class="affg-jour-label">${escapeHTMLTexte(jourNom)}</span><span class="affg-horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</span><div class="affg-libelle">${escapeHTMLTexte(libelle)}</div>`;
+    tr.appendChild(tdCreneau);
+
+    roster.forEach(e=>{
+      const td = document.createElement("td");
+      td.className = "affg-eleve-cell";
+      const exclu = PC.estEleveExcluCreneau(exclusionsCreneau, classeId, c.id, e.identifiantSynapses);
+      if(exclu) td.classList.add("exclu");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !exclu;
+      cb.title = `${e.nom} — ${exclu ? "retiré de ce créneau" : "affecté à ce créneau"}`;
+      cb.addEventListener("change", ()=>{
+        PC.definirPresenceEleveCreneau(exclusionsCreneau, classeId, c.id, e.identifiantSynapses, cb.checked);
+        PC.sauverExclusionsCreneau(exclusionsCreneau);
+        td.classList.toggle("exclu", !cb.checked);
+        cb.title = `${e.nom} — ${cb.checked ? "affecté à ce créneau" : "retiré de ce créneau"}`;
+      });
+      td.appendChild(cb);
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  scrollDiv.appendChild(table);
+  wrap.appendChild(scrollDiv);
+}
+
+$("affg-classe").addEventListener("change", renderAffgGrille);
 
 function renderAffectationClasseSelect(){
   const sel = $("affect-classe");
@@ -1338,6 +1372,8 @@ function renderAffectationListe(){
 }
 
 function renderAffectationTab(){
+  renderAffgClasseSelect();
+  renderAffgGrille();
   renderAffectationClasseSelect();
   renderAffectationCreneauSelect();
   renderAffectationEleveSelect();
@@ -1484,11 +1520,6 @@ $("import-json-file").addEventListener("change", async ()=>{
     banque = await PC.chargerBanque();
   }catch(e){
     toast("Impossible de charger le référentiel de séances.");
-  }
-  try{
-    domainesSocle = await PC.chargerDomainesSocle();
-  }catch(e){
-    domainesSocle = [];
   }
   renderGrilleTabs();
   renderSummary();
