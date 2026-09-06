@@ -1408,13 +1408,20 @@ function renderAffgGrille(){
   );
   if(!creneaux.length){wrap.innerHTML='<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe.</div>';return;}
 
+  // Regroupement des lignes par heure de DÉBUT uniquement.
+  // (Un regroupement sur debut::fin faisait perdre des créneaux dès que la
+  // durée différait d'un jour à l'autre : le créneau se retrouvait alors
+  // sur une autre ligne, et la cellule du jour concerné restait vide sur
+  // la ligne "attendue" alors que la donnée existait bien ailleurs.)
   const horaires=[],map=new Map();
   creneaux.forEach(c=>{
-    const cle=`${c.debut}::${c.fin}`;
-    if(!map.has(cle)){const h={cle,debut:c.debut,fin:c.fin,parJour:{}};map.set(cle,h);horaires.push(h);}
+    const cle=c.debut;
+    if(!map.has(cle)){const h={cle,debut:c.debut,fins:new Set(),parJour:{}};map.set(cle,h);horaires.push(h);}
+    map.get(cle).fins.add(c.fin);
     if(!map.get(cle).parJour[c.jour]) map.get(cle).parJour[c.jour]=[];
     map.get(cle).parJour[c.jour].push(c);
   });
+  horaires.sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
 
   // Pour chaque élève, on lit UNIQUEMENT son planning individuel.
   const presenceParEleve={};
@@ -1438,7 +1445,9 @@ function renderAffgGrille(){
   horaires.forEach(h=>{
     const tr=document.createElement("tr");
     const th=document.createElement("th");th.className="affg-horaire-head";
-    th.innerHTML=`<span class="affg-horaire">${escapeHTMLTexte(h.debut)}–${escapeHTMLTexte(h.fin)}</span>`;
+    const finsTriees=[...h.fins].sort((a,b)=>PC.heureVersMin(a)-PC.heureVersMin(b));
+    const finLabel=finsTriees.length===1?finsTriees[0]:finsTriees[0]+"…";
+    th.innerHTML=`<span class="affg-horaire">${escapeHTMLTexte(h.debut)}–${escapeHTMLTexte(finLabel)}</span>`;
     tr.appendChild(th);
 
     PC.JOURS.forEach(j=>{
