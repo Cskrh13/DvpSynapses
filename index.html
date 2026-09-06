@@ -204,6 +204,13 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px;margin-top:20
         </div>
       </details>
       <details class="nav-dropdown">
+        <summary>Pédagogie</summary>
+        <div class="nav-dropdown-menu">
+          <a href="Programmation/bibliotheque.html">Bibliothèque</a>
+          <a href="Programmation/veillepedagogie.html">Veille pédagogique</a>
+        </div>
+      </details>
+      <details class="nav-dropdown">
         <summary>À propos</summary>
         <div class="nav-dropdown-menu">
           <a href="detailduprojet.html">Le projet Synapses</a>
@@ -384,5 +391,24 @@ footer{background:var(--navy);color:#B9C6E5;padding:40px 24px 28px;margin-top:20
   </div>
 </footer>
 
+<script>
+// Les menus déroulants du nav (<details class="nav-dropdown">) se ferment
+// automatiquement dès qu'on ouvre un autre menu ou qu'on clique ailleurs sur la page.
+(function(){
+  const menus = document.querySelectorAll('nav.main-nav .nav-dropdown');
+  menus.forEach(menu=>{
+    menu.addEventListener('toggle', ()=>{
+      if(menu.open){
+        menus.forEach(autre=>{ if(autre!==menu) autre.open=false; });
+      }
+    });
+  });
+  document.addEventListener('click', e=>{
+    menus.forEach(menu=>{
+      if(menu.open && !menu.contains(e.target)) menu.open=false;
+    });
+  });
+})();
+</script>
 </body>
 </html>
