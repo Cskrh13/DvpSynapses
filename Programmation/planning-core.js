@@ -148,6 +148,15 @@
   const STORE_JOURNAL =
     "synapses_planning_journal";
 
+  // Affectations manuelles élève ↔ créneau de grille (onglet « Affectation »
+  // de Planning — Gestion). Distinct de STORE_AFFECT (qui relie un créneau
+  // de type "séance" à une séance précise de la banque) : ici, on relie un
+  // élève du coffre à un créneau récurrent d'une classe, pour déclarer
+  // qu'il y est inclus chaque semaine (ex. inclusion partielle en classe
+  // ordinaire). Clé : classeId + "__" + creneauId -> [identifiantSynapses...].
+  const STORE_AFFECT_ELEVES =
+    "synapses_planning_affectations_eleves";
+
   const TYPES_ADULTE = [
     { id: "enseignant", label: "Enseignant" },
     { id: "aesh", label: "AESH" },
@@ -1458,6 +1467,77 @@
   }
 
 
+  // ------------------------------------------------------------------
+  // Affectations manuelles élève ↔ créneau (onglet « Affectation »)
+  // ------------------------------------------------------------------
+
+  function chargerAffectationsEleves() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE_AFFECT_ELEVES)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function sauverAffectationsEleves(a) {
+    localStorage.setItem(STORE_AFFECT_ELEVES, JSON.stringify(a || {}));
+  }
+
+  function cleAffectationEleve(classeId, creneauId) {
+    return classeId + "__" + creneauId;
+  }
+
+  function elevesAffectesCreneau(affEleves, classeId, creneauId) {
+    return ((affEleves || {})[cleAffectationEleve(classeId, creneauId)] || []).slice();
+  }
+
+  /**
+   * Affecte un élève à un créneau récurrent d'une classe. Renvoie false
+   * (sans rien modifier) si l'élève est déjà affecté à ce créneau, afin
+   * d'éviter tout doublon — y compris avec la génération automatique, qui
+   * lit ce même registre pour ne jamais re-proposer un élève déjà prévu
+   * à cet endroit (voir genererGroupesBesoinULIS / repartirElevesSemaineAuto).
+   */
+  function affecterEleveCreneau(affEleves, classeId, creneauId, identifiantSynapses) {
+    if (!classeId || !creneauId || !identifiantSynapses) return false;
+    const cle = cleAffectationEleve(classeId, creneauId);
+    affEleves[cle] = affEleves[cle] || [];
+    if (affEleves[cle].includes(identifiantSynapses)) return false;
+    affEleves[cle].push(identifiantSynapses);
+    return true;
+  }
+
+  function retirerEleveCreneau(affEleves, classeId, creneauId, identifiantSynapses) {
+    const cle = cleAffectationEleve(classeId, creneauId);
+    if (!affEleves[cle]) return false;
+    const idx = affEleves[cle].indexOf(identifiantSynapses);
+    if (idx === -1) return false;
+    affEleves[cle].splice(idx, 1);
+    if (!affEleves[cle].length) delete affEleves[cle];
+    return true;
+  }
+
+  /**
+   * Un élève est-il affecté manuellement à un créneau d'une classe qui
+   * chevauche [segmentDebut, segmentFin] (en minutes) un jour de semaine
+   * donné (1=lundi) ? Utilisé par la génération pour ne jamais dupliquer
+   * un élève déjà prévu ailleurs sur ce créneau.
+   */
+  function eleveAffecteSurSegment(affEleves, grilles, jourSemaine, segmentDebut, segmentFin, identifiantSynapses) {
+    if (!identifiantSynapses) return false;
+    return Object.keys(affEleves || {}).some(cle => {
+      const ids = affEleves[cle] || [];
+      if (!ids.includes(identifiantSynapses)) return false;
+      const sep = cle.indexOf("__");
+      if (sep === -1) return false;
+      const classeId = cle.slice(0, sep), creneauId = cle.slice(sep + 2);
+      const creneau = (grilles[classeId] || []).find(c => c.id === creneauId);
+      if (!creneau || creneau.jour !== jourSemaine) return false;
+      const d = heureVersMin(creneau.debut), f = heureVersMin(creneau.fin);
+      return d < segmentFin && f > segmentDebut;
+    });
+  }
+
   function cleCreneau(
     dateStr,
     creneauId
@@ -1607,6 +1687,12 @@
     const jourDate = parseISO(iso);
     const jourSemaine = (jourDate.getDay() + 6) % 7 + 1; // 1=lundi
 
+    // Affectations manuelles élève ↔ créneau (onglet « Affectation » de
+    // Planning — Gestion) : ces élèves sont insérés dans le groupe de
+    // classe du créneau correspondant, sans jamais toucher un créneau
+    // déjà modifié à la main (cf. `existant.modifie` plus bas).
+    const affElevesManuel = chargerAffectationsEleves();
+
     const classes = (config.classes && config.classes.length) ? config.classes : [];
 
     const parOrigine = new Map();
@@ -1643,17 +1729,24 @@
         const bucket = (banque[classe.niveau] && banque[classe.niveau][c.domaineCle]) || null;
         const item = (aff && aff.seanceId && bucket) ? bucket.items.find(it => it.id === aff.seanceId) : null;
         const titre = (item && (item.titre || item.type)) || (bucket ? bucket.label : c.domaineCle);
+        // origine vaut ici classeId + "__" + c.id, exactement la clé
+        // utilisée par le registre d'affectations manuelles élève↔créneau.
+        const idsManuel = affElevesManuel[origine] || [];
 
         if (existant) {
           existant.debut = c.debut; existant.fin = c.fin; existant.titre = titre;
           existant.domaineCle = c.domaineCle; existant.niveau = classe.nom; existant.classeId = classeId;
           existant.seanceRef = item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null;
+          if (idsManuel.length) {
+            existant.eleves = existant.eleves || [];
+            idsManuel.forEach(id => { if (!existant.eleves.includes(id)) existant.eleves.push(id); });
+          }
         } else {
           jour.groupes.push({
             id: uid("grp"), debut: c.debut, fin: c.fin, origine: origine, modifie: false,
             adulte: { type: "enseignant", nom: "" }, titre: titre, domaineCle: c.domaineCle, niveau: classe.nom, classeId: classeId,
             seanceRef: item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null,
-            eleves: [], remarque: "", fixe: false
+            eleves: idsManuel.slice(), remarque: "", fixe: false
           });
         }
       });
@@ -2113,8 +2206,16 @@
     // Les affectations manuelles existantes servent de point de départ :
     // elles comptent comme « élève déjà dans sa classe » si le groupe porte
     // la même classe que l'élève.
+    const affElevesManuel = chargerAffectationsEleves();
     const estDansSaClasse = (jour, e, bloc) => {
       const id = e.identifiantSynapses;
+      // Affectation manuelle enregistrée dans l'onglet « Affectation » de
+      // Planning — Gestion : l'élève est déjà prévu sur ce créneau
+      // récurrent, quel que soit l'état du cahier journal du jour — on ne
+      // le propose donc jamais en double dans un groupe automatique.
+      if (id && bloc.groupes.some(g => g.origine && (affElevesManuel[g.origine] || []).includes(id))) {
+        return true;
+      }
       return bloc.groupes.some(g => {
         if (estFixe(g) || !g.modifie || !(g.eleves || []).includes(id)) return false;
         const gc = norm(g.classeId || g.classe || "");
@@ -2569,6 +2670,11 @@
     const semaines = calculerSemaines(config || {});
     const joursTravail = new Set((config.joursTravailles || [1, 2, 3, 4, 5]).map(Number));
     const journal = chargerJournal();
+    // Affectations manuelles élève ↔ créneau (onglet « Affectation ») :
+    // un élève inclus manuellement sur un créneau précis d'une classe
+    // n'est jamais compté comme libre à cet instant, même sans classe de
+    // référence connue — ce qui évite tout doublon avec la génération.
+    const affElevesManuel = chargerAffectationsEleves();
 
     // Domaines BO à couvrir, dans l'ordre de priorité (français/maths
     // d'abord, comme pour les classes), pour chaque cycle représenté
@@ -2640,7 +2746,11 @@
         // Élève disponible sur un segment : sa classe de référence (si
         // connue de la configuration) n'y a pas cours ce jour-là.
         function eleveDisponible(e, segment) {
-          const classeRef = classeRefParEleve.get(e.identifiantSynapses);
+          const id = e.identifiantSynapses;
+          if (eleveAffecteSurSegment(affElevesManuel, grilles, j.n, segment.debut, segment.fin, id)) {
+            return false; // déjà affecté manuellement à un créneau de classe sur ce créneau
+          }
+          const classeRef = classeRefParEleve.get(id);
           if (!classeRef) return true; // pas de classe de référence connue -> suivi enseignant
           const cxs = creneauxParClasse[classeRef.id] || [];
           return !cxs.some(c => c.debut < segment.fin && c.fin > segment.debut);
@@ -2821,7 +2931,7 @@
   // IMPORT / EXPORT JSON DU PLANNING (fichier téléchargeable, hors USB)
   // ========================================================================
 
-  function exporterPlanningJSON(config, grilles, affectations, journal) {
+  function exporterPlanningJSON(config, grilles, affectations, journal, affectationsEleves) {
     return {
       format: "synapses-planning",
       version: 2,
@@ -2829,12 +2939,13 @@
       config: config || {},
       grilles: grilles || {},
       affectations: affectations || {},
-      journal: journal || {}
+      journal: journal || {},
+      affectationsEleves: affectationsEleves || chargerAffectationsEleves()
     };
   }
 
-  function telechargerPlanningJSON(config, grilles, affectations, journal) {
-    const paquet = exporterPlanningJSON(config, grilles, affectations, journal);
+  function telechargerPlanningJSON(config, grilles, affectations, journal, affectationsEleves) {
+    const paquet = exporterPlanningJSON(config, grilles, affectations, journal, affectationsEleves);
     const blob = new Blob([JSON.stringify(paquet, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2871,6 +2982,7 @@
     if (paquet.config) { sauverConfig(paquet.config); applique.push("configuration"); }
     if (paquet.grilles) { sauverGrilles(paquet.grilles); applique.push("grilles horaires"); }
     if (paquet.affectations) { sauverAffectations(paquet.affectations); applique.push("affectations"); }
+    if (paquet.affectationsEleves) { sauverAffectationsEleves(paquet.affectationsEleves); applique.push("affectations élève ↔ créneau"); }
     if (paquet.journal) { sauverJournal(paquet.journal); applique.push("cahier journal"); }
     return applique;
   }
@@ -3463,6 +3575,16 @@
     // Affectations
     chargerAffectations,
     sauverAffectations,
+
+    // Affectations manuelles élève ↔ créneau (onglet « Affectation »)
+    STORE_AFFECT_ELEVES,
+    chargerAffectationsEleves,
+    sauverAffectationsEleves,
+    cleAffectationEleve,
+    elevesAffectesCreneau,
+    affecterEleveCreneau,
+    retirerEleveCreneau,
+    eleveAffecteSurSegment,
 
     // Calendrier
     cleCreneau,
