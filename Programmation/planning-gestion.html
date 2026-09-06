@@ -133,21 +133,21 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 
 /* ---- Affectation : grille créneaux × élèves ---- */
 .affg-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);}
-table.affg{border-collapse:collapse;font-size:12.5px;white-space:nowrap;}
-table.affg th,table.affg td{padding:6px 8px;border-bottom:1px solid var(--line);border-right:1px dashed var(--line);}
-table.affg thead th{background:var(--panel-raised);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:2;}
-table.affg td.affg-creneau,table.affg th.affg-creneau-head{
-  position:sticky;left:0;background:#fff;z-index:1;text-align:left;min-width:230px;max-width:320px;white-space:normal;
+table.affg{border-collapse:collapse;font-size:12.5px;white-space:nowrap;width:100%;}
+table.affg th,table.affg td{padding:7px 8px;border-bottom:1px solid var(--line);border-right:1px dashed var(--line);}
+table.affg thead th{background:var(--panel-raised);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:2;text-align:center;}
+table.affg th.affg-horaire-head{
+  position:sticky;left:0;background:var(--panel-raised);z-index:3;text-align:left;min-width:105px;
   box-shadow:2px 0 0 var(--line);
 }
-table.affg thead th.affg-creneau-head{z-index:3;}
-table.affg td.affg-eleve-cell{text-align:center;}
-table.affg .affg-jour-sep td{border-top:2px solid var(--navy);}
-table.affg .affg-jour-label{font-weight:700;color:var(--navy);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px;}
+table.affg td.affg-creneau-cell{text-align:left;vertical-align:top;min-width:150px;white-space:normal;}
 table.affg .affg-horaire{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
-table.affg .affg-libelle{margin-top:1px;}
-table.affg input[type="checkbox"]{width:16px;height:16px;cursor:pointer;}
-table.affg td.affg-eleve-cell.exclu{background:#FBEEE9;}
+table.affg .affg-creneau-libelle{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+table.affg .affg-eleve-line{display:flex;align-items:center;justify-content:center;gap:6px;margin:2px 0;padding:2px 4px;border-radius:5px;}
+table.affg .affg-eleve-initial{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;min-width:22px;text-align:center;}
+table.affg input[type="checkbox"]{width:16px;height:16px;cursor:pointer;flex:0 0 auto;}
+table.affg .affg-eleve-line.exclu{background:#FBEEE9;opacity:.7;}
+table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opacity:.7;}
 </style>
 </head>
 <body>
@@ -1315,109 +1315,193 @@ function coffreEleveById(id){
   if(!coffre || !coffre.ouvert) return null;
   return (coffre.donnees.eleves||[]).find(e=>e.identifiantSynapses===id) || null;
 }
-function enregistrerElevesClasse(classeId){
-  if(!coffre || !coffre.ouvert) throw new Error("Ouvrez le coffre avant d'enregistrer les élèves.");
+function enregistrerElevesClasse(classeId, etat){
+  if(!coffre || !coffre.ouvert) throw new Error("Ouvrez le coffre avant d'enregistrer.");
   const cl = PC.classeById(config, classeId);
   const roster = elevesParClasse[classeId] || [];
   if(!cl) throw new Error("Classe introuvable.");
   if(!roster.length) throw new Error("Aucun élève chargé dans cette classe.");
+
+  // IMPORTANT :
+  // `grilles[classeId]` est le planning TYPE de la classe.
+  // Il est uniquement LU ici et n'est JAMAIS modifié.
   const creneaux = (grilles[classeId]||[]).slice();
-  const idsActuels = new Set(creneaux.map(c=>c.id));
-  let ajoutes=0;
+  let enregistres=0;
+
   roster.forEach(ref=>{
     const e = coffreEleveById(ref.identifiantSynapses);
     if(!e) return;
-    if(Array.isArray(e.planning)){
-      e.planning = e.planning.filter(p => p.classeId !== classeId || idsActuels.has(p.creneauId));
-    }
+
+    if(!Array.isArray(e.planning)) e.planning=[];
+
+    // On ne remplace QUE les créneaux de CETTE classe dans le planning
+    // individuel de l'élève. Les autres classes sont conservées.
+    e.planning = e.planning.filter(p => p.classeId !== classeId);
+
     creneaux.forEach(c=>{
-      const existant = e.planning.find(p=>p.classeId===classeId && p.creneauId===c.id);
-      if(existant){
-        existant.classeNom = cl.nom;
-        existant.jour = Number(c.jour);
-        existant.debut = c.debut;
-        existant.fin = c.fin;
-        existant.domaineCle = c.domaineCle || "";
-      }else{
-        coffre.affecterCreneau(ref.identifiantSynapses,{
-          classeId: cl.id, classeNom: cl.nom, creneauId:c.id,
-          jour:c.jour, debut:c.debut, fin:c.fin,
-          domaineCle:c.domaineCle||""
-        });
-        ajoutes++;
-      }
+      const cle=ref.identifiantSynapses+"::"+c.id;
+      const coche = etat ? etat[cle] === true : true;
+      if(!coche) return;
+
+      // Écriture uniquement dans e.planning, donc dans le .synapse.
+      e.planning.push({
+        classeId: cl.id,
+        classeNom: cl.nom,
+        creneauId: c.id,
+        jour: c.jour,
+        debut: c.debut,
+        fin: c.fin,
+        domaineCle: c.domaineCle||""
+      });
+      enregistres++;
     });
   });
-  return ajoutes;
+
+  return enregistres;
 }
+
 $("btn-enregistrer-eleves-config").addEventListener("click",()=>{
   const classeId=$("classe-cible-eleves").value;
   try{
     const n=enregistrerElevesClasse(classeId);
-    $("affg-save-status").textContent=`${n} affectation(s) ajoutée(s) dans les plannings individuels du coffre.`;
-    toast("Créneaux des élèves enregistrés dans le coffre.");
+    $("affg-save-status").textContent=`${n} affectation(s) enregistrée(s) dans les plannings individuels du coffre.`;
+    toast("Planning individuel initialisé : tous les créneaux sont cochés.");
     if($("affg-classe").value===classeId) renderAffgGrille();
   }catch(e){ toast(e.message||String(e)); }
 });
 
+function initialesEleve(ref){
+  const nom=String(ref?.nom||"").trim();
+  if(!nom) return "?";
+  const morceaux=nom.split(/\s+/).filter(Boolean);
+  if(morceaux.length===1) return morceaux[0].slice(0,2).toUpperCase();
+  return (morceaux[0][0]+morceaux[morceaux.length-1][0]).toUpperCase();
+}
+
+let affgEtatEnCours={};
+
 function renderAffgClasseSelect(){
-  const sel = $("affg-classe");
-  const prev = sel.value;
-  sel.innerHTML = (config.classes||[]).map(cl=>`<option value="${cl.id}">${escapeHTMLTexte(cl.nom)}</option>`).join("") || '<option value="">Aucune classe</option>';
+  const sel=$("affg-classe");
+  const prev=sel.value;
+  sel.innerHTML=(config.classes||[]).map(cl=>`<option value="${cl.id}">${escapeHTMLTexte(cl.nom)}</option>`).join("")||'<option value="">Aucune classe</option>';
   if(prev && config.classes.some(c=>c.id===prev)) sel.value=prev;
 }
+
 function renderAffgGrille(){
-  const wrap=$("affg-wrap"), hint=$("affg-sans-coffre");
+  const wrap=$("affg-wrap"),hint=$("affg-sans-coffre");
   const classeId=$("affg-classe").value;
   wrap.innerHTML="";
+  affgEtatEnCours={};
+
   if(!classeId){hint.style.display="";hint.textContent="Créez et sélectionnez une classe.";return;}
-  if(!coffre || !coffre.ouvert){hint.style.display="";hint.textContent="Ouvrez le coffre pour charger les élèves et enregistrer leur planning individuel.";return;}
+  if(!coffre||!coffre.ouvert){hint.style.display="";hint.textContent="Ouvrez le coffre pour charger les élèves et enregistrer leur planning individuel.";return;}
+
   const roster=elevesParClasse[classeId]||[];
-  if(!roster.length){hint.style.display="";hint.textContent="Aucun élève chargé dans cette classe. Utilisez « Charger les élèves du coffre dans une classe » dans Configuration générale.";return;}
+  if(!roster.length){hint.style.display="";hint.textContent="Aucun élève chargé dans cette classe.";return;}
   hint.style.display="none";
-  const creneaux=(grilles[classeId]||[]).slice().sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+
+  // Lecture seule : les créneaux de la classe servent uniquement de référence.
+  const creneaux=(grilles[classeId]||[]).slice().sort(
+    (a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut)||PC.heureVersMin(a.fin)-PC.heureVersMin(b.fin)
+  );
   if(!creneaux.length){wrap.innerHTML='<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe.</div>';return;}
 
-  const scroll=document.createElement("div"); scroll.className="affg-scroll";
-  const table=document.createElement("table"); table.className="affg";
-  const thead=document.createElement("thead"), hr=document.createElement("tr");
-  hr.innerHTML='<th class="affg-creneau-head">Élève</th>'+creneaux.map(c=>{
-    const j=(PC.JOURS.find(x=>x.n===c.jour)||{}).nom||c.jour;
-    const nom=c.type==="seance"?(c.titre||""):(c.libelle||"");
-    return `<th title="${escapeAttr(j+" "+c.debut+"–"+c.fin+" "+nom)}"><span>${escapeHTMLTexte(j)}</span><br>${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}<br><small>${escapeHTMLTexte(nom||PC.TYPES_CRENEAU[c.type]?.label||c.type)}</small></th>`;
-  }).join("");
-  thead.appendChild(hr); table.appendChild(thead);
-  const tbody=document.createElement("tbody");
+  const horaires=[],map=new Map();
+  creneaux.forEach(c=>{
+    const cle=`${c.debut}::${c.fin}`;
+    if(!map.has(cle)){const h={cle,debut:c.debut,fin:c.fin,parJour:{}};map.set(cle,h);horaires.push(h);}
+    if(!map.get(cle).parJour[c.jour]) map.get(cle).parJour[c.jour]=[];
+    map.get(cle).parJour[c.jour].push(c);
+  });
+
+  // Pour chaque élève, on lit UNIQUEMENT son planning individuel.
+  const presenceParEleve={};
   roster.forEach(ref=>{
     const e=coffreEleveById(ref.identifiantSynapses);
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<th>${escapeHTMLTexte(ref.nom)}</th>`;
-    creneaux.forEach(c=>{
-      const td=document.createElement("td"); td.className="affg-eleve-cell";
-      const cb=document.createElement("input"); cb.type="checkbox";
-      cb.checked=!!e && eleveEstAffecteAuCreneau(e,classeId,c.id);
-      cb.title=cb.checked?"Affecté à ce créneau":"Non affecté à ce créneau";
-      cb.addEventListener("change",()=>{
-        if(!e){cb.checked=false;return;}
-        try{
-          if(cb.checked){
-            const cl=PC.classeById(config,classeId);
-            coffre.affecterCreneau(ref.identifiantSynapses,{classeId:cl.id,classeNom:cl.nom,creneauId:c.id,jour:c.jour,debut:c.debut,fin:c.fin,domaineCle:c.domaineCle||""});
-          }else{
-            coffre.retirerCreneau(ref.identifiantSynapses,classeId,c.id);
-          }
-          td.classList.toggle("exclu",!cb.checked);
-          cb.title=cb.checked?"Affecté à ce créneau":"Non affecté à ce créneau";
-          $("affg-save-status").textContent="Affectation enregistrée dans le coffre de l'élève.";
-        }catch(err){ cb.checked=!cb.checked; toast(err.message||"Impossible d'enregistrer."); }
-      });
-      if(!cb.checked) td.classList.add("exclu");
-      td.appendChild(cb); tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
+    const existants=Array.isArray(e?.planning)
+      ? e.planning.filter(p=>p.classeId===classeId)
+      : [];
+    presenceParEleve[ref.identifiantSynapses]={
+      e,
+      aDejaUnPlanning:existants.length>0,
+      ids:new Set(existants.map(p=>p.creneauId))
+    };
   });
-  table.appendChild(tbody); scroll.appendChild(table); wrap.appendChild(scroll);
+
+  const table=document.createElement("table");table.className="affg";
+  const thead=document.createElement("thead"),hr=document.createElement("tr");
+  hr.innerHTML='<th class="affg-horaire-head">Horaire</th>'+PC.JOURS.map(j=>`<th>${escapeHTMLTexte(j.nom)}</th>`).join("");
+  thead.appendChild(hr);table.appendChild(thead);
+
+  horaires.forEach(h=>{
+    const tr=document.createElement("tr");
+    const th=document.createElement("th");th.className="affg-horaire-head";
+    th.innerHTML=`<span class="affg-horaire">${escapeHTMLTexte(h.debut)}–${escapeHTMLTexte(h.fin)}</span>`;
+    tr.appendChild(th);
+
+    PC.JOURS.forEach(j=>{
+      const td=document.createElement("td");td.className="affg-creneau-cell";
+      const liste=h.parJour[j.n]||[];
+
+      if(!liste.length){td.innerHTML='<div class="affg-vide">—</div>';tr.appendChild(td);return;}
+
+      liste.forEach(c=>{
+        const nom=c.type==="seance"?(c.titre||""):(c.libelle||"");
+        if(nom){
+          const lib=document.createElement("div");lib.className="affg-creneau-libelle";lib.textContent=nom;td.appendChild(lib);
+        }
+
+        roster.forEach(ref=>{
+          const info=presenceParEleve[ref.identifiantSynapses];
+          if(!info.e)return;
+
+          const cle=ref.identifiantSynapses+"::"+c.id;
+
+          // Par défaut : coché si aucun planning individuel n'a encore
+          // été enregistré pour cette classe.
+          const coche=info.aDejaUnPlanning ? info.ids.has(c.id) : true;
+          affgEtatEnCours[cle]=coche;
+
+          const line=document.createElement("label");
+          line.className="affg-eleve-line"+(coche?"":" exclu");
+
+          const initiale=document.createElement("span");
+          initiale.className="affg-eleve-initial";
+          initiale.textContent=initialesEleve(ref);
+
+          const cb=document.createElement("input");
+          cb.type="checkbox";cb.checked=coche;
+          cb.setAttribute("aria-label",`${ref.nom} — ${j.nom} ${c.debut}–${c.fin}`);
+          cb.addEventListener("change",()=>{
+            affgEtatEnCours[cle]=cb.checked;
+            line.classList.toggle("exclu",!cb.checked);
+            $("affg-save-status").textContent="Modifications en attente d'enregistrement.";
+          });
+
+          line.appendChild(initiale);line.appendChild(cb);td.appendChild(line);
+        });
+      });
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+
+  const scroll=document.createElement("div");scroll.className="affg-scroll";
+  scroll.appendChild(table);wrap.appendChild(scroll);
 }
+
+$("affg-classe").addEventListener("change",renderAffgGrille);
+$("btn-enregistrer-eleves").addEventListener("click",()=>{
+  const status=$("affg-save-status");status.textContent="";
+  try{
+    const classeId=$("affg-classe").value;
+    const n=enregistrerElevesClasse(classeId,affgEtatEnCours);
+    status.textContent=`${n} créneau(x) enregistré(s). Les cases décochées ont été retirées du planning individuel des élèves.`;
+    renderAffgGrille();
+    toast("Les plannings individuels ont été enregistrés dans le coffre.");
+  }catch(e){status.textContent=e.message||String(e);toast(status.textContent);}
+});
+
 $("affg-classe").addEventListener("change",renderAffgGrille);
 $("btn-enregistrer-eleves").addEventListener("click",()=>{
   const status=$("affg-save-status"); status.textContent="";
