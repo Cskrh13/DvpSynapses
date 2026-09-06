@@ -157,6 +157,17 @@
   const STORE_AFFECT_ELEVES =
     "synapses_planning_affectations_eleves";
 
+  // Grille de présence "créneau × élève de la classe" (onglet Affectation) :
+  // modèle inverse de STORE_AFFECT_ELEVES. Ici, le roster complet d'une
+  // classe (chargé depuis le coffre, en mémoire, jamais persisté lui-même)
+  // est présumé affecté à TOUS les créneaux de sa classe par défaut ; seules
+  // les EXCEPTIONS (un élève retiré d'un créneau précis) sont enregistrées.
+  // Clé : classeId + "__" + creneauId -> [identifiantSynapses exclus...].
+  // Comme pour STORE_AFFECT_ELEVES, seuls des identifiants Synapses sont
+  // stockés : aucun nom, aucune donnée nominative.
+  const STORE_EXCLUSIONS_CRENEAU =
+    "synapses_planning_exclusions_creneau";
+
   const TYPES_ADULTE = [
     { id: "enseignant", label: "Enseignant" },
     { id: "aesh", label: "AESH" },
@@ -646,53 +657,6 @@
 
     ];
 
-  }
-
-  /**
-   * Chemins possibles vers le référentiel des compétences
-   * (mêmes règles de résolution relative que candidatsIndex()).
-   */
-  function candidatsCompetences() {
-
-    return [
-
-      "data/competences.json",
-
-      "Programmation/data/competences.json",
-
-      "../Programmation/data/competences.json",
-
-      "../data/competences.json"
-
-    ];
-
-  }
-
-  // Cache mémoire : le référentiel des compétences ne change pas pendant
-  // une session, inutile de le retélécharger à chaque appel.
-  let _domainesSocleCache = null;
-
-  /**
-   * Catalogue générique des domaines du socle (Programmation/data/competences.json,
-   * bloc racine "domaines" : id, nom, discipline).
-   *
-   * Contrairement à la « banque » de séances (index.json), ce catalogue ne
-   * dépend jamais de l'existence d'une séance déjà écrite : un domaine du
-   * socle (ex. « Lecture », « Grammaire et orthographe », « Histoire »…)
-   * doit toujours pouvoir être choisi dans une grille horaire, même si
-   * aucune séance n'a encore été créée pour ce domaine.
-   *
-   * Retour : [{ id, nom, discipline }, ...] (liste vide si le fichier est
-   * introuvable — l'appelant se rabat alors sur la seule banque de séances).
-   */
-  async function chargerDomainesSocle() {
-    if (_domainesSocleCache) return _domainesSocleCache;
-    const trouve = await fetchFirst(candidatsCompetences());
-    const domaines = (trouve && trouve.data && Array.isArray(trouve.data.domaines))
-      ? trouve.data.domaines.map(d => ({ id: d.id, nom: d.nom || d.id, discipline: d.discipline || "" }))
-      : [];
-    _domainesSocleCache = domaines;
-    return domaines;
   }
 
 
@@ -1274,12 +1238,11 @@
     return config.classes || [];
   }
 
-  function creerClasse(config, nom, niveau, dispositif) {
+  function creerClasse(config, nom, niveau) {
     const cl = {
       id: uid("cls"),
-      nom: (nom || niveau || dispositif || "Classe").trim(),
+      nom: (nom || niveau || "Classe").trim(),
       niveau: niveau || "",
-      dispositif: dispositif || null, // "ULIS" | "SEGPA" | "RASED" | null (classe standard)
       couleur: PALETTE_CLASSES[config.classes.length % PALETTE_CLASSES.length]
     };
     config.classes.push(cl);
@@ -1563,6 +1526,45 @@
     affEleves[cle].splice(idx, 1);
     if (!affEleves[cle].length) delete affEleves[cle];
     return true;
+  }
+
+  // ------------------------------------------------------------------
+  // Grille de présence par défaut : créneau × élève de la classe
+  // ------------------------------------------------------------------
+
+  function chargerExclusionsCreneau() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE_EXCLUSIONS_CRENEAU)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function sauverExclusionsCreneau(o) {
+    localStorage.setItem(STORE_EXCLUSIONS_CRENEAU, JSON.stringify(o || {}));
+  }
+
+  function estEleveExcluCreneau(exclusions, classeId, creneauId, identifiantSynapses) {
+    const cle = cleAffectationEleve(classeId, creneauId);
+    return ((exclusions || {})[cle] || []).includes(identifiantSynapses);
+  }
+
+  /**
+   * Bascule la présence d'un élève sur un créneau (par défaut présent :
+   * on ne stocke que les exceptions). `present === true` retire l'élève
+   * de la liste d'exclusions (il redevient présent par défaut) ; `false`
+   * l'y ajoute (il est retiré de ce créneau précis).
+   */
+  function definirPresenceEleveCreneau(exclusions, classeId, creneauId, identifiantSynapses, present) {
+    const cle = cleAffectationEleve(classeId, creneauId);
+    exclusions[cle] = exclusions[cle] || [];
+    const idx = exclusions[cle].indexOf(identifiantSynapses);
+    if (present) {
+      if (idx !== -1) exclusions[cle].splice(idx, 1);
+      if (!exclusions[cle].length) delete exclusions[cle];
+    } else {
+      if (idx === -1) exclusions[cle].push(identifiantSynapses);
+    }
   }
 
   /**
@@ -3622,7 +3624,6 @@
 
     // Banque
     chargerBanque,
-    chargerDomainesSocle,
     chargerDerouleDeItem,
     importerBibliothequeJSON,
 
@@ -3659,6 +3660,13 @@
     affecterEleveCreneau,
     retirerEleveCreneau,
     eleveAffecteSurSegment,
+
+    // Grille de présence créneau × élève (opt-out, roster de la classe)
+    STORE_EXCLUSIONS_CRENEAU,
+    chargerExclusionsCreneau,
+    sauverExclusionsCreneau,
+    estEleveExcluCreneau,
+    definirPresenceEleveCreneau,
 
     // Calendrier
     cleCreneau,
