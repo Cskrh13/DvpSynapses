@@ -648,6 +648,53 @@
 
   }
 
+  /**
+   * Chemins possibles vers le référentiel des compétences
+   * (mêmes règles de résolution relative que candidatsIndex()).
+   */
+  function candidatsCompetences() {
+
+    return [
+
+      "data/competences.json",
+
+      "Programmation/data/competences.json",
+
+      "../Programmation/data/competences.json",
+
+      "../data/competences.json"
+
+    ];
+
+  }
+
+  // Cache mémoire : le référentiel des compétences ne change pas pendant
+  // une session, inutile de le retélécharger à chaque appel.
+  let _domainesSocleCache = null;
+
+  /**
+   * Catalogue générique des domaines du socle (Programmation/data/competences.json,
+   * bloc racine "domaines" : id, nom, discipline).
+   *
+   * Contrairement à la « banque » de séances (index.json), ce catalogue ne
+   * dépend jamais de l'existence d'une séance déjà écrite : un domaine du
+   * socle (ex. « Lecture », « Grammaire et orthographe », « Histoire »…)
+   * doit toujours pouvoir être choisi dans une grille horaire, même si
+   * aucune séance n'a encore été créée pour ce domaine.
+   *
+   * Retour : [{ id, nom, discipline }, ...] (liste vide si le fichier est
+   * introuvable — l'appelant se rabat alors sur la seule banque de séances).
+   */
+  async function chargerDomainesSocle() {
+    if (_domainesSocleCache) return _domainesSocleCache;
+    const trouve = await fetchFirst(candidatsCompetences());
+    const domaines = (trouve && trouve.data && Array.isArray(trouve.data.domaines))
+      ? trouve.data.domaines.map(d => ({ id: d.id, nom: d.nom || d.id, discipline: d.discipline || "" }))
+      : [];
+    _domainesSocleCache = domaines;
+    return domaines;
+  }
+
 
   /**
    * Détermine la base à utiliser pour les chemins de fichiers contenus
@@ -3575,6 +3622,7 @@
 
     // Banque
     chargerBanque,
+    chargerDomainesSocle,
     chargerDerouleDeItem,
     importerBibliothequeJSON,
 
