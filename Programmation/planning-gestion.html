@@ -1564,17 +1564,6 @@ $("btn-enregistrer-eleves").addEventListener("click",()=>{
   }catch(e){status.textContent=e.message||String(e);toast(status.textContent);}
 });
 
-$("affg-classe").addEventListener("change",renderAffgGrille);
-$("btn-enregistrer-eleves").addEventListener("click",()=>{
-  const status=$("affg-save-status"); status.textContent="";
-  try{
-    const n=enregistrerElevesClasse($("affg-classe").value);
-    status.textContent=`${n} affectation(s) ajoutée(s) dans les plannings individuels du coffre.`;
-    renderAffgGrille();
-    toast("Planning individuel initialisé : les élèves sont affectés à tous les créneaux de leur classe.");
-  }catch(e){status.textContent=e.message||String(e);toast(status.textContent);}
-});
-
 /* ---------------- Résumé / génération ---------------- */
 // Anciennement : liste texte « X séance(s) disponible(s) pour Y créneau(x) ».
 // Remplacée par la grille d'affectation du dispositif (onglet Génération),
