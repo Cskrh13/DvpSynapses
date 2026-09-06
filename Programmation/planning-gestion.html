@@ -245,12 +245,24 @@ table.affg td.affg-eleve-cell.exclu{background:#FBEEE9;}
       </div>
       <div class="summary-grid" id="classes-list" style="margin-top:16px;"></div>
 
+      <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">
+        <h3 style="font-size:15px;margin-bottom:8px;">Dispositifs</h3>
+        <p class="hint" style="margin-top:0;">Un dispositif est une entité de gestion indépendante d'une classe. Il peut être de type ULIS, SEGPA ou RASED, ne possède pas de niveau propre et peut être rattaché à une ou plusieurs classes.</p>
+        <div class="row">
+          <div class="field"><label>Nom du dispositif</label><input type="text" id="dispositif-nom" placeholder="Ex. : ULIS 1" style="width:180px;"></div>
+          <div class="field"><label>Type</label><select id="dispositif-type"><option value="ULIS">ULIS</option><option value="SEGPA">SEGPA</option><option value="RASED">RASED</option></select></div>
+          <button class="btn primary" id="btn-add-dispositif">+ Créer le dispositif</button>
+        </div>
+        <div class="summary-grid" id="dispositifs-list" style="margin-top:16px;"></div>
+      </div>
+
       <div id="classe-eleves-bloc" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
         <h3 style="font-size:14px;margin-bottom:8px;">Charger les élèves du coffre dans une classe</h3>
-        <p class="hint" style="margin-top:0;">Cette association (élève ↔ classe) reste en mémoire uniquement, comme le reste du coffre : elle n'est jamais enregistrée sur le disque.</p>
+        <p class="hint" style="margin-top:0;">Cette association (élève ↔ classe) sert uniquement à charger le roster dans cette page. Les affectations de créneaux, elles, sont enregistrées dans le planning individuel de chaque élève, dans le coffre.</p>
         <div class="row">
           <div class="field"><label>Classe</label><select id="classe-cible-eleves"></select></div>
           <button class="btn" id="btn-charger-eleves-classe">Charger les élèves du coffre dans cette classe</button>
+          <button class="btn primary" id="btn-enregistrer-eleves-config">Enregistrer les créneaux des élèves</button>
         </div>
         <div class="summary-grid" id="classe-eleves-list" style="margin-top:12px;"></div>
       </div>
@@ -333,7 +345,7 @@ table.affg td.affg-eleve-cell.exclu{background:#FBEEE9;}
 
         <div class="field" style="margin-top:18px;">
           <label for="ia-resultat">2. Réponse de l'IA à coller ici (JSON de préférence, une liste simple fonctionne aussi)</label>
-          <textarea id="ia-resultat" placeholder='Ex. : [{"jour":"Lundi","debut":"09:00","fin":"09:45","matiere":"Lecture","titre":"Séance 3 — Entraînement à la fluence"}, ...]'></textarea>
+          <textarea id="ia-resultat" placeholder='Ex. : [{"jour":"Lundi","debut":"09:00","fin":"09:45","type":"seance","nom":"Français"}, ...]'></textarea>
         </div>
         <div class="ia-row">
           <button class="btn primary" id="btn-ia-remplir">✅ Remplir la grille avec ce résultat</button>
@@ -349,32 +361,16 @@ table.affg td.affg-eleve-cell.exclu{background:#FBEEE9;}
 
   <!-- =============== ONGLET : AFFECTATION =============== -->
   <div class="tab-panel" id="tab-affectation">
-
     <section class="card">
-      <h2>Affectation des élèves de la classe, créneau par créneau</h2>
-      <p class="hint">Reprend tous les créneaux de la grille horaire type de la classe (séances, récréations, pauses, autres rituels). Chaque colonne est un élève réellement chargé depuis le coffre dans cette classe (onglet « Configuration générale » → « Charger les élèves du coffre dans une classe »). <strong>Par défaut, tous les élèves sont affectés à tous les créneaux</strong> : c'est à vous de décocher un élève sur un créneau précis pour l'en retirer (sortie, groupe de besoin ailleurs, décloisonnement…). Rien n'est jamais écrit sur le disque avec le nom des élèves : seuls des identifiants Synapses sont mémorisés pour les décochages.</p>
+      <h2>Affectation des élèves — semaine complète</h2>
+      <p class="hint">Sélectionnez une classe pour afficher tous ses créneaux du lundi au vendredi. Les créneaux sont ceux de la grille horaire type et ne sont pas modifiables ici. Pour chaque élève chargé dans la classe, chaque cellule indique s'il est affecté ou non au créneau.</p>
       <div class="row" style="margin-bottom:14px;">
         <div class="field"><label>Classe</label><select id="affg-classe"></select></div>
+        <button class="btn primary" id="btn-enregistrer-eleves">Enregistrer les élèves et leurs créneaux</button>
+        <span id="affg-save-status" class="hint" style="margin:0;"></span>
       </div>
       <div id="affg-sans-coffre" class="empty-hint" style="display:none;"></div>
       <div id="affg-wrap"></div>
-    </section>
-
-    <section class="card">
-      <h2>Inclusion ponctuelle d'un élève extérieur à la classe</h2>
-      <p class="hint">Rattache un élève du coffre (qui n'est pas dans la liste ci-dessus, par exemple un élève ULIS en inclusion partielle) à un créneau précis (récurrent, chaque semaine) de cette classe. Cette affectation est enregistrée en mémoire et <strong>empêche la génération automatique</strong> (bouton « Générer » / « Répartir les élèves ») de proposer à nouveau cet élève sur ce même créneau : aucun doublon.</p>
-      <div id="affectation-sans-coffre" class="empty-hint" style="display:none;">Ouvrez le coffre pour choisir un élève à affecter.</div>
-      <div id="affectation-form-bloc">
-        <div class="row">
-          <div class="field"><label>Classe</label><select id="affect-classe"></select></div>
-          <div class="field"><label>Créneau</label><select id="affect-creneau" style="min-width:260px;"></select></div>
-          <div class="field"><label>Élève</label><select id="affect-eleve" style="min-width:200px;"></select></div>
-          <button class="btn primary" id="btn-affecter-eleve">+ Affecter</button>
-        </div>
-        <p class="hint" style="margin-top:10px;">Seuls les créneaux de type « Séance » sont proposés ici. L'élève affecté apparaîtra dans le groupe de classe de ce créneau au fil de la génération du cahier journal.</p>
-        <h3 style="font-size:14px;margin-top:20px;margin-bottom:8px;">Élèves déjà affectés sur ce créneau</h3>
-        <div class="summary-grid" id="affectation-liste"></div>
-      </div>
     </section>
   </div>
 
@@ -468,6 +464,8 @@ let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
 let banque = {}; // rempli au chargement
 let grilleClasseCourant = null;
+function entiteGrilleById(id){ return (config.classes||[]).find(x=>x.id===id) || (config.dispositifs||[]).find(x=>x.id===id) || null; }
+function estDispositifId(id){ return (config.dispositifs||[]).some(x=>x.id===id); }
 
 /* ---------------- Onglets ---------------- */
 document.querySelectorAll("#page-tabs button").forEach(b=>{
@@ -552,6 +550,7 @@ function renderConfig(){
   renderJoursTravailles();
   renderRecreations();
   renderPauses();
+  renderDispositifs();
 }
 function renderVacances(){
   const body = $("vac-body");
@@ -691,24 +690,86 @@ function renderClasseNiveauSelect(sel){
 }
 renderClasseNiveauSelect($("classe-niveau"));
 
+function renderDispositifs(){
+  const wrap = $("dispositifs-list");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+  (config.dispositifs||[]).forEach(d=>{
+    const nbClasses = (config.classes||[]).filter(cl=>(cl.dispositifs||[]).includes(d.id)).length;
+    const div = document.createElement("div");
+    div.className = "classe-card";
+    div.innerHTML = `
+      <span class="swatch" style="background:${d.couleur || "#5B5F6B"};"></span>
+      <div class="infos"><b>${escapeHTMLTexte(d.nom)}</b><span class="niveau">${escapeHTMLTexte(d.type)} · ${nbClasses} classe(s) rattachée(s)</span></div>
+      <button class="btn sm danger" data-del-dispositif="${d.id}">Supprimer</button>
+    `;
+    div.querySelector("[data-del-dispositif]").addEventListener("click", ()=>{
+      if(!confirm(`Supprimer le dispositif « ${d.nom} » ? Sa grille horaire sera perdue.`)) return;
+      config.dispositifs = (config.dispositifs||[]).filter(x=>x.id!==d.id);
+      (config.classes||[]).forEach(cl=>cl.dispositifs=(cl.dispositifs||[]).filter(id=>id!==d.id));
+      delete grilles[d.id];
+      PC.sauverConfig(config); PC.sauverGrilles(grilles);
+      renderDispositifs(); renderClasses(); renderGrilleTabs(); renderSummary();
+    });
+    wrap.appendChild(div);
+  });
+  if(!wrap.children.length) wrap.innerHTML='<div class="empty-hint">Aucun dispositif créé pour l’instant.</div>';
+}
+
+$("btn-add-dispositif").addEventListener("click", ()=>{
+  const nom = $("dispositif-nom").value.trim();
+  const type = $("dispositif-type").value;
+  if(!nom){ toast("Indiquez un nom de dispositif."); return; }
+  config.dispositifs = config.dispositifs || [];
+  if(config.dispositifs.some(d=>d.nom.toLowerCase()===nom.toLowerCase())){
+    toast("Un dispositif portant ce nom existe déjà."); return;
+  }
+  const couleurs = ["#6B4E8E","#3F8C4B","#B5871E"];
+  config.dispositifs.push({id:PC.uid("disp"),nom,type,couleur:couleurs[config.dispositifs.length%couleurs.length]});
+  PC.sauverConfig(config);
+  $("dispositif-nom").value="";
+  renderDispositifs(); renderClasses(); renderGrilleTabs(); renderSummary();
+  toast("Dispositif créé.");
+});
+
 function renderClasses(){
   const wrap = $("classes-list");
   wrap.innerHTML = "";
   config.classes.forEach(cl=>{
     const nbEleves = (elevesParClasse[cl.id]||[]).length;
+    const dispositifs = (config.dispositifs||[]).filter(d => (cl.dispositifs||[]).includes(d.id));
     const div = document.createElement("div");
     div.className = "classe-card";
     div.innerHTML = `
       <span class="swatch" style="background:${cl.couleur};"></span>
-      <div class="infos"><b>${cl.nom}</b><span class="niveau">${cl.niveau}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span></div>
-      <button class="btn sm danger" data-del-classe="${cl.id}">Supprimer</button>
+      <div class="infos">
+        <b>${escapeHTMLTexte(cl.nom)}</b>
+        <span class="niveau">${escapeHTMLTexte(cl.niveau)}${nbEleves?" · "+nbEleves+" élève(s) chargé(s)":""}</span>
+        <span class="niveau">Dispositifs : ${dispositifs.length ? dispositifs.map(d=>escapeHTMLTexte(d.nom)).join(", ") : "aucun"}</span>
+      </div>
+      <div class="row" style="gap:6px;align-items:center;">
+        <select data-dispositifs="${cl.id}" multiple size="${Math.min(3,Math.max(1,(config.dispositifs||[]).length))}" style="min-width:150px;">
+          ${(config.dispositifs||[]).map(d=>`<option value="${d.id}" ${(cl.dispositifs||[]).includes(d.id)?"selected":""}>${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type)})</option>`).join("")}
+        </select>
+        <button class="btn sm danger" data-del-classe="${cl.id}">Supprimer</button>
+      </div>
     `;
+    div.querySelector("[data-dispositifs]").addEventListener("change", ev=>{
+      cl.dispositifs = Array.from(ev.target.selectedOptions).map(o=>o.value);
+      PC.sauverConfig(config);
+      renderClasses();
+    });
     div.querySelector("[data-del-classe]").addEventListener("click", ()=>{
       if(!confirm(`Supprimer la classe « ${cl.nom} » ? Sa grille horaire sera perdue.`)) return;
       PC.supprimerClasse(config, cl.id, grilles, PC.chargerAffectations());
+      if(coffre && coffre.ouvert){
+        (coffre.donnees.eleves||[]).forEach(e=>{
+          if(Array.isArray(e.planning)) e.planning=e.planning.filter(p=>p.classeId!==cl.id);
+        });
+      }
       delete elevesParClasse[cl.id];
       PC.sauverConfig(config); PC.sauverGrilles(grilles);
-      renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
+      renderClasses(); renderDispositifs(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
       if(typeof renderAffectationTab === "function") renderAffectationTab();
     });
     wrap.appendChild(div);
@@ -721,7 +782,7 @@ $("btn-add-classe").addEventListener("click", ()=>{
   PC.creerClasse(config, nom, $("classe-niveau").value);
   PC.sauverConfig(config);
   $("classe-nom").value = "";
-  renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
+  renderClasses(); renderDispositifs(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
   if(typeof renderAffectationTab === "function") renderAffectationTab();
 });
 
@@ -741,7 +802,7 @@ $("btn-charger-eleves-classe").addEventListener("click", ()=>{
   renderClasses();
   renderClasseElevesListe();
   if(typeof renderAffgGrille === "function" && $("affg-classe").value === classeId) renderAffgGrille();
-  toast(elevesParClasse[classeId].length + " élève(s) chargé(s) dans « " + cl.nom + " » (en mémoire uniquement).");
+  toast(elevesParClasse[classeId].length + " élève(s) chargé(s) dans « " + cl.nom + " ».");
 });
 function renderClasseElevesListe(){
   const wrap = $("classe-eleves-list");
@@ -763,15 +824,28 @@ function renderGrilleTabs(){
   const wrap = $("grille-classe-tabs");
   wrap.innerHTML = "";
   const classes = config.classes || [];
-  if(!classes.length){ wrap.innerHTML = '<span class="empty-hint">Créez au moins une classe dans « Configuration générale ».</span>'; $("grille-body").innerHTML=""; return; }
-  if(!classes.some(c=>c.id===grilleClasseCourant)) grilleClasseCourant = classes[0].id;
-  classes.forEach(cl=>{
+  const dispositifs = config.dispositifs || [];
+  const entites = classes.concat(dispositifs);
+  if(!entites.length){
+    wrap.innerHTML = '<span class="empty-hint">Créez au moins une classe ou un dispositif dans « Configuration générale ».</span>';
+    $("grille-body").innerHTML="";
+    return;
+  }
+  if(!entites.some(x=>x.id===grilleClasseCourant)) grilleClasseCourant = entites[0].id;
+  entites.forEach(ent=>{
     const b = document.createElement("button");
-    b.textContent = cl.nom; b.className = cl.id===grilleClasseCourant ? "active" : "";
-    b.addEventListener("click", ()=>{ grilleClasseCourant = cl.id; renderGrilleTabs(); renderGrilleBody(); });
+    b.textContent = estDispositifId(ent.id) ? `${ent.nom} · ${ent.type}` : ent.nom;
+    b.className = ent.id===grilleClasseCourant ? "active" : "";
+    b.addEventListener("click", ()=>{
+      grilleClasseCourant = ent.id;
+      renderGrilleTabs();
+      renderGrilleBody();
+    });
     wrap.appendChild(b);
   });
   renderGrilleBody();
+  const iaAtelier = document.querySelector(".ia-atelier");
+  if(iaAtelier) iaAtelier.style.display = estDispositifId(grilleClasseCourant) ? "none" : "";
   if(typeof refreshIaAtelier === "function") refreshIaAtelier();
   if(typeof refreshGrilleClasseNomActions === "function") refreshGrilleClasseNomActions();
 }
@@ -807,7 +881,8 @@ function renderGrilleBody(){
   wrap.innerHTML = "";
   if(!grilleClasseCourant) return;
   grilles[grilleClasseCourant] = grilles[grilleClasseCourant] || [];
-  const domaines = domainesDisponibles(grilleClasseCourant);
+  const estDispositif = estDispositifId(grilleClasseCourant);
+  const domaines = estDispositif ? [] : domainesDisponibles(grilleClasseCourant);
 
   PC.JOURS.forEach(j=>{
     const bloc = document.createElement("div");
@@ -817,63 +892,55 @@ function renderGrilleBody(){
       <button class="btn sm" data-add="${j.n}">+ Ajouter un créneau</button>`;
     const list = bloc.querySelector(".creneaux-list");
     if(!creneauxJour.length) list.innerHTML = '<div class="empty-hint">Aucun créneau ce jour.</div>';
-    creneauxJour
-      .sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
-      .forEach(c=> list.appendChild(renderCreneauRow(c, domaines)));
+    creneauxJour.sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
+      .forEach(c=>list.appendChild(renderCreneauRow(c, domaines, estDispositif)));
     wrap.appendChild(bloc);
   });
 
   wrap.querySelectorAll("button[data-add]").forEach(b=>{
     b.addEventListener("click", ()=>{
-      grilles[grilleClasseCourant].push({ id:PC.uid("cr"), jour:+b.dataset.add, debut:"09:00", fin:"09:30", type:"seance", domaineCle: domaines[0]?domaines[0].cle:"" });
+      const nouveau = {id:PC.uid("cr"),jour:+b.dataset.add,debut:"09:00",fin:"09:30",type:"seance",domaineCle:(domaines[0]?domaines[0].cle:""),titre:"",libelle:""};
+      grilles[grilleClasseCourant].push(nouveau);
       PC.sauverGrilles(grilles);
       renderGrilleBody();
-      if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
+
     });
   });
 }
 
-function renderCreneauRow(c, domaines){
+function renderCreneauRow(c, domaines, estDispositif){
   const row = document.createElement("div");
   row.className = "creneau-row";
   const typeOpts = Object.entries(PC.TYPES_CRENEAU).map(([k,v])=>`<option value="${k}" ${c.type===k?"selected":""}>${v.label}</option>`).join("");
-  const domOpts = domaines.length
-    ? domaines.map(d=>`<option value="${d.cle}" ${c.domaineCle===d.cle?"selected":""}>${d.label} (${d.count})</option>`).join("")
-    : `<option value="">Aucun domaine disponible</option>`;
-  const datalistId = "dl-" + c.id;
-  const titresExistants = titresPourDomaine(grilleClasseCourant, c.domaineCle);
+  const nom = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
   row.innerHTML = `
-    <input type="time" value="${c.debut}" data-f="debut">
-    <input type="time" value="${c.fin}" data-f="fin">
-    <select data-f="type">${typeOpts}</select>
-    <select data-f="domaineCle" style="${c.type==="seance"?"":"display:none;"}">${domOpts}</select>
-    <input type="text" data-f="titre" list="${datalistId}"
-      placeholder="Titre de la séance (existante ou à créer)"
-      value="${escapeAttr(c.titre||"")}"
-      style="${c.type==="seance"?"":"display:none;"}">
-    <datalist id="${datalistId}">${datalistOptionsHTML(titresExistants)}</datalist>
-    <input type="text" data-f="libelle" placeholder="Préciser (ex. Réunion, RDV, sieste…)" value="${(c.libelle||"").replace(/"/g,"&quot;")}" style="${c.type==="seance"?"display:none;":""}">
-    <button class="btn sm danger" data-del="1">✕</button>
+    <input type="time" value="${c.debut}" data-f="debut" aria-label="Heure de début">
+    <input type="time" value="${c.fin}" data-f="fin" aria-label="Heure de fin">
+    <select data-f="type" aria-label="Type">${typeOpts}</select>
+    <input type="text" data-f="nom" placeholder="Nom du créneau" value="${escapeAttr(nom)}">
+    <button class="btn sm danger" data-del="1">Supprimer</button>
   `;
   row.querySelectorAll("[data-f]").forEach(input=>{
     input.addEventListener("change", ()=>{
-      c[input.dataset.f] = input.value;
-      if(input.dataset.f==="type") renderGrilleBody(); // active/désactive domaine, titre et libellé
-      if(input.dataset.f==="domaineCle"){
-        // Le champ "titre" reste sur ce qui a été saisi ; on rafraîchit
-        // seulement les suggestions (datalist) pour le nouveau domaine.
-        const dl = row.querySelector("#" + CSS.escape(datalistId));
-        if(dl) dl.innerHTML = datalistOptionsHTML(titresPourDomaine(grilleClasseCourant, c.domaineCle));
+      if(input.dataset.f==="nom"){
+        if(c.type==="seance"){
+          c.titre=input.value;
+          if(input.value.trim()) c.domaineCle=trouverDomaineCle(grilleClasseCourant,input.value);
+          else if(!c.domaineCle && domaines.length) c.domaineCle=domaines[0].cle;
+        }else c.libelle=input.value;
+      }else{
+        c[input.dataset.f]=input.value;
+        if(input.dataset.f==="type" && c.type==="seance" && !c.domaineCle && domaines.length) c.domaineCle=domaines[0].cle;
       }
       PC.sauverGrilles(grilles);
-      if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
+      if(input.dataset.f==="type") renderGrilleBody();
+
     });
   });
   row.querySelector("[data-del]").addEventListener("click", ()=>{
     grilles[grilleClasseCourant] = grilles[grilleClasseCourant].filter(x=>x.id!==c.id);
     PC.sauverGrilles(grilles);
     renderGrilleBody();
-    if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
   });
   return row;
 }
@@ -881,14 +948,14 @@ function renderCreneauRow(c, domaines){
 /* ---------------- Réinitialisation de l'emploi du temps d'une classe ---------------- */
 
 function refreshGrilleClasseNomActions(){
-  const cl = PC.classeById(config, grilleClasseCourant);
+  const cl = entiteGrilleById(grilleClasseCourant);
   $("grille-classe-nom-actions").textContent = cl ? cl.nom : "—";
 }
 
 $("btn-reset-grille").addEventListener("click", ()=>{
-  if(!grilleClasseCourant){ toast("Sélectionnez d'abord une classe."); return; }
-  const cl = PC.classeById(config, grilleClasseCourant);
-  const nom = cl ? cl.nom : "cette classe";
+  if(!grilleClasseCourant){ toast("Sélectionnez d'abord une classe ou un dispositif."); return; }
+  const cl = entiteGrilleById(grilleClasseCourant);
+  const nom = cl ? cl.nom : "cette entité";
   const confirme = confirm(
     `Réinitialiser l'emploi du temps de « ${nom} » ?\n\n` +
     "Tous les créneaux de cette classe seront supprimés (séances, titres saisis ou importés, récréations, pauses, autres rituels).\n" +
@@ -897,10 +964,9 @@ $("btn-reset-grille").addEventListener("click", ()=>{
   );
   if(!confirme) return;
   grilles[grilleClasseCourant] = [];
-  PC.appliquerCreneauxFixes(config, grilles, [grilleClasseCourant]);
+  if(!estDispositifId(grilleClasseCourant)) PC.appliquerCreneauxFixes(config, grilles, [grilleClasseCourant]);
   PC.sauverGrilles(grilles);
   renderGrilleBody();
-  if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
   toast(`Emploi du temps de « ${nom} » réinitialisé.`);
 });
 
@@ -943,7 +1009,7 @@ function construireLignesGrillePourExport(classeId){
 }
 
 function telechargerGrillePDF(classeId){
-  const cl = PC.classeById(config, classeId);
+  const cl = entiteGrilleById(classeId);
   if(!cl) return;
   if(!(window.jspdf && window.jspdf.jsPDF)){
     alert("La bibliothèque PDF (jsPDF) n'a pas pu être chargée (connexion internet nécessaire au premier chargement de la page). Réessayez, ou choisissez le format Word.");
@@ -959,7 +1025,7 @@ function telechargerGrillePDF(classeId){
   doc.setFont("helvetica","bold"); doc.setFontSize(16);
   doc.text("Emploi du temps — " + cl.nom, 36, 34);
   doc.setFont("helvetica","normal"); doc.setFontSize(10);
-  doc.text("Niveau " + cl.niveau, 36, 49);
+  doc.text(estDispositifId(classeId) ? ("Dispositif " + cl.type) : ("Niveau " + cl.niveau), 36, 49);
 
   const lignes = construireLignesGrillePourExport(classeId);
   doc.autoTable({
@@ -982,7 +1048,7 @@ function telechargerGrillePDF(classeId){
 }
 
 function telechargerGrilleDoc(classeId){
-  const cl = PC.classeById(config, classeId);
+  const cl = entiteGrilleById(classeId);
   if(!cl) return;
   const lignes = construireLignesGrillePourExport(classeId);
   const rowsHTML = lignes.map(([jour,horaire,texte])=>
@@ -1032,33 +1098,32 @@ $("grille-telecharger-format").addEventListener("change", (e)=>{
 
 function genererPromptIa(){
   const cl = PC.classeById(config, grilleClasseCourant);
-  if(!cl) return "Créez et sélectionnez d'abord une classe.";
-  const domaines = domainesDisponibles(grilleClasseCourant);
-  const domainesTxt = domaines.length
-    ? domaines.map(d=>`- ${d.label}`).join("\n")
-    : "- (aucun domaine chargé pour l'instant — indiquez simplement la matière telle qu'elle apparaît sur le document)";
+  if(!cl) return "Sélectionnez une classe pour importer sa grille horaire.";
   return (
-`Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (fichier Excel, PDF, Word, ou photo/scan d'un emploi du temps papier).
+`Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (Excel, PDF, Word, photo ou scan).
 
 Classe concernée : ${cl.nom} (niveau ${cl.niveau}).
 
-Analyse le document joint et renvoie UNIQUEMENT un tableau JSON (rien d'autre, pas de texte autour, pas de bloc de code), où chaque élément représente un créneau horaire récurrent dans la semaine, sous la forme :
+Renvoie UNIQUEMENT un tableau JSON. Chaque objet représente un créneau horaire récurrent de la semaine :
 
 [
-  {"jour":"Lundi","debut":"09:00","fin":"09:45","matiere":"Lecture","titre":"Découverte du texte support"},
-  {"jour":"Lundi","debut":"09:45","fin":"10:00","matiere":"Récréation","titre":""}
+  {"jour":"Lundi","debut":"09:00","fin":"09:45","type":"seance","nom":"Lecture"},
+  {"jour":"Lundi","debut":"09:45","fin":"10:00","type":"recreation","nom":"Récréation"}
 ]
 
-Règles :
-- "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
-- "debut" et "fin" sont au format HH:MM (24h).
-- "matiere" est le nom du domaine/de la matière tel qu'il figure sur le document (par exemple : ${domaines.length? domaines[0].label : "Lecture"}). Utilise si possible l'un des domaines suivants, en les reformulant le moins possible :
-${domainesTxt}
-- "titre" est le titre précis de la séance s'il est indiqué sur le document (ex. « Séance 3 — entraînement à la fluence »). Laisse une chaîne vide si le document n'indique qu'une matière générale, sans titre de séance précis.
-- Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
-- Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
+Règles impératives :
+- "jour" : Lundi, Mardi, Mercredi, Jeudi ou Vendredi.
+- "debut" et "fin" : HH:MM, format 24 heures.
+- "type" : "seance", "recreation", "pause" ou "autre".
+- "nom" : nom/libellé visible du créneau, sans inventer de séance précise.
+- NE FOURNIS PAS de champ "matiere", "domaine" ou "domaineCle" : le domaine reste une donnée interne à Synapses et sera déterminé plus tard lors de la génération.
+- NE FAIS AUCUNE affectation d'élève et ne renseigne aucun élève.
+- Ne fusionne pas deux créneaux différents.
+- Ne crée pas de créneau absent du document.
+- Pour une séance, "nom" peut être la matière ou l'intitulé général visible (ex. "Français", "Mathématiques", "Lecture"). Le rattachement à une séance précise se fera dans le cahier journal.
+- Pour une récréation, pause ou autre temps non pédagogique, indique son libellé dans "nom".
 
-Réponds uniquement avec ce tableau JSON.`
+Réponds uniquement avec le tableau JSON, sans commentaire ni bloc de code.`
   );
 }
 
@@ -1135,32 +1200,24 @@ function typeCreneauDepuisMatiere(matiereTexte){
 // Accepte du JSON strict, ou (repli) des lignes du type :
 // "Lundi 09:00-09:45 Lecture : Découverte du texte support"
 function parserResultatIa(texte){
-  const brut = (texte||"").trim();
+  const brut=(texte||"").trim();
   if(!brut) return [];
-
-  // 1) Tentative JSON directe (en retirant d'éventuels ```json ... ```)
-  const sansCloture = brut.replace(/^```(json)?/i,"").replace(/```$/,"").trim();
+  const sansCloture=brut.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
   try{
-    const data = JSON.parse(sansCloture);
-    if(Array.isArray(data)){
-      return data.map(l=>({
-        jour: l.jour, debut: l.debut, fin: l.fin,
-        matiere: l.matiere || l.domaine || "",
-        titre: l.titre || l.seance || ""
-      }));
-    }
-  }catch(e){ /* on tente le repli ligne par ligne ci-dessous */ }
-
-  // 2) Repli : une ligne par créneau
-  const lignes = brut.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const resultats = [];
-  const re = /^([A-Za-zÀ-ÿ]+)\s+(\d{1,2}[:h.]\d{0,2})\s*[-–à]\s*(\d{1,2}[:h.]\d{0,2})\s*[-—:]?\s*(.*)$/i;
+    const data=JSON.parse(sansCloture);
+    if(Array.isArray(data)) return data.map(l=>({
+      jour:l.jour, debut:l.debut, fin:l.fin,
+      type:l.type || typeCreneauDepuisMatiere(l.matiere||""),
+      nom:l.nom || l.titre || l.seance || l.matiere || ""
+    }));
+  }catch(e){}
+  const resultats=[];
+  const lignes=brut.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const re=/^([A-Za-zÀ-ÿ]+)\s+(\d{1,2}[:h.]\d{0,2})\s*[-–à]\s*(\d{1,2}[:h.]\d{0,2})\s*[-—:]?\s*(.*)$/i;
   lignes.forEach(l=>{
-    const m = l.match(re);
-    if(!m) return;
-    const reste = m[4] || "";
-    const [matiere, ...titreParts] = reste.split(/\s*[:\-–]\s*/);
-    resultats.push({ jour:m[1], debut:m[2], fin:m[3], matiere:(matiere||"").trim(), titre: titreParts.join(" - ").trim() });
+    const m=l.match(re); if(!m) return;
+    const reste=m[4]||"";
+    resultats.push({jour:m[1],debut:m[2],fin:m[3],type:typeCreneauDepuisMatiere(reste),nom:reste.trim()});
   });
   return resultats;
 }
@@ -1186,21 +1243,21 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
     const fin = normaliserHeure(l.fin);
     if(jourN===null || !debut || !fin){ ignores++; return; }
 
-    const type = typeCreneauDepuisMatiere(l.matiere);
-    const domaineCle = type==="seance" ? trouverDomaineCle(grilleClasseCourant, l.matiere) : "";
-    const titre = (l.titre || (type!=="seance" ? (l.matiere||"") : "")).trim();
+    const type = ["seance","recreation","pause","autre"].includes(l.type) ? l.type : typeCreneauDepuisMatiere(l.nom);
+    const domaineCle = type==="seance" ? trouverDomaineCle(grilleClasseCourant, nom) : "";
+    const nom = (l.nom || "").trim();
 
     const existant = grilles[grilleClasseCourant].find(c=> c.jour===jourN && c.debut===debut);
     if(existant){
       existant.fin = fin;
       existant.type = type;
-      if(type==="seance"){ existant.domaineCle = domaineCle; existant.titre = titre; }
-      else { existant.libelle = titre || PC.TYPES_CRENEAU[type].label; }
+      if(type==="seance"){ existant.domaineCle = domaineCle; existant.titre = nom; }
+      else { existant.libelle = nom || PC.TYPES_CRENEAU[type].label; }
       mis_a_jour++;
     } else {
-      const nouveau = { id: PC.uid("cr"), jour: jourN, debut, fin, type };
-      if(type==="seance"){ nouveau.domaineCle = domaineCle; nouveau.titre = titre; }
-      else { nouveau.libelle = titre || PC.TYPES_CRENEAU[type].label; }
+      const nouveau = { id: PC.uid("cr"), jour: jourN, debut, fin, type, domaineCle:"" };
+      if(type==="seance"){ nouveau.domaineCle = domaineCle; nouveau.titre = nom; }
+      else { nouveau.libelle = nom || PC.TYPES_CRENEAU[type].label; }
       grilles[grilleClasseCourant].push(nouveau);
       ajoutes++;
     }
@@ -1208,7 +1265,6 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
 
   PC.sauverGrilles(grilles);
   renderGrilleBody();
-  if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
 
   statusEl.textContent = `${ajoutes} créneau(x) ajouté(s), ${mis_a_jour} mis à jour${ignores? `, ${ignores} ligne(s) ignorée(s) (jour/heure non reconnu)` : ""}.`;
   statusEl.classList.add(ignores && !ajoutes && !mis_a_jour ? "err" : "ok");
@@ -1216,186 +1272,128 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
 });
 
 /* ---------------- Affectation élève ↔ créneau ---------------- */
-let affectationsEleves = PC.chargerAffectationsEleves();
-let exclusionsCreneau = PC.chargerExclusionsCreneau();
-
-/* ---- Grille de présence créneau × élève (roster réel de la classe, chargé depuis le coffre) ---- */
+function elevePlanning(e){
+  return Array.isArray(e && e.planning) ? e.planning : [];
+}
+function eleveEstAffecteAuCreneau(e, classeId, creneauId){
+  return elevePlanning(e).some(p=>p.classeId===classeId && p.creneauId===creneauId);
+}
+function coffreEleveById(id){
+  if(!coffre || !coffre.ouvert) return null;
+  return (coffre.donnees.eleves||[]).find(e=>e.identifiantSynapses===id) || null;
+}
+function enregistrerElevesClasse(classeId){
+  if(!coffre || !coffre.ouvert) throw new Error("Ouvrez le coffre avant d'enregistrer les élèves.");
+  const cl = PC.classeById(config, classeId);
+  const roster = elevesParClasse[classeId] || [];
+  if(!cl) throw new Error("Classe introuvable.");
+  if(!roster.length) throw new Error("Aucun élève chargé dans cette classe.");
+  const creneaux = (grilles[classeId]||[]).slice();
+  const idsActuels = new Set(creneaux.map(c=>c.id));
+  let ajoutes=0;
+  roster.forEach(ref=>{
+    const e = coffreEleveById(ref.identifiantSynapses);
+    if(!e) return;
+    if(Array.isArray(e.planning)){
+      e.planning = e.planning.filter(p => p.classeId !== classeId || idsActuels.has(p.creneauId));
+    }
+    creneaux.forEach(c=>{
+      const existant = e.planning.find(p=>p.classeId===classeId && p.creneauId===c.id);
+      if(existant){
+        existant.classeNom = cl.nom;
+        existant.jour = Number(c.jour);
+        existant.debut = c.debut;
+        existant.fin = c.fin;
+        existant.domaineCle = c.domaineCle || "";
+      }else{
+        coffre.affecterCreneau(ref.identifiantSynapses,{
+          classeId: cl.id, classeNom: cl.nom, creneauId:c.id,
+          jour:c.jour, debut:c.debut, fin:c.fin,
+          domaineCle:c.domaineCle||""
+        });
+        ajoutes++;
+      }
+    });
+  });
+  return ajoutes;
+}
+$("btn-enregistrer-eleves-config").addEventListener("click",()=>{
+  const classeId=$("classe-cible-eleves").value;
+  try{
+    const n=enregistrerElevesClasse(classeId);
+    $("affg-save-status").textContent=`${n} affectation(s) ajoutée(s) dans les plannings individuels du coffre.`;
+    toast("Créneaux des élèves enregistrés dans le coffre.");
+    if($("affg-classe").value===classeId) renderAffgGrille();
+  }catch(e){ toast(e.message||String(e)); }
+});
 
 function renderAffgClasseSelect(){
   const sel = $("affg-classe");
   const prev = sel.value;
-  sel.innerHTML = config.classes.map(cl=>`<option value="${cl.id}">${cl.nom}</option>`).join("") || '<option value="">Aucune classe</option>';
-  if(prev && config.classes.some(c=>c.id===prev)) sel.value = prev;
+  sel.innerHTML = (config.classes||[]).map(cl=>`<option value="${cl.id}">${escapeHTMLTexte(cl.nom)}</option>`).join("") || '<option value="">Aucune classe</option>';
+  if(prev && config.classes.some(c=>c.id===prev)) sel.value=prev;
 }
-
 function renderAffgGrille(){
-  const wrap = $("affg-wrap");
-  const hint = $("affg-sans-coffre");
-  const classeId = $("affg-classe").value;
-  wrap.innerHTML = "";
+  const wrap=$("affg-wrap"), hint=$("affg-sans-coffre");
+  const classeId=$("affg-classe").value;
+  wrap.innerHTML="";
+  if(!classeId){hint.style.display="";hint.textContent="Créez et sélectionnez une classe.";return;}
+  if(!coffre || !coffre.ouvert){hint.style.display="";hint.textContent="Ouvrez le coffre pour charger les élèves et enregistrer leur planning individuel.";return;}
+  const roster=elevesParClasse[classeId]||[];
+  if(!roster.length){hint.style.display="";hint.textContent="Aucun élève chargé dans cette classe. Utilisez « Charger les élèves du coffre dans une classe » dans Configuration générale.";return;}
+  hint.style.display="none";
+  const creneaux=(grilles[classeId]||[]).slice().sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+  if(!creneaux.length){wrap.innerHTML='<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe.</div>';return;}
 
-  if(!classeId){ hint.style.display = ""; hint.textContent = "Créez et sélectionnez une classe."; return; }
-  if(!(coffre && coffre.ouvert)){
-    hint.style.display = "";
-    hint.textContent = "Ouvrez le coffre, puis chargez les élèves de cette classe depuis l'onglet « Configuration générale » (« Charger les élèves du coffre dans une classe ») pour afficher la grille de présence.";
-    return;
-  }
-  // Roster réel : identique à celui chargé par "Charger les élèves du
-  // coffre dans cette classe" — même source (coffre.donnees.eleves), même
-  // mémoire éphémère `elevesParClasse`, jamais une liste vide de secours.
-  const roster = elevesParClasse[classeId] || [];
-  if(!roster.length){
-    hint.style.display = "";
-    hint.textContent = "Aucun élève chargé dans cette classe pour l'instant. Rendez-vous dans « Configuration générale » → « Charger les élèves du coffre dans une classe ».";
-    return;
-  }
-  hint.style.display = "none";
-
-  const domaines = domainesDisponibles(classeId);
-  const creneaux = (grilles[classeId]||[]).slice().sort((a,b)=> a.jour-b.jour || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
-  if(!creneaux.length){
-    wrap.innerHTML = '<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe pour l\'instant (onglet « Grille horaire type »).</div>';
-    return;
-  }
-
-  const scrollDiv = document.createElement("div");
-  scrollDiv.className = "affg-scroll";
-  const table = document.createElement("table");
-  table.className = "affg";
-
-  const thead = document.createElement("thead");
-  const trHead = document.createElement("tr");
-  trHead.innerHTML = `<th class="affg-creneau-head">Créneau</th>` +
-    roster.map(e=>`<th>${escapeHTMLTexte(e.nom)}</th>`).join("");
-  thead.appendChild(trHead);
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  let jourPrecedent = null;
-  creneaux.forEach(c=>{
-    const tr = document.createElement("tr");
-    if(jourPrecedent !== null && jourPrecedent !== c.jour) tr.classList.add("affg-jour-sep");
-    jourPrecedent = c.jour;
-
-    const jourNom = (PC.JOURS.find(j=>j.n===c.jour)||{}).nom || c.jour;
-    const libelle = libelleCreneauExport(c, domaines);
-    const tdCreneau = document.createElement("td");
-    tdCreneau.className = "affg-creneau";
-    tdCreneau.innerHTML = `<span class="affg-jour-label">${escapeHTMLTexte(jourNom)}</span><span class="affg-horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</span><div class="affg-libelle">${escapeHTMLTexte(libelle)}</div>`;
-    tr.appendChild(tdCreneau);
-
-    roster.forEach(e=>{
-      const td = document.createElement("td");
-      td.className = "affg-eleve-cell";
-      const exclu = PC.estEleveExcluCreneau(exclusionsCreneau, classeId, c.id, e.identifiantSynapses);
-      if(exclu) td.classList.add("exclu");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !exclu;
-      cb.title = `${e.nom} — ${exclu ? "retiré de ce créneau" : "affecté à ce créneau"}`;
-      cb.addEventListener("change", ()=>{
-        PC.definirPresenceEleveCreneau(exclusionsCreneau, classeId, c.id, e.identifiantSynapses, cb.checked);
-        PC.sauverExclusionsCreneau(exclusionsCreneau);
-        td.classList.toggle("exclu", !cb.checked);
-        cb.title = `${e.nom} — ${cb.checked ? "affecté à ce créneau" : "retiré de ce créneau"}`;
+  const scroll=document.createElement("div"); scroll.className="affg-scroll";
+  const table=document.createElement("table"); table.className="affg";
+  const thead=document.createElement("thead"), hr=document.createElement("tr");
+  hr.innerHTML='<th class="affg-creneau-head">Élève</th>'+creneaux.map(c=>{
+    const j=(PC.JOURS.find(x=>x.n===c.jour)||{}).nom||c.jour;
+    const nom=c.type==="seance"?(c.titre||""):(c.libelle||"");
+    return `<th title="${escapeAttr(j+" "+c.debut+"–"+c.fin+" "+nom)}"><span>${escapeHTMLTexte(j)}</span><br>${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}<br><small>${escapeHTMLTexte(nom||PC.TYPES_CRENEAU[c.type]?.label||c.type)}</small></th>`;
+  }).join("");
+  thead.appendChild(hr); table.appendChild(thead);
+  const tbody=document.createElement("tbody");
+  roster.forEach(ref=>{
+    const e=coffreEleveById(ref.identifiantSynapses);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<th>${escapeHTMLTexte(ref.nom)}</th>`;
+    creneaux.forEach(c=>{
+      const td=document.createElement("td"); td.className="affg-eleve-cell";
+      const cb=document.createElement("input"); cb.type="checkbox";
+      cb.checked=!!e && eleveEstAffecteAuCreneau(e,classeId,c.id);
+      cb.title=cb.checked?"Affecté à ce créneau":"Non affecté à ce créneau";
+      cb.addEventListener("change",()=>{
+        if(!e){cb.checked=false;return;}
+        try{
+          if(cb.checked){
+            const cl=PC.classeById(config,classeId);
+            coffre.affecterCreneau(ref.identifiantSynapses,{classeId:cl.id,classeNom:cl.nom,creneauId:c.id,jour:c.jour,debut:c.debut,fin:c.fin,domaineCle:c.domaineCle||""});
+          }else{
+            coffre.retirerCreneau(ref.identifiantSynapses,classeId,c.id);
+          }
+          td.classList.toggle("exclu",!cb.checked);
+          cb.title=cb.checked?"Affecté à ce créneau":"Non affecté à ce créneau";
+          $("affg-save-status").textContent="Affectation enregistrée dans le coffre de l'élève.";
+        }catch(err){ cb.checked=!cb.checked; toast(err.message||"Impossible d'enregistrer."); }
       });
-      td.appendChild(cb);
-      tr.appendChild(td);
+      if(!cb.checked) td.classList.add("exclu");
+      td.appendChild(cb); tr.appendChild(td);
     });
-
     tbody.appendChild(tr);
   });
-  table.appendChild(tbody);
-  scrollDiv.appendChild(table);
-  wrap.appendChild(scrollDiv);
+  table.appendChild(tbody); scroll.appendChild(table); wrap.appendChild(scroll);
 }
-
-$("affg-classe").addEventListener("change", renderAffgGrille);
-
-function renderAffectationClasseSelect(){
-  const sel = $("affect-classe");
-  const prev = sel.value;
-  sel.innerHTML = config.classes.map(cl=>`<option value="${cl.id}">${cl.nom}</option>`).join("") || '<option value="">Aucune classe</option>';
-  if(prev && config.classes.some(c=>c.id===prev)) sel.value = prev;
-}
-
-function renderAffectationCreneauSelect(){
-  const sel = $("affect-creneau");
-  const classeId = $("affect-classe").value;
-  const prev = sel.value;
-  const creneaux = (grilles[classeId]||[])
-    .filter(c=>c.type==="seance")
-    .sort((a,b)=> a.jour-b.jour || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
-  const domaines = domainesDisponibles(classeId);
-  const labelDomaine = cle => (domaines.find(d=>d.cle===cle)||{}).label || cle || "—";
-  sel.innerHTML = creneaux.map(c=>{
-    const jourNom = (PC.JOURS.find(j=>j.n===c.jour)||{}).nom || c.jour;
-    return `<option value="${c.id}">${jourNom} ${c.debut}–${c.fin} · ${labelDomaine(c.domaineCle)}</option>`;
-  }).join("") || '<option value="">Aucun créneau « séance » dans cette classe</option>';
-  if(prev && creneaux.some(c=>c.id===prev)) sel.value = prev;
-}
-
-function renderAffectationEleveSelect(){
-  const sel = $("affect-eleve");
-  const dispo = !!(coffre && coffre.ouvert);
-  $("affectation-sans-coffre").style.display = dispo ? "none" : "";
-  $("affectation-form-bloc").style.display = dispo ? "" : "none";
-  if(!dispo){ sel.innerHTML = ""; return; }
-  const eleves = coffre.donnees.eleves || [];
-  sel.innerHTML = eleves.map(e=>{
-    const nom = (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses;
-    return `<option value="${e.identifiantSynapses}">${nom} (${e.identifiantSynapses})</option>`;
-  }).join("") || '<option value="">Aucun élève dans le coffre</option>';
-}
-
-function renderAffectationListe(){
-  const wrap = $("affectation-liste");
-  wrap.innerHTML = "";
-  const classeId = $("affect-classe").value;
-  const creneauId = $("affect-creneau").value;
-  if(!classeId || !creneauId){ wrap.innerHTML = '<div class="empty-hint">Sélectionnez une classe et un créneau.</div>'; return; }
-  const ids = PC.elevesAffectesCreneau(affectationsEleves, classeId, creneauId);
-  if(!ids.length){ wrap.innerHTML = '<div class="empty-hint">Aucun élève affecté sur ce créneau pour l\'instant.</div>'; return; }
-  const eleves = (coffre && coffre.ouvert) ? (coffre.donnees.eleves||[]) : [];
-  ids.forEach(id=>{
-    const e = eleves.find(x=>x.identifiantSynapses===id);
-    const nom = e ? ((e.identite && (e.identite.prenom || e.identite.nom)) || id) : id;
-    const div = document.createElement("div");
-    div.className = "summary-item";
-    div.innerHTML = `<b>${nom}</b>${id}<div style="margin-top:6px;"><button class="btn sm danger" data-retirer="${id}">Retirer</button></div>`;
-    div.querySelector("[data-retirer]").addEventListener("click", ()=>{
-      PC.retirerEleveCreneau(affectationsEleves, classeId, creneauId, id);
-      PC.sauverAffectationsEleves(affectationsEleves);
-      renderAffectationListe();
-      toast("Affectation retirée.");
-    });
-    wrap.appendChild(div);
-  });
-}
-
-function renderAffectationTab(){
-  renderAffgClasseSelect();
-  renderAffgGrille();
-  renderAffectationClasseSelect();
-  renderAffectationCreneauSelect();
-  renderAffectationEleveSelect();
-  renderAffectationListe();
-}
-
-$("affect-classe").addEventListener("change", ()=>{ renderAffectationCreneauSelect(); renderAffectationListe(); });
-$("affect-creneau").addEventListener("change", renderAffectationListe);
-$("btn-affecter-eleve").addEventListener("click", ()=>{
-  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant d'affecter un élève."); return; }
-  const classeId = $("affect-classe").value;
-  const creneauId = $("affect-creneau").value;
-  const eleveId = $("affect-eleve").value;
-  if(!classeId || !creneauId){ toast("Choisissez une classe et un créneau « séance »."); return; }
-  if(!eleveId){ toast("Choisissez un élève."); return; }
-  const ajoute = PC.affecterEleveCreneau(affectationsEleves, classeId, creneauId, eleveId);
-  if(!ajoute){ toast("Cet élève est déjà affecté à ce créneau — aucun doublon ajouté."); return; }
-  PC.sauverAffectationsEleves(affectationsEleves);
-  renderAffectationListe();
-  toast("Élève affecté au créneau : sera exclu des groupes automatiques sur ce créneau.");
+$("affg-classe").addEventListener("change",renderAffgGrille);
+$("btn-enregistrer-eleves").addEventListener("click",()=>{
+  const status=$("affg-save-status"); status.textContent="";
+  try{
+    const n=enregistrerElevesClasse($("affg-classe").value);
+    status.textContent=`${n} affectation(s) ajoutée(s) dans les plannings individuels du coffre.`;
+    renderAffgGrille();
+    toast("Planning individuel initialisé : les élèves sont affectés à tous les créneaux de leur classe.");
+  }catch(e){status.textContent=e.message||String(e);toast(status.textContent);}
 });
 
 /* ---------------- Résumé / génération ---------------- */
@@ -1433,9 +1431,10 @@ $("btn-generer").addEventListener("click", async ()=>{
     const affectationsExistantes = PC.chargerAffectations();
     const resultat = await PC.genererPlanningComplet(config, grilles, affectationsExistantes, coffre);
     const u = resultat.ulis;
+    const d = resultat.dispositifs || { dispositifs:0, groupes:0, eleves:0 };
     $("gen-status").textContent = (coffre && coffre.ouvert)
-      ? `Planning généré. ULIS : ${u.groupes} groupe(s) de besoin sur les créneaux libres (${u.ajouts} affectation(s) d'élève, ${u.eleves} élève(s) sans classe) — référentiel BO n°44 du 26/11/2015. Consultez « Planning — Affichage ».`
-      : "Planning généré (ouvrez le coffre pour générer aussi les groupes de besoin ULIS). Consultez « Planning — Affichage ».";
+      ? `Planning généré. ULIS : ${u.groupes} groupe(s) de besoin (${u.ajouts} affectation(s)). Dispositifs : ${d.groupes} groupe(s) généré(s) pour ${d.eleves} élève(s). Consultez « Planning — Affichage ».`
+      : "Planning généré (ouvrez le coffre pour générer les groupes de besoin et les dispositifs). Consultez « Planning — Affichage ».";
     toast("Planning généré avec succès.");
   }catch(e){
     $("gen-status").textContent = "Erreur : " + (e.message || e);
@@ -1490,8 +1489,7 @@ $("import-config-file").addEventListener("change", async ()=>{
 $("btn-export-json").addEventListener("click", ()=>{
   const journal = PC.chargerJournal();
   const affectationsActuelles = PC.chargerAffectations();
-  const affectationsElevesActuelles = PC.chargerAffectationsEleves();
-  PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal, affectationsElevesActuelles);
+  PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal);
   toast("Export téléchargé.");
 });
 $("btn-import-json-browse").addEventListener("click", ()=> $("import-json-file").click());
@@ -1525,7 +1523,8 @@ $("import-json-file").addEventListener("change", async ()=>{
   }
   renderGrilleTabs();
   renderSummary();
-  renderAffectationTab();
+  renderAffgClasseSelect();
+  renderAffgGrille();
 })();
 </script>
 
