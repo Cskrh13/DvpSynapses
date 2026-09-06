@@ -62,9 +62,20 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .niveau-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
 .jour-block{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;background:var(--panel-raised);}
 .jour-block h4{font-size:14px;margin-bottom:10px;}
-.creneau-row{display:grid;grid-template-columns:90px 90px 150px 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);}
+.creneau-row{display:grid;grid-template-columns:88px 88px 130px 1fr 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);}
 .creneau-row:first-of-type{border-top:none;}
-.creneau-row input,.creneau-row select{border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;}
+.creneau-row input,.creneau-row select{border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;width:100%;}
+
+/* ---- Atelier IA (grille horaire) ---- */
+.ia-atelier{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);}
+.ia-atelier h3{font-size:15px;margin-bottom:4px;}
+.ia-atelier textarea{width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;font-size:12.5px;font-family:'IBM Plex Mono',monospace;background:var(--panel-raised);color:var(--ink);resize:vertical;}
+.ia-atelier textarea#ia-prompt{min-height:150px;color:var(--ink-soft);}
+.ia-atelier textarea#ia-resultat{min-height:120px;}
+.ia-atelier .ia-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:center;}
+.ia-atelier .ia-status{font-size:13px;color:var(--ink-soft);}
+.ia-atelier .ia-status.err{color:var(--danger);font-weight:600;}
+.ia-atelier .ia-status.ok{color:var(--ok);font-weight:600;}
 .badge-type{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;color:#fff;white-space:nowrap;}
 .empty-hint{color:var(--ink-soft);font-size:13px;font-style:italic;padding:8px 0;}
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px;}
@@ -271,6 +282,34 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
       <p class="hint">Définissez, pour chaque classe, les créneaux du lundi au vendredi : séances (rattachées à un domaine — remplies automatiquement à la génération), récréations, pauses ou autres rituels. Cette grille se répète sur toutes les semaines de classe.</p>
       <div class="niveau-tabs" id="grille-classe-tabs"></div>
       <div id="grille-body"></div>
+
+      <div class="ia-atelier">
+        <h3>🤖 Atelier IA — Récupérer les horaires depuis un fichier</h3>
+        <p class="hint" style="margin-top:0;">
+          Copiez le prompt ci-dessous, collez-le dans votre IA habituelle (avec le fichier Excel, PDF, Word ou une photo/scan de l'emploi du temps en pièce jointe), puis collez la réponse obtenue dans la seconde zone. La grille de la classe sélectionnée ci-dessus (<strong id="ia-classe-nom">—</strong>) sera remplie automatiquement — vous gardez la main pour tout ajuster ensuite créneau par créneau.
+        </p>
+
+        <div class="field">
+          <label for="ia-prompt">1. Prompt à copier dans votre IA</label>
+          <textarea id="ia-prompt" readonly></textarea>
+        </div>
+        <div class="ia-row">
+          <button class="btn" id="btn-ia-regenerer">🔄 Régénérer le prompt</button>
+          <button class="btn primary" id="btn-ia-copier">📋 Copier le prompt</button>
+        </div>
+
+        <div class="field" style="margin-top:18px;">
+          <label for="ia-resultat">2. Réponse de l'IA à coller ici (JSON de préférence, une liste simple fonctionne aussi)</label>
+          <textarea id="ia-resultat" placeholder='Ex. : [{"jour":"Lundi","debut":"09:00","fin":"09:45","matiere":"Lecture","titre":"Séance 3 — Entraînement à la fluence"}, ...]'></textarea>
+        </div>
+        <div class="ia-row">
+          <button class="btn primary" id="btn-ia-remplir">✅ Remplir la grille avec ce résultat</button>
+          <span class="ia-status" id="ia-status"></span>
+        </div>
+        <p class="hint" style="margin-top:10px;">
+          Chaque ligne reconnue crée ou met à jour un créneau (jour + heure de début identiques). Le titre saisi ou récupéré est toujours ajouté <strong>sous forme de texte</strong> dans le créneau : vous pouvez le modifier librement ensuite, comme n'importe quel créneau rempli à la main.
+        </p>
+      </div>
     </section>
   </div>
 
@@ -682,12 +721,33 @@ function renderGrilleTabs(){
     wrap.appendChild(b);
   });
   renderGrilleBody();
+  if(typeof refreshIaAtelier === "function") refreshIaAtelier();
 }
 
 function domainesDisponibles(classeId){
   const cl = PC.classeById(config, classeId);
   const parNiveau = (cl && banque[cl.niveau]) || {};
   return Object.entries(parNiveau).map(([cle,b])=>({cle,label:b.label,count:b.items.length}));
+}
+
+// Titres des séances déjà existantes dans la banque pour un domaine donné
+// (proposées en suggestion dans le champ "Titre de la séance", mais un
+// titre libre — non présent dans cette liste — reste toujours accepté).
+function titresPourDomaine(classeId, domaineCle){
+  const cl = PC.classeById(config, classeId);
+  const bucket = cl && banque[cl.niveau] && banque[cl.niveau][domaineCle];
+  if(!bucket) return [];
+  const vus = new Set();
+  const titres = [];
+  bucket.items.forEach(it=>{
+    const t = (it.titre || "").trim();
+    if(t && !vus.has(t)){ vus.add(t); titres.push(t); }
+  });
+  return titres;
+}
+function escapeAttr(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
+function datalistOptionsHTML(titres){
+  return titres.map(t=>`<option value="${escapeAttr(t)}"></option>`).join("");
 }
 
 function renderGrilleBody(){
@@ -728,18 +788,31 @@ function renderCreneauRow(c, domaines){
   const domOpts = domaines.length
     ? domaines.map(d=>`<option value="${d.cle}" ${c.domaineCle===d.cle?"selected":""}>${d.label} (${d.count})</option>`).join("")
     : `<option value="">Aucun domaine disponible</option>`;
+  const datalistId = "dl-" + c.id;
+  const titresExistants = titresPourDomaine(grilleClasseCourant, c.domaineCle);
   row.innerHTML = `
     <input type="time" value="${c.debut}" data-f="debut">
     <input type="time" value="${c.fin}" data-f="fin">
     <select data-f="type">${typeOpts}</select>
     <select data-f="domaineCle" style="${c.type==="seance"?"":"display:none;"}">${domOpts}</select>
+    <input type="text" data-f="titre" list="${datalistId}"
+      placeholder="Titre de la séance (existante ou à créer)"
+      value="${escapeAttr(c.titre||"")}"
+      style="${c.type==="seance"?"":"display:none;"}">
+    <datalist id="${datalistId}">${datalistOptionsHTML(titresExistants)}</datalist>
     <input type="text" data-f="libelle" placeholder="Préciser (ex. Réunion, RDV, sieste…)" value="${(c.libelle||"").replace(/"/g,"&quot;")}" style="${c.type==="seance"?"display:none;":""}">
     <button class="btn sm danger" data-del="1">✕</button>
   `;
   row.querySelectorAll("[data-f]").forEach(input=>{
     input.addEventListener("change", ()=>{
       c[input.dataset.f] = input.value;
-      if(input.dataset.f==="type") renderGrilleBody(); // active/désactive le select domaine + champ libellé
+      if(input.dataset.f==="type") renderGrilleBody(); // active/désactive domaine, titre et libellé
+      if(input.dataset.f==="domaineCle"){
+        // Le champ "titre" reste sur ce qui a été saisi ; on rafraîchit
+        // seulement les suggestions (datalist) pour le nouveau domaine.
+        const dl = row.querySelector("#" + CSS.escape(datalistId));
+        if(dl) dl.innerHTML = datalistOptionsHTML(titresPourDomaine(grilleClasseCourant, c.domaineCle));
+      }
       PC.sauverGrilles(grilles);
       if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
     });
@@ -752,6 +825,193 @@ function renderCreneauRow(c, domaines){
   });
   return row;
 }
+
+/* ---------------- Atelier IA : import d'un emploi du temps ---------------- */
+
+function genererPromptIa(){
+  const cl = PC.classeById(config, grilleClasseCourant);
+  if(!cl) return "Créez et sélectionnez d'abord une classe.";
+  const domaines = domainesDisponibles(grilleClasseCourant);
+  const domainesTxt = domaines.length
+    ? domaines.map(d=>`- ${d.label}`).join("\n")
+    : "- (aucun domaine chargé pour l'instant — indiquez simplement la matière telle qu'elle apparaît sur le document)";
+  return (
+`Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (fichier Excel, PDF, Word, ou photo/scan d'un emploi du temps papier).
+
+Classe concernée : ${cl.nom} (niveau ${cl.niveau}).
+
+Analyse le document joint et renvoie UNIQUEMENT un tableau JSON (rien d'autre, pas de texte autour, pas de bloc de code), où chaque élément représente un créneau horaire récurrent dans la semaine, sous la forme :
+
+[
+  {"jour":"Lundi","debut":"09:00","fin":"09:45","matiere":"Lecture","titre":"Découverte du texte support"},
+  {"jour":"Lundi","debut":"09:45","fin":"10:00","matiere":"Récréation","titre":""}
+]
+
+Règles :
+- "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
+- "debut" et "fin" sont au format HH:MM (24h).
+- "matiere" est le nom du domaine/de la matière tel qu'il figure sur le document (par exemple : ${domaines.length? domaines[0].label : "Lecture"}). Utilise si possible l'un des domaines suivants, en les reformulant le moins possible :
+${domainesTxt}
+- "titre" est le titre précis de la séance s'il est indiqué sur le document (ex. « Séance 3 — entraînement à la fluence »). Laisse une chaîne vide si le document n'indique qu'une matière générale, sans titre de séance précis.
+- Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
+- Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
+
+Réponds uniquement avec ce tableau JSON.`
+  );
+}
+
+function refreshIaAtelier(){
+  const cl = PC.classeById(config, grilleClasseCourant);
+  $("ia-classe-nom").textContent = cl ? cl.nom : "—";
+  $("ia-prompt").value = genererPromptIa();
+}
+
+$("btn-ia-regenerer").addEventListener("click", ()=>{
+  $("ia-prompt").value = genererPromptIa();
+  toast("Prompt régénéré.");
+});
+
+$("btn-ia-copier").addEventListener("click", async ()=>{
+  const txt = $("ia-prompt").value;
+  try{
+    await navigator.clipboard.writeText(txt);
+    toast("Prompt copié dans le presse-papiers.");
+  }catch(e){
+    $("ia-prompt").select();
+    document.execCommand("copy");
+    toast("Prompt copié (sélection manuelle).");
+  }
+});
+
+// Nom de jour (français, insensible aux accents/majuscules) -> numéro PC.JOURS
+function jourVersNumero(nomJour){
+  if(!nomJour) return null;
+  const norm = String(nomJour).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+  const trouve = PC.JOURS.find(j=>{
+    const jn = j.nom.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    return jn === norm || jn.startsWith(norm) || norm.startsWith(jn);
+  });
+  return trouve ? trouve.n : null;
+}
+
+// Heure tolérante : "9h", "9h00", "09:00", "9.00" -> "09:00"
+function normaliserHeure(h){
+  if(!h) return null;
+  const m = String(h).trim().match(/^(\d{1,2})\s*[:h.]\s*(\d{0,2})/i);
+  if(!m) return null;
+  const hh = String(Math.min(23, parseInt(m[1],10))).padStart(2,"0");
+  const mm = String(m[2] ? parseInt(m[2],10) : 0).padStart(2,"0");
+  return `${hh}:${mm}`;
+}
+
+function normaliserTexte(s){
+  return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+}
+
+function trouverDomaineCle(classeId, matiereTexte){
+  const domaines = domainesDisponibles(classeId);
+  if(!matiereTexte) return domaines[0] ? domaines[0].cle : "";
+  const cible = normaliserTexte(matiereTexte);
+  let meilleur = domaines.find(d=> normaliserTexte(d.label) === cible);
+  if(!meilleur) meilleur = domaines.find(d=> normaliserTexte(d.label).includes(cible) || cible.includes(normaliserTexte(d.label)));
+  return meilleur ? meilleur.cle : (domaines[0] ? domaines[0].cle : "");
+}
+
+const MOTS_CLES_NON_SEANCE = {
+  recreation: "recre",
+  pause: /pause|cantine|meridienne|repas/i
+};
+
+function typeCreneauDepuisMatiere(matiereTexte){
+  const t = normaliserTexte(matiereTexte);
+  if(!t) return "seance";
+  if(t.includes("recre")) return "recreation";
+  if(MOTS_CLES_NON_SEANCE.pause.test(t)) return "pause";
+  return "seance";
+}
+
+// Accepte du JSON strict, ou (repli) des lignes du type :
+// "Lundi 09:00-09:45 Lecture : Découverte du texte support"
+function parserResultatIa(texte){
+  const brut = (texte||"").trim();
+  if(!brut) return [];
+
+  // 1) Tentative JSON directe (en retirant d'éventuels ```json ... ```)
+  const sansCloture = brut.replace(/^```(json)?/i,"").replace(/```$/,"").trim();
+  try{
+    const data = JSON.parse(sansCloture);
+    if(Array.isArray(data)){
+      return data.map(l=>({
+        jour: l.jour, debut: l.debut, fin: l.fin,
+        matiere: l.matiere || l.domaine || "",
+        titre: l.titre || l.seance || ""
+      }));
+    }
+  }catch(e){ /* on tente le repli ligne par ligne ci-dessous */ }
+
+  // 2) Repli : une ligne par créneau
+  const lignes = brut.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const resultats = [];
+  const re = /^([A-Za-zÀ-ÿ]+)\s+(\d{1,2}[:h.]\d{0,2})\s*[-–à]\s*(\d{1,2}[:h.]\d{0,2})\s*[-—:]?\s*(.*)$/i;
+  lignes.forEach(l=>{
+    const m = l.match(re);
+    if(!m) return;
+    const reste = m[4] || "";
+    const [matiere, ...titreParts] = reste.split(/\s*[:\-–]\s*/);
+    resultats.push({ jour:m[1], debut:m[2], fin:m[3], matiere:(matiere||"").trim(), titre: titreParts.join(" - ").trim() });
+  });
+  return resultats;
+}
+
+$("btn-ia-remplir").addEventListener("click", ()=>{
+  const statusEl = $("ia-status");
+  statusEl.className = "ia-status";
+  if(!grilleClasseCourant){ statusEl.textContent = "Sélectionnez d'abord une classe."; statusEl.classList.add("err"); return; }
+
+  const lignes = parserResultatIa($("ia-resultat").value);
+  if(!lignes.length){
+    statusEl.textContent = "Aucune ligne exploitable détectée dans le texte collé (vérifiez le format JSON).";
+    statusEl.classList.add("err");
+    return;
+  }
+
+  grilles[grilleClasseCourant] = grilles[grilleClasseCourant] || [];
+  let ajoutes = 0, mis_a_jour = 0, ignores = 0;
+
+  lignes.forEach(l=>{
+    const jourN = jourVersNumero(l.jour);
+    const debut = normaliserHeure(l.debut);
+    const fin = normaliserHeure(l.fin);
+    if(jourN===null || !debut || !fin){ ignores++; return; }
+
+    const type = typeCreneauDepuisMatiere(l.matiere);
+    const domaineCle = type==="seance" ? trouverDomaineCle(grilleClasseCourant, l.matiere) : "";
+    const titre = (l.titre || (type!=="seance" ? (l.matiere||"") : "")).trim();
+
+    const existant = grilles[grilleClasseCourant].find(c=> c.jour===jourN && c.debut===debut);
+    if(existant){
+      existant.fin = fin;
+      existant.type = type;
+      if(type==="seance"){ existant.domaineCle = domaineCle; existant.titre = titre; }
+      else { existant.libelle = titre || PC.TYPES_CRENEAU[type].label; }
+      mis_a_jour++;
+    } else {
+      const nouveau = { id: PC.uid("cr"), jour: jourN, debut, fin, type };
+      if(type==="seance"){ nouveau.domaineCle = domaineCle; nouveau.titre = titre; }
+      else { nouveau.libelle = titre || PC.TYPES_CRENEAU[type].label; }
+      grilles[grilleClasseCourant].push(nouveau);
+      ajoutes++;
+    }
+  });
+
+  PC.sauverGrilles(grilles);
+  renderGrilleBody();
+  if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
+
+  statusEl.textContent = `${ajoutes} créneau(x) ajouté(s), ${mis_a_jour} mis à jour${ignores? `, ${ignores} ligne(s) ignorée(s) (jour/heure non reconnu)` : ""}.`;
+  statusEl.classList.add(ignores && !ajoutes && !mis_a_jour ? "err" : "ok");
+  toast("Grille mise à jour depuis le résultat de l'IA.");
+});
 
 /* ---------------- Affectation élève ↔ créneau ---------------- */
 let affectationsEleves = PC.chargerAffectationsEleves();
