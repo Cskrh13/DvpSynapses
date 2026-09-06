@@ -765,10 +765,16 @@ try{ coffre = new SynapsesCoffre.Coffre(); }catch(e){ coffre = null; }
 function coffreDisponible(){ return !!coffre; }
 function coffreOuvert(){ return !!(coffre && coffre.ouvert); }
 function eleveLabel(e){
-  // Ne renvoie que le numéro d'anonymat : ce libellé alimente les groupes
-  // du jour, qui sont enregistrés dans localStorage (non chiffré). Le
-  // nom/prénom réel de l'élève ne doit jamais en sortir.
-  return e.identifiantSynapses;
+  // N'affiche que les INITIALES de l'élève, calculées à la volée à partir
+  // de son identité (coffre ouvert, en mémoire uniquement) : ce libellé
+  // n'est jamais stocké — seul l'identifiant d'anonymat (identifiantSynapses)
+  // est enregistré dans les groupes du jour, dans localStorage (non chiffré).
+  // Le nom/prénom réel de l'élève ne doit jamais en sortir.
+  const nom = ((e.identite && (e.identite.prenom || e.identite.nom)) || "").trim();
+  if(!nom) return e.identifiantSynapses;
+  const morceaux = nom.split(/\s+/).filter(Boolean);
+  if(morceaux.length === 1) return morceaux[0].slice(0,2).toUpperCase();
+  return (morceaux[0][0] + morceaux[morceaux.length-1][0]).toUpperCase();
 }
 function updateCoffreWidget(){
   const status = $("coffre-status"), btn = $("btn-coffre-toggle");
@@ -1603,7 +1609,15 @@ async function genererDepuisGrille(silencieux){
     if(!Object.keys(banque).length) banque = await PC.chargerBanque();
   }catch(e){ /* on continue sans détail de séance */ }
   PC.genererJournalDepuisGrille(iso, config, grilles, affectations, banque, coffre);
-  if(!silencieux) toast("Cahier journal resynchronisé avec la grille.");
+  // Charge également, sur les créneaux propres de chaque dispositif (ex.
+  // ULIS), les élèves dont le planning individuel (coffre) indique qu'ils
+  // y sont plutôt que dans leur classe à cet horaire. Sans coffre ouvert,
+  // cet appel ne fait rien (voir genererGroupesDispositifs).
+  if(typeof PC.genererGroupesDispositifs === "function"){
+    try{ PC.genererGroupesDispositifs(config, grilles, coffre); }
+    catch(e){ /* pas de dispositif configuré, ou coffre fermé : on continue */ }
+  }
+  if(!silencieux) toast("Cahier journal resynchronisé avec la grille (classes et dispositifs).");
   renderJour();
 }
 $("btn-generer-jour").addEventListener("click", ()=> genererDepuisGrille(false));
@@ -1622,12 +1636,20 @@ $("btn-repartir-eleves").addEventListener("click", async ()=>{
     // coffre, selon leur classe de référence) — écrase le cahier
     // journal pour ces créneaux, référentiel BO n°44 du 26/11/2015.
     const resultatUlis = PC.genererGroupesBesoinULIS(config, grilles, coffre);
+    // 1 bis) Créneaux propres des dispositifs (ex. ULIS) : élèves dont le
+    // planning individuel les place hors de leur classe à cet horaire.
+    let resultatDispositifs = { dispositifs: 0, groupes: 0, eleves: 0 };
+    if(typeof PC.genererGroupesDispositifs === "function"){
+      resultatDispositifs = PC.genererGroupesDispositifs(config, grilles, coffre);
+    }
     // 2) Relit le jour affiché (potentiellement modifié ci-dessus) puis
-    // complète/ajuste manuellement les groupes de classe existants.
+    // répartit les élèves au sein de chaque créneau : un même créneau ne
+    // comportant qu'un seul groupe est, si besoin, scindé en plusieurs
+    // groupes de besoin (voir PC.repartirElevesAuto).
     const journal = PC.chargerJournal();
     jour = PC.journalPourDate(iso, journal);
     PC.repartirElevesAuto(iso, jour, coffre);
-    toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) sur ${resultatUlis.jours} jour(s)) — vérifiez et ajustez si besoin.`);
+    toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) · dispositifs : ${resultatDispositifs.groupes} groupe(s)) — vérifiez et ajustez si besoin.`);
   }catch(e){
     toast("Erreur lors de la répartition : " + (e.message || e));
   }
