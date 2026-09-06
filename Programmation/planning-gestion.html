@@ -379,18 +379,20 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <section class="card">
       <h2>Génération du planning</h2>
       <p class="hint">Répartit automatiquement, pour chaque créneau de type « Séance », la prochaine séance disponible du domaine choisi (fichiers du dépôt + séances créées dans « Séquences &amp; séances »). Les créneaux déjà modifiés à la main dans la page d'affichage <strong>ne sont jamais écrasés</strong>.</p>
-      <div class="row" style="align-items:center;gap:10px;">
-        <button class="btn primary" id="btn-generer">Générer / mettre à jour le planning</button>
-        <button class="btn" id="btn-repartir-eleves">👥 Ajouter et répartir automatiquement les élèves</button>
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn primary" id="btn-generer">Répartir les élèves</button>
+        <label class="field" style="margin:0;">
+          <span>Choisir un dispositif</span>
+          <select id="generation-dispositif" style="min-width:190px;"></select>
+        </label>
+        <button class="btn" id="btn-generer-dispositif">Générer le planning du dispositif</button>
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
-        <strong>Répartition automatique :</strong> la journée scolaire est bornée à <strong>16 h 30</strong>. Le moteur compose les groupes en croisant le niveau de classe avec le <strong>niveau scolaire d'équivalence en français et en mathématiques</strong> de chaque élève.
-        Il sélectionne automatiquement le mode le plus adapté : <strong>groupe avec enseignant</strong>, <strong>groupe avec AESH</strong> lorsque l'aide humaine est renseignée, ou <strong>groupe en autonomie</strong> uniquement pour les élèves déclarés capables de travailler seuls.
-        Le matin, priorité au français et aux mathématiques ; en début d'après-midi, priorité à une plage de 30 minutes de lecture/écriture.
-        Les volumes hebdomadaires de référence sont de <strong>10 h de français + 5 h de mathématiques en CP-CE1-CE2</strong> et
-        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau, ou affectés via l'onglet « Affectation », ne sont pas ajoutés à un groupe automatique.
-        Maximum <strong>3 groupes automatiques par créneau</strong>.
+        <strong>Répartir les élèves :</strong> répartit automatiquement les élèves sur les créneaux de leur classe à partir de leur planning individuel enregistré dans le coffre.
+        <strong>Choisir un dispositif :</strong> pour chaque élève rattaché à une classe liée au dispositif, tous les créneaux de sa classe qui ne figurent pas dans son planning individuel deviennent des créneaux du dispositif.
+        Les créneaux ayant exactement le même jour et les mêmes horaires sont <strong>fusionnés</strong> afin qu'un seul créneau du dispositif puisse accueillir plusieurs élèves.
+        Le planning des classes n'est jamais modifié : seuls le planning individuel des élèves et la grille du dispositif sélectionné sont mis à jour.
       </p>
       <div class="summary-grid" id="summary"></div>
     </section>
@@ -1534,47 +1536,148 @@ function renderSummary(){
   if(!wrap.children.length) wrap.innerHTML = '<div class="empty-hint">Aucun créneau de type « Séance » configuré pour l\'instant.</div>';
 }
 
+function renderGenerationDispositifs(){
+  const sel=$("generation-dispositif");
+  if(!sel) return;
+  const prev=sel.value;
+  const dispositifs=config.dispositifs||[];
+  sel.innerHTML=dispositifs.length
+    ? dispositifs.map(d=>`<option value="${d.id}">${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type||"")})</option>`).join("")
+    : '<option value="">Aucun dispositif</option>';
+  if(prev && dispositifs.some(d=>d.id===prev)) sel.value=prev;
+}
+
 $("btn-generer").addEventListener("click", async ()=>{
-  if(!config.rentree){ toast("Renseignez une date de rentrée avant de générer."); return; }
-  if(!config.classes.length){ toast("Créez au moins une classe."); return; }
-  $("gen-status").textContent = "Génération en cours…";
-  try{
-    // Génération unifiée : séquences/séances de classe sur les créneaux
-    // encore libres du cahier journal, reconstruction du cahier journal,
-    // puis groupes de besoin ULIS (élèves du coffre sans classe) sur les
-    // créneaux libres restants, selon le volume horaire BO n°44 du
-    // 26/11/2015. Cette étape écrase le cahier journal sur les créneaux
-    // qu'elle génère (jamais ceux modifiés à la main).
-    const affectationsExistantes = PC.chargerAffectations();
-    const resultat = await PC.genererPlanningComplet(config, grilles, affectationsExistantes, coffre);
-    const u = resultat.ulis;
-    const d = resultat.dispositifs || { dispositifs:0, groupes:0, eleves:0 };
-    $("gen-status").textContent = (coffre && coffre.ouvert)
-      ? `Planning généré. ULIS : ${u.groupes} groupe(s) de besoin (${u.ajouts} affectation(s)). Dispositifs : ${d.groupes} groupe(s) généré(s) pour ${d.eleves} élève(s). Consultez « Planning — Affichage ».`
-      : "Planning généré (ouvrez le coffre pour générer les groupes de besoin et les dispositifs). Consultez « Planning — Affichage ».";
-    toast("Planning généré avec succès.");
-  }catch(e){
-    $("gen-status").textContent = "Erreur : " + (e.message || e);
-  }
-});
-$("btn-repartir-eleves").addEventListener("click", async ()=>{
   if(!config.rentree){ toast("Renseignez une date de rentrée avant de répartir."); return; }
   if(!config.classes.length){ toast("Créez au moins une classe."); return; }
   if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de répartir les élèves."); return; }
-  $("gen-status").textContent = "Construction de la répartition hebdomadaire…";
+  $("gen-status").textContent="Répartition des élèves en cours…";
   try{
-    // On génère d'abord les séances du planning, puis on construit les
-    // groupes d'élèves sur chaque journée de classe.
-    const affectationsExistantes = PC.chargerAffectations();
-    const nouvelles = await PC.genererAffectations(config.classes, config, grilles, affectationsExistantes);
+    const affectationsExistantes=PC.chargerAffectations();
+    const nouvelles=await PC.genererAffectations(config.classes,config,grilles,affectationsExistantes);
     PC.sauverAffectations(nouvelles);
-    const statsEleves = PC.repartirElevesSemaineAuto(config, grilles, nouvelles, coffre);
-    $("gen-status").textContent =
-      `${statsEleves.ajouts} affectation(s) d'élève · ${statsEleves.groupes} groupe(s) automatique(s) : ${statsEleves.groupesEnseignant || 0} enseignant, ${statsEleves.groupesAesh || 0} AESH, ${statsEleves.groupesAutonomie || 0} autonomie · journée jusqu'à 16 h 30.`;
+    const stats=PC.repartirElevesSemaineAuto(config,grilles,nouvelles,coffre);
+    $("gen-status").textContent=
+      `${stats.ajouts} affectation(s) d'élève · ${stats.groupes} groupe(s) automatique(s).`;
     toast("Répartition des élèves terminée.");
   }catch(e){
-    $("gen-status").textContent = "Erreur : " + (e.message || e);
+    $("gen-status").textContent="Erreur : "+(e.message||e);
     toast("Répartition impossible.");
+  }
+});
+
+/**
+ * Construit la grille d'un dispositif à partir des TROUS du planning
+ * individuel des élèves.
+ *
+ * Source de vérité :
+ *   - grille de classe = référence des créneaux possibles, lecture seule ;
+ *   - e.planning = présence réelle de l'élève ;
+ *   - grille du dispositif = résultat généré.
+ *
+ * Les créneaux identiques (jour + début + fin) sont fusionnés.
+ * Aucun créneau de classe n'est supprimé ou modifié.
+ */
+function genererGrilleDispositifDepuisPlannings(dispositifId){
+  if(!coffre||!coffre.ouvert) throw new Error("Ouvrez le coffre avant de générer.");
+  const disp=(config.dispositifs||[]).find(d=>d.id===dispositifId);
+  if(!disp) throw new Error("Dispositif introuvable.");
+
+  const classes=(config.classes||[]).filter(cl=>(cl.dispositifs||[]).includes(dispositifId));
+  if(!classes.length) throw new Error("Ce dispositif n'est rattaché à aucune classe.");
+
+  const classeIds=new Set(classes.map(cl=>cl.id));
+  const eleves=coffre.listerEleves ? coffre.listerEleves() : [];
+  const slots=new Map();
+  let elevesConcernes=0;
+
+  const classeReferenceDeEleve=e=>{
+    const normaliser=v=>String(v??"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").toLowerCase();
+    const valeur=normaliser(e.classe || (e.identite&&e.identite.classe));
+    return classes.find(cl=>{
+      return valeur===normaliser(cl.nom) || (cl.niveau && valeur===normaliser(cl.niveau));
+    })||null;
+  };
+
+  eleves.forEach(e=>{
+    const cl=classeReferenceDeEleve(e);
+    if(!cl) return;
+
+    const grilleClasse=(grilles[cl.id]||[]).filter(c=>c.jour>=1&&c.jour<=5);
+    const planning=Array.isArray(e.planning)?e.planning:[];
+    const planningClasse=planning.filter(p=>p.classeId===cl.id);
+    if(!planningClasse.length) return;
+
+    elevesConcernes++;
+
+    // Un créneau de classe absent du planning individuel = élève disponible
+    // pour le dispositif à cet horaire.
+    grilleClasse.forEach(c=>{
+      const present=planningClasse.some(p=>
+        p.creneauId===c.id ||
+        (Number(p.jour)===Number(c.jour) && p.debut===c.debut && p.fin===c.fin)
+      );
+      if(present) return;
+
+      const key=`${c.jour}::${c.debut}::${c.fin}`;
+      if(!slots.has(key)){
+        slots.set(key,{
+          jour:Number(c.jour),
+          debut:c.debut,
+          fin:c.fin,
+          type:"autre",
+          libelle:disp.nom,
+          eleves:[]
+        });
+      }
+      slots.get(key).eleves.push(e.identifiantSynapses);
+    });
+  });
+
+  // La grille du dispositif ne contient que les horaires effectivement
+  // disponibles. Les horaires communs sont fusionnés en un seul créneau.
+  const ancienneGrille=Array.isArray(grilles[dispositifId])?grilles[dispositifId]:[];
+  const nouvelleGrille=Array.from(slots.values())
+    .sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
+    .map(s=>({
+      id:PC.uid("cr"),
+      jour:s.jour,
+      debut:s.debut,
+      fin:s.fin,
+      type:"autre",
+      libelle:disp.nom,
+      domaineCle:"",
+      dispositifId:disp.id
+    }));
+
+  // Remplacement uniquement de la grille DU DISPOSITIF.
+  // Les grilles des classes restent intactes.
+  grilles[dispositifId]=nouvelleGrille;
+  PC.sauverGrilles(grilles);
+
+  // Génère également les groupes du dispositif dans le cahier journal,
+  // en s'appuyant sur les nouveaux créneaux fusionnés.
+  return {
+    dispositifs:1,
+    eleves:elevesConcernes,
+    creneaux:nouvelleGrille.length,
+    groupes:0
+  };
+}
+
+$("btn-generer-dispositif").addEventListener("click",()=>{
+  const dispositifId=$("generation-dispositif").value;
+  if(!dispositifId){ toast("Choisissez un dispositif."); return; }
+  try{
+    $("gen-status").textContent="Génération du planning du dispositif…";
+    const stats=genererGrilleDispositifDepuisPlannings(dispositifId);
+    const disp=(config.dispositifs||[]).find(d=>d.id===dispositifId);
+    $("gen-status").textContent=
+      `${stats.creneaux} créneau(x) généré(s) pour ${disp?.nom||"le dispositif"} · ${stats.eleves} élève(s) concerné(s) · ${stats.groupes} groupe(s) dans le cahier journal.`;
+    toast("Planning du dispositif généré.");
+  }catch(e){
+    $("gen-status").textContent="Erreur : "+(e.message||e);
+    toast("Génération du dispositif impossible.");
   }
 });
 
@@ -1640,6 +1743,7 @@ $("import-json-file").addEventListener("change", async ()=>{
   }
   renderGrilleTabs();
   renderSummary();
+renderGenerationDispositifs();
   renderAffgClasseSelect();
   renderAffgGrille();
 })();
