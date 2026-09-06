@@ -168,6 +168,7 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     <button data-tab="tab-general" class="active">Configuration générale</button>
     <button data-tab="tab-horaires">Jours travaillés &amp; horaires fixes</button>
     <button data-tab="tab-grille">Grille horaire type</button>
+    <button data-tab="tab-affectation">Affectation</button>
     <button data-tab="tab-generation">Génération</button>
     <button data-tab="tab-import">Importer / exporter</button>
   </div>
@@ -273,6 +274,26 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
     </section>
   </div>
 
+  <!-- =============== ONGLET : AFFECTATION =============== -->
+  <div class="tab-panel" id="tab-affectation">
+    <section class="card">
+      <h2>Affecter un élève à un créneau de classe</h2>
+      <p class="hint">Rattache un élève du coffre à un créneau précis (récurrent, chaque semaine) d'une classe — par exemple une inclusion partielle en classe ordinaire. Cette affectation est enregistrée en mémoire et <strong>empêche la génération automatique</strong> (bouton « Générer » / « Répartir les élèves ») de proposer à nouveau cet élève sur ce même créneau : aucun doublon.</p>
+      <div id="affectation-sans-coffre" class="empty-hint" style="display:none;">Ouvrez le coffre pour choisir un élève à affecter.</div>
+      <div id="affectation-form-bloc">
+        <div class="row">
+          <div class="field"><label>Classe</label><select id="affect-classe"></select></div>
+          <div class="field"><label>Créneau</label><select id="affect-creneau" style="min-width:260px;"></select></div>
+          <div class="field"><label>Élève</label><select id="affect-eleve" style="min-width:200px;"></select></div>
+          <button class="btn primary" id="btn-affecter-eleve">+ Affecter</button>
+        </div>
+        <p class="hint" style="margin-top:10px;">Seuls les créneaux de type « Séance » sont proposés ici. L'élève affecté apparaîtra dans le groupe de classe de ce créneau au fil de la génération du cahier journal.</p>
+        <h3 style="font-size:14px;margin-top:20px;margin-bottom:8px;">Élèves déjà affectés sur ce créneau</h3>
+        <div class="summary-grid" id="affectation-liste"></div>
+      </div>
+    </section>
+  </div>
+
   <!-- =============== ONGLET : GÉNÉRATION =============== -->
   <div class="tab-panel" id="tab-generation">
     <section class="card">
@@ -288,7 +309,7 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
         Il sélectionne automatiquement le mode le plus adapté : <strong>groupe avec enseignant</strong>, <strong>groupe avec AESH</strong> lorsque l'aide humaine est renseignée, ou <strong>groupe en autonomie</strong> uniquement pour les élèves déclarés capables de travailler seuls.
         Le matin, priorité au français et aux mathématiques ; en début d'après-midi, priorité à une plage de 30 minutes de lecture/écriture.
         Les volumes hebdomadaires de référence sont de <strong>10 h de français + 5 h de mathématiques en CP-CE1-CE2</strong> et
-        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau ne sont pas ajoutés à un groupe automatique.
+        <strong>8 h de français + 5 h de mathématiques en CM1-CM2</strong>. Les élèves déjà placés manuellement dans leur classe sur un créneau, ou affectés via l'onglet « Affectation », ne sont pas ajoutés à un groupe automatique.
         Maximum <strong>3 groupes automatiques par créneau</strong>.
       </p>
       <div class="summary-grid" id="summary"></div>
@@ -368,6 +389,7 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
     b.classList.add("active");
     $(b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "tab-grille") renderGrilleTabs();
+    if (b.dataset.tab === "tab-affectation") renderAffectationTab();
   });
 });
 
@@ -396,6 +418,7 @@ function majEtatCoffre(){
   $("btn-coffre-fermer").style.display = ouvert ? "" : "none";
   $("classe-eleves-bloc").style.display = ouvert ? "" : "none";
   if(ouvert) renderClasseElevesSelect();
+  if(typeof renderAffectationEleveSelect === "function"){ renderAffectationEleveSelect(); renderAffectationListe(); }
 }
 $("btn-coffre-ouvrir").addEventListener("click", ()=>{
   if(!coffreDisponible){ toast("Le coffre est indisponible : synapses-coffre.js n'a pas pu être chargé."); return; }
@@ -597,6 +620,7 @@ function renderClasses(){
       delete elevesParClasse[cl.id];
       PC.sauverConfig(config); PC.sauverGrilles(grilles);
       renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
+      if(typeof renderAffectationTab === "function") renderAffectationTab();
     });
     wrap.appendChild(div);
   });
@@ -609,6 +633,7 @@ $("btn-add-classe").addEventListener("click", ()=>{
   PC.sauverConfig(config);
   $("classe-nom").value = "";
   renderClasses(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
+  if(typeof renderAffectationTab === "function") renderAffectationTab();
 });
 
 function renderClasseElevesSelect(){
@@ -691,6 +716,7 @@ function renderGrilleBody(){
       grilles[grilleClasseCourant].push({ id:PC.uid("cr"), jour:+b.dataset.add, debut:"09:00", fin:"09:30", type:"seance", domaineCle: domaines[0]?domaines[0].cle:"" });
       PC.sauverGrilles(grilles);
       renderGrilleBody();
+      if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
     });
   });
 }
@@ -715,15 +741,104 @@ function renderCreneauRow(c, domaines){
       c[input.dataset.f] = input.value;
       if(input.dataset.f==="type") renderGrilleBody(); // active/désactive le select domaine + champ libellé
       PC.sauverGrilles(grilles);
+      if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
     });
   });
   row.querySelector("[data-del]").addEventListener("click", ()=>{
     grilles[grilleClasseCourant] = grilles[grilleClasseCourant].filter(x=>x.id!==c.id);
     PC.sauverGrilles(grilles);
     renderGrilleBody();
+    if(typeof renderAffectationCreneauSelect === "function" && $("affect-classe").value === grilleClasseCourant) renderAffectationCreneauSelect();
   });
   return row;
 }
+
+/* ---------------- Affectation élève ↔ créneau ---------------- */
+let affectationsEleves = PC.chargerAffectationsEleves();
+
+function renderAffectationClasseSelect(){
+  const sel = $("affect-classe");
+  const prev = sel.value;
+  sel.innerHTML = config.classes.map(cl=>`<option value="${cl.id}">${cl.nom}</option>`).join("") || '<option value="">Aucune classe</option>';
+  if(prev && config.classes.some(c=>c.id===prev)) sel.value = prev;
+}
+
+function renderAffectationCreneauSelect(){
+  const sel = $("affect-creneau");
+  const classeId = $("affect-classe").value;
+  const prev = sel.value;
+  const creneaux = (grilles[classeId]||[])
+    .filter(c=>c.type==="seance")
+    .sort((a,b)=> a.jour-b.jour || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+  const domaines = domainesDisponibles(classeId);
+  const labelDomaine = cle => (domaines.find(d=>d.cle===cle)||{}).label || cle || "—";
+  sel.innerHTML = creneaux.map(c=>{
+    const jourNom = (PC.JOURS.find(j=>j.n===c.jour)||{}).nom || c.jour;
+    return `<option value="${c.id}">${jourNom} ${c.debut}–${c.fin} · ${labelDomaine(c.domaineCle)}</option>`;
+  }).join("") || '<option value="">Aucun créneau « séance » dans cette classe</option>';
+  if(prev && creneaux.some(c=>c.id===prev)) sel.value = prev;
+}
+
+function renderAffectationEleveSelect(){
+  const sel = $("affect-eleve");
+  const dispo = !!(coffre && coffre.ouvert);
+  $("affectation-sans-coffre").style.display = dispo ? "none" : "";
+  $("affectation-form-bloc").style.display = dispo ? "" : "none";
+  if(!dispo){ sel.innerHTML = ""; return; }
+  const eleves = coffre.donnees.eleves || [];
+  sel.innerHTML = eleves.map(e=>{
+    const nom = (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses;
+    return `<option value="${e.identifiantSynapses}">${nom} (${e.identifiantSynapses})</option>`;
+  }).join("") || '<option value="">Aucun élève dans le coffre</option>';
+}
+
+function renderAffectationListe(){
+  const wrap = $("affectation-liste");
+  wrap.innerHTML = "";
+  const classeId = $("affect-classe").value;
+  const creneauId = $("affect-creneau").value;
+  if(!classeId || !creneauId){ wrap.innerHTML = '<div class="empty-hint">Sélectionnez une classe et un créneau.</div>'; return; }
+  const ids = PC.elevesAffectesCreneau(affectationsEleves, classeId, creneauId);
+  if(!ids.length){ wrap.innerHTML = '<div class="empty-hint">Aucun élève affecté sur ce créneau pour l\'instant.</div>'; return; }
+  const eleves = (coffre && coffre.ouvert) ? (coffre.donnees.eleves||[]) : [];
+  ids.forEach(id=>{
+    const e = eleves.find(x=>x.identifiantSynapses===id);
+    const nom = e ? ((e.identite && (e.identite.prenom || e.identite.nom)) || id) : id;
+    const div = document.createElement("div");
+    div.className = "summary-item";
+    div.innerHTML = `<b>${nom}</b>${id}<div style="margin-top:6px;"><button class="btn sm danger" data-retirer="${id}">Retirer</button></div>`;
+    div.querySelector("[data-retirer]").addEventListener("click", ()=>{
+      PC.retirerEleveCreneau(affectationsEleves, classeId, creneauId, id);
+      PC.sauverAffectationsEleves(affectationsEleves);
+      renderAffectationListe();
+      toast("Affectation retirée.");
+    });
+    wrap.appendChild(div);
+  });
+}
+
+function renderAffectationTab(){
+  renderAffectationClasseSelect();
+  renderAffectationCreneauSelect();
+  renderAffectationEleveSelect();
+  renderAffectationListe();
+}
+
+$("affect-classe").addEventListener("change", ()=>{ renderAffectationCreneauSelect(); renderAffectationListe(); });
+$("affect-creneau").addEventListener("change", renderAffectationListe);
+$("btn-affecter-eleve").addEventListener("click", ()=>{
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant d'affecter un élève."); return; }
+  const classeId = $("affect-classe").value;
+  const creneauId = $("affect-creneau").value;
+  const eleveId = $("affect-eleve").value;
+  if(!classeId || !creneauId){ toast("Choisissez une classe et un créneau « séance »."); return; }
+  if(!eleveId){ toast("Choisissez un élève."); return; }
+  const ajoute = PC.affecterEleveCreneau(affectationsEleves, classeId, creneauId, eleveId);
+  if(!ajoute){ toast("Cet élève est déjà affecté à ce créneau — aucun doublon ajouté."); return; }
+  PC.sauverAffectationsEleves(affectationsEleves);
+  renderAffectationListe();
+  toast("Élève affecté au créneau : sera exclu des groupes automatiques sur ce créneau.");
+});
 
 /* ---------------- Résumé / génération ---------------- */
 function renderSummary(){
@@ -817,7 +932,8 @@ $("import-config-file").addEventListener("change", async ()=>{
 $("btn-export-json").addEventListener("click", ()=>{
   const journal = PC.chargerJournal();
   const affectationsActuelles = PC.chargerAffectations();
-  PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal);
+  const affectationsElevesActuelles = PC.chargerAffectationsEleves();
+  PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal, affectationsElevesActuelles);
   toast("Export téléchargé.");
 });
 $("btn-import-json-browse").addEventListener("click", ()=> $("import-json-file").click());
@@ -851,6 +967,7 @@ $("import-json-file").addEventListener("change", async ()=>{
   }
   renderGrilleTabs();
   renderSummary();
+  renderAffectationTab();
 })();
 </script>
 
