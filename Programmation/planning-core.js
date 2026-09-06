@@ -3046,29 +3046,43 @@
    * n'est écrite dans le stockage local du planning.
    */
   function genererGroupesDispositifs(config, grilles, coffre) {
-    if (!coffre || !coffre.ouvert || !(config.dispositifs || []).length) {
-      return { dispositifs: 0, groupes: 0, eleves: 0 };
+    const dispositifsConfigures = config.dispositifs || [];
+    if (!dispositifsConfigures.length) {
+      return { dispositifs: 0, groupes: 0, eleves: 0, raisons: [] };
+    }
+    if (!coffre || !coffre.ouvert) {
+      return { dispositifs: 0, groupes: 0, eleves: 0, raisons: ["Ouvrez le coffre pour générer le planning des dispositifs."] };
     }
 
     const eleves = coffre.listerEleves ? coffre.listerEleves() : [];
-    if (!eleves.length) return { dispositifs: 0, groupes: 0, eleves: 0 };
+    if (!eleves.length) {
+      return { dispositifs: 0, groupes: 0, eleves: 0, raisons: ["Aucun élève dans le coffre ouvert."] };
+    }
 
     const classes = config.classes || [];
     const semaines = calculerSemaines(config || {});
     const joursTravail = new Set((config.joursTravailles || [1,2,3,4,5]).map(Number));
     const journal = chargerJournal();
     let groupes = 0, nbEleves = 0, nbDispositifs = 0;
+    const raisons = [];
 
     const planningDe = e => Array.isArray(e.planning) ? e.planning : [];
     const chevauche = (a,b,c,d) => a < d && c < b;
 
-    (config.dispositifs || []).forEach(disp => {
+    dispositifsConfigures.forEach(disp => {
       const classesLiees = classes.filter(cl => (cl.dispositifs || []).includes(disp.id));
-      if (!classesLiees.length) return;
+      if (!classesLiees.length) {
+        raisons.push(`« ${disp.nom} » n'est rattaché à aucune classe (Configuration générale → Classes → Dispositifs).`);
+        return;
+      }
       const classeIds = new Set(classesLiees.map(cl => cl.id));
       const grille = (grilles[disp.id] || []).filter(c => c.type === "seance" || c.type === "autre");
-      if (!grille.length) return;
+      if (!grille.length) {
+        raisons.push(`La grille horaire de « ${disp.nom} » est vide (onglet Génération → « Générer le planning du dispositif »).`);
+        return;
+      }
       nbDispositifs++;
+      let nbEleveConcernesDisp = 0;
 
       semaines.forEach(sem => {
         JOURS.forEach(j => {
@@ -3087,10 +3101,18 @@
             .sort((a,b) => heureVersMin(a.debut)-heureVersMin(b.debut))
             .forEach(c => {
               const debut = heureVersMin(c.debut), fin = heureVersMin(c.fin);
-              const occupe = jour.groupes.some(g => {
-                if (g.profilDispositif && g.dispositifId === disp.id && g.debut === c.debut && g.fin === c.fin) return false;
-                return heureVersMin(g.debut) < fin && heureVersMin(g.fin) > debut;
-              });
+              // N'est « occupé » qu'un créneau où le DISPOSITIF possède déjà
+              // un groupe (conservé ci-dessus car personnalisé) sur cet
+              // horaire exact. Les groupes des CLASSES à cette même heure ne
+              // comptent pas : c'est précisément le principe d'un dispositif
+              // comme ULIS que d'accueillir des élèves PENDANT que leur
+              // classe a cours ailleurs — sinon aucun créneau de dispositif
+              // ne serait jamais généré, puisqu'à toute heure de la journée
+              // une classe ou une autre a nécessairement cours.
+              const occupe = jour.groupes.some(g =>
+                g.profilDispositif && g.dispositifId === disp.id &&
+                heureVersMin(g.debut) < fin && heureVersMin(g.fin) > debut
+              );
               if (occupe) return;
 
               const disponibles = eleves.filter(e => {
@@ -3138,13 +3160,18 @@
               });
               groupes++;
               nbEleves += disponibles.length;
+              nbEleveConcernesDisp += disponibles.length;
             });
         });
       });
+
+      if (!nbEleveConcernesDisp) {
+        raisons.push(`Aucun élève du coffre n'est disponible sur les créneaux de « ${disp.nom} » (vérifiez la classe de référence des élèves et leur planning individuel dans l'onglet Affectation).`);
+      }
     });
 
     sauverJournal(journal);
-    return { dispositifs: nbDispositifs, groupes, eleves: nbEleves };
+    return { dispositifs: nbDispositifs, groupes, eleves: nbEleves, raisons };
   }
 
   /**
