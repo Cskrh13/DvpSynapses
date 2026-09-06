@@ -1569,7 +1569,7 @@ async function genererDepuisGrille(silencieux){
   try{
     if(!Object.keys(banque).length) banque = await PC.chargerBanque();
   }catch(e){ /* on continue sans détail de séance */ }
-  PC.genererJournalDepuisGrille(iso, config, grilles, affectations, banque);
+  PC.genererJournalDepuisGrille(iso, config, grilles, affectations, banque, coffre);
   if(!silencieux) toast("Cahier journal resynchronisé avec la grille.");
   renderJour();
 }
