@@ -1614,7 +1614,10 @@ async function genererDepuisGrille(silencieux){
   // y sont plutôt que dans leur classe à cet horaire. Sans coffre ouvert,
   // cet appel ne fait rien (voir genererGroupesDispositifs).
   if(typeof PC.genererGroupesDispositifs === "function"){
-    try{ PC.genererGroupesDispositifs(config, grilles, coffre); }
+    try{
+      const resDisp = PC.genererGroupesDispositifs(config, grilles, coffre);
+      if(resDisp && resDisp.raisons && resDisp.raisons.length) console.info("Dispositifs — rien à générer :", resDisp.raisons);
+    }
     catch(e){ /* pas de dispositif configuré, ou coffre fermé : on continue */ }
   }
   if(!silencieux) toast("Cahier journal resynchronisé avec la grille (classes et dispositifs).");
@@ -1638,7 +1641,7 @@ $("btn-repartir-eleves").addEventListener("click", async ()=>{
     const resultatUlis = PC.genererGroupesBesoinULIS(config, grilles, coffre);
     // 1 bis) Créneaux propres des dispositifs (ex. ULIS) : élèves dont le
     // planning individuel les place hors de leur classe à cet horaire.
-    let resultatDispositifs = { dispositifs: 0, groupes: 0, eleves: 0 };
+    let resultatDispositifs = { dispositifs: 0, groupes: 0, eleves: 0, raisons: [] };
     if(typeof PC.genererGroupesDispositifs === "function"){
       resultatDispositifs = PC.genererGroupesDispositifs(config, grilles, coffre);
     }
@@ -1649,7 +1652,14 @@ $("btn-repartir-eleves").addEventListener("click", async ()=>{
     const journal = PC.chargerJournal();
     jour = PC.journalPourDate(iso, journal);
     PC.repartirElevesAuto(iso, jour, coffre);
-    toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) · dispositifs : ${resultatDispositifs.groupes} groupe(s)) — vérifiez et ajustez si besoin.`);
+    if(resultatDispositifs.dispositifs && !resultatDispositifs.groupes && resultatDispositifs.raisons && resultatDispositifs.raisons.length){
+      // Un dispositif est configuré mais n'a produit aucun groupe : on
+      // explique pourquoi plutôt que de laisser croire que tout est en ordre.
+      toast(resultatDispositifs.raisons[0]);
+    } else {
+      toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) · dispositifs : ${resultatDispositifs.groupes} groupe(s)) — vérifiez et ajustez si besoin.`);
+    }
+    if(resultatDispositifs.raisons && resultatDispositifs.raisons.length) console.info("Dispositifs :", resultatDispositifs.raisons);
   }catch(e){
     toast("Erreur lors de la répartition : " + (e.message || e));
   }
