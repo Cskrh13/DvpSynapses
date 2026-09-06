@@ -113,6 +113,11 @@ header.site-header{position:relative;z-index:20;flex:0 0 auto;background:var(--n
 #error h2{margin:0 0 12px;color:var(--navy);font-size:20px}
 .errorText{white-space:pre-wrap;font:12px/1.6 'IBM Plex Mono',monospace;color:#8a3a3a}
 
+/* ===== Infobulle au survol d'une boule ===== */
+#nodeTooltip{position:absolute;z-index:35;pointer-events:none;display:none;max-width:280px;background:var(--navy);color:#fff;border-radius:7px;padding:8px 12px;font:500 13px 'Inter',sans-serif;line-height:1.35;box-shadow:0 10px 24px rgba(20,32,50,.28);transform:translate(-50%,calc(-100% - 14px))}
+#nodeTooltip .tt-type{display:block;font:600 10px 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#B9C6E5;margin-bottom:2px}
+#nodeTooltip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--navy)}
+
 /* ===== Footer ===== */
 .synapses-footer{flex:0 0 auto;position:relative;z-index:19;padding:9px 22px;text-align:center;font:12px 'Inter',sans-serif;color:var(--ink-soft);background:var(--panel);border-top:1px solid var(--line)}
 .synapses-footer div:first-child{font-weight:600;letter-spacing:.03em;color:var(--ink)}
@@ -200,6 +205,7 @@ header.site-header{position:relative;z-index:20;flex:0 0 auto;background:var(--n
 
 <aside id="panel"><div class="panelCard"><span class="close" id="close">×</span><div id="panelContent"></div></div></aside>
 <div id="error"><h2>Impossible de charger la cartographie</h2><div class="errorText" id="errorText"></div></div>
+<div id="nodeTooltip"></div>
 <canvas id="graph" aria-label="Cartographie des compétences"></canvas>
 </div>
 
@@ -744,6 +750,20 @@ function update(){
     ? `${LEVEL_ORDER.filter(l=>state.levels.has(l)).length} niveaux scolaires · cliquez une compétence pour ses séquences/séances`
     : `${LEVEL_ORDER.filter(l=>state.levels.has(l)).length} niveaux scolaires · cliquez une compétence pour charger ses séquences et séances`;
 }
+/* ---------- Infobulle au survol ---------- */
+const TYPE_LABEL={competence:"Compétence",sequence:"Séquence",seance:"Séance"};
+function updateNodeTooltip(node,clientX,clientY){
+  const tt=$("nodeTooltip");
+  if(!node){tt.style.display="none";return;}
+  const p=state.projected.find(pr=>pr.node.id===node.id);
+  if(!p){tt.style.display="none";return;}
+  tt.innerHTML=`<span class="tt-type">${TYPE_LABEL[node.type]||node.type}${node.niveau?" · "+node.niveau:""}</span>${node.label||""}`;
+  tt.style.left=p.x+"px";
+  tt.style.top=p.y+"px";
+  tt.style.display="block";
+}
+function hideNodeTooltip(){ $("nodeTooltip").style.display="none"; }
+
 function hit(clientX,clientY){
   const rect=$("graph").getBoundingClientRect();
   const x=clientX-rect.left,y=clientY-rect.top;
@@ -849,8 +869,13 @@ canvas.addEventListener("pointerdown",e=>{
 });
 canvas.addEventListener("pointermove",e=>{
   if(!state.dragging){
-    state.hover=hit(e.clientX,e.clientY)?.id||null;draw();return;
+    const n=hit(e.clientX,e.clientY);
+    state.hover=n?.id||null;
+    draw();
+    updateNodeTooltip(n,e.clientX,e.clientY);
+    return;
   }
+  hideNodeTooltip();
   const dx=e.clientX-state.lastX,dy=e.clientY-state.lastY;
   if(Math.abs(dx)+Math.abs(dy)>2) state.moved=true;
   if(state.panning){
@@ -887,8 +912,9 @@ canvas.addEventListener("wheel",e=>{
   state.panX=(mx-cx)*(1-k)+k*state.panX;
   state.panY=(my-cy)*(1-k)+k*state.panY;
   state.zoom=newZoom;
-  $("zoomRange").value=state.zoom;draw();
+  $("zoomRange").value=state.zoom;draw();hideNodeTooltip();
 },{passive:false});
+canvas.addEventListener("pointerleave",()=>{state.hover=null;draw();hideNodeTooltip();});
 $("showImmediatePre").onclick=()=>showRelations("immediate");
 $("showAncestors").onclick=()=>showRelations("ancestors");
 $("clearRelations").onclick=()=>showRelations(null);
