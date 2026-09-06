@@ -1076,9 +1076,18 @@ function genererPromptIa(){
   const cl = PC.classeById(config, grilleClasseCourant);
   if(!cl) return "Créez et sélectionnez d'abord une classe.";
   const domaines = domainesDisponibles(grilleClasseCourant);
-  const domainesTxt = domaines.length
-    ? domaines.map(d=>`- ${d.label}`).join("\n")
-    : "- (aucun domaine chargé pour l'instant — indiquez simplement la matière telle qu'elle apparaît sur le document)";
+  // On ne montre à l'IA que le nom du domaine (partie après le tiret), sans le
+  // préfixe de discipline : c'est cette forme courte, la plus proche de ce
+  // qu'on lit sur un emploi du temps papier, qu'on lui demande de renvoyer.
+  const nomsDomaines = domaines.map(d=>{
+    const parties = d.label.split(" — ");
+    return parties.length > 1 ? parties.slice(1).join(" — ") : d.label;
+  });
+  const nomsUniques = [...new Set(nomsDomaines)];
+  const domainesTxt = nomsUniques.length
+    ? nomsUniques.map(n=>`- ${n}`).join("\n")
+    : "- (aucun domaine chargé pour l'instant — indique simplement la matière telle qu'elle apparaît sur le document)";
+  const exempleDomaine = nomsUniques[0] || "Lecture";
   return (
 `Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (fichier Excel, PDF, Word, ou photo/scan d'un emploi du temps papier).
 
@@ -1091,14 +1100,21 @@ Analyse le document joint et renvoie UNIQUEMENT un tableau JSON (rien d'autre, p
   {"jour":"Lundi","debut":"09:45","fin":"10:00","matiere":"Récréation","titre":""}
 ]
 
-Règles :
-- "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
-- "debut" et "fin" sont au format HH:MM (24h).
-- "matiere" est le nom du domaine/de la matière tel qu'il figure sur le document (par exemple : ${domaines.length? domaines[0].label : "Lecture"}). Utilise si possible l'un des domaines suivants, en les reformulant le moins possible :
+Règles, dans cet ordre de priorité :
+
+1. "matiere" est OBLIGATOIRE et doit être rempli EN PREMIER, avant même de chercher un titre. C'est le nom du domaine générique du socle correspondant au créneau — jamais un titre de séance précis. Choisis-le dans la liste ci-dessous en le recopiant tel quel, sans le reformuler ni le raccourcir :
 ${domainesTxt}
-- "titre" est le titre précis de la séance s'il est indiqué sur le document (ex. « Séance 3 — entraînement à la fluence »). Laisse une chaîne vide si le document n'indique qu'une matière générale, sans titre de séance précis.
-- Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
-- Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
+   Si le document utilise un intitulé différent mais reconnaissable (ex. "Maths" au lieu de "Mathématiques"), rapproche-toi du nom le plus proche de cette liste. Si vraiment aucun ne correspond, recopie l'intitulé exact du document.
+
+2. "titre" est OPTIONNEL et vient TOUJOURS après "matiere" : ce n'est le titre précis de LA séance (ex. « Séance 3 — entraînement à la fluence », « La monnaie », « Le passé composé ») que si le document l'indique explicitement à côté ou en dessous du nom de la matière. Ne déduis, n'invente et ne complète jamais un titre à partir du seul nom de la matière : par exemple, pour la matière "${exempleDomaine}" sans autre précision sur le document, laisse "titre" en chaîne vide ("").
+
+3. "jour" est l'un de : Lundi, Mardi, Mercredi, Jeudi, Vendredi.
+
+4. "debut" et "fin" sont au format HH:MM (24h).
+
+5. Pour les récréations, pauses ou temps non pédagogiques, indique-le dans "matiere" (ex. "Récréation", "Pause méridienne") et laisse "titre" vide.
+
+6. Ne fusionne pas deux créneaux différents en un seul, et ne complète jamais un créneau manquant de ton propre chef : ne renvoie que ce qui est explicitement présent sur le document.
 
 Réponds uniquement avec ce tableau JSON.`
   );
