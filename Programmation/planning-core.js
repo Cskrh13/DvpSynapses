@@ -3592,11 +3592,28 @@
   }
 
 
+  // ------------------------------------------------------------------------
+  // Coffre Synapses
+  // ------------------------------------------------------------------------
+  // Le core ne fabrique jamais de données individuelles. Les fonctions qui
+  // répartissent les élèves prennent une instance Coffre réelle en argument.
+  // Si aucun coffre ouvert n'est fourni, elles ne doivent produire aucune
+  // donnée individuelle de secours.
+  function elevesReelsDuCoffre(coffre) {
+    if (!coffre || !coffre.ouvert || typeof coffre.listerEleves !== "function") {
+      return [];
+    }
+    return coffre.listerEleves();
+  }
+
   // ========================================================================
   // API PUBLIQUE
   // ========================================================================
 
   global.PlanningCore = {
+
+    // Coffre
+    elevesReelsDuCoffre,
 
     // Constantes
     NIVEAUX,
