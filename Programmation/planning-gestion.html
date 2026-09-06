@@ -450,6 +450,7 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
 let banque = {}; // rempli au chargement
+let domainesSocle = []; // catalogue générique des domaines du socle (competences.json), rempli au chargement
 let grilleClasseCourant = null;
 
 /* ---------------- Onglets ---------------- */
@@ -775,10 +776,52 @@ function renderGrilleTabs(){
   if(typeof refreshGrilleClasseNomActions === "function") refreshGrilleClasseNomActions();
 }
 
+// Liste des domaines proposés dans la grille horaire (colonne « Nom »).
+// Toujours construite à partir du catalogue générique du socle
+// (Programmation/data/competences.json) : un domaine (« Lecture »,
+// « Grammaire et orthographe », « Histoire »…) doit rester sélectionnable
+// même si aucune séance n'existe encore pour lui. Quand une banque de
+// séances existe déjà pour ce domaine (index.json), on réutilise sa clé
+// composée ("discipline::domaine") pour ne rien casser de la génération
+// automatique et de l'affichage ; sinon on retombe sur l'identifiant brut
+// du domaine (ex. "lecture"), reconnaissable et stable.
 function domainesDisponibles(classeId){
   const cl = PC.classeById(config, classeId);
   const parNiveau = (cl && banque[cl.niveau]) || {};
-  return Object.entries(parNiveau).map(([cle,b])=>({cle,label:b.label,count:b.items.length}));
+
+  // Clés déjà connues dans la banque de séances de ce niveau, indexées par
+  // identifiant de domaine (partie après "::", ou clé entière si pas de "::").
+  const banqueParDomaineId = {};
+  Object.entries(parNiveau).forEach(([cle, b])=>{
+    const idDom = cle.includes("::") ? cle.split("::").pop() : cle;
+    banqueParDomaineId[idDom] = { cle, label: b.label, count: b.items.length };
+  });
+
+  const dejaVus = new Set();
+  const liste = [];
+
+  // 1) Le catalogue générique du socle en premier : toujours complet,
+  //    indépendamment des séances déjà écrites.
+  domainesSocle.forEach(d=>{
+    const trouve = banqueParDomaineId[d.id];
+    const label = d.discipline ? `${d.discipline} — ${d.nom}` : d.nom;
+    liste.push({
+      cle: trouve ? trouve.cle : d.id,
+      label: trouve ? trouve.label : label,
+      count: trouve ? trouve.count : 0
+    });
+    dejaVus.add(trouve ? trouve.cle : d.id);
+  });
+
+  // 2) Domaines présents dans la banque mais absents du catalogue générique
+  //    (compatibilité : rien n'est jamais perdu).
+  Object.entries(parNiveau).forEach(([cle,b])=>{
+    if(dejaVus.has(cle)) return;
+    liste.push({ cle, label: b.label, count: b.items.length });
+    dejaVus.add(cle);
+  });
+
+  return liste;
 }
 
 // Titres des séances déjà existantes dans la banque pour un domaine donné
@@ -1425,6 +1468,11 @@ $("import-json-file").addEventListener("change", async ()=>{
     banque = await PC.chargerBanque();
   }catch(e){
     toast("Impossible de charger le référentiel de séances.");
+  }
+  try{
+    domainesSocle = await PC.chargerDomainesSocle();
+  }catch(e){
+    domainesSocle = [];
   }
   renderGrilleTabs();
   renderSummary();
