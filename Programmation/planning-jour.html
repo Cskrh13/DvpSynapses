@@ -750,8 +750,11 @@ let affectations = PC.chargerAffectations();
 let banque = {};
 let iso = (new URLSearchParams(location.search).get("date")) || PC.dateISO(new Date());
 let jour = null;
-// Filtre d'affichage du cahier journal par classe (onglet "Journée") :
-// null = toutes les classes ; sinon l'id d'une classe de config.classes.
+// Filtre d'affichage du cahier journal (onglet "Journée") : il n'existe
+// volontairement PAS d'option "Toutes les classes" — on affiche toujours
+// une seule classe (ou le dispositif ULIS / un autre dispositif) à la
+// fois. La valeur est encodée "cls:<id>" pour une classe de
+// config.classes, ou "disp:<id>" pour un dispositif de config.dispositifs.
 // N'affecte que le RENDU — jour.groupes (donnée réellement enregistrée)
 // n'est jamais tronqué par ce filtre.
 let classeFiltreCourante = null;
@@ -861,38 +864,59 @@ function optionsElevesDisponibles(groupe){
     .map(e=>`<option value="${escapeAttr(e.identifiantSynapses)}">${escapeHTML(eleveLabel(e))}</option>`).join("");
 }
 
-/* ---------------- Filtre d'affichage par classe ---------------- */
+/* ---------------- Filtre d'affichage par classe / dispositif ---------------- */
+// Options disponibles pour le filtre : une entrée par classe de
+// config.classes, PLUS une entrée par dispositif de config.dispositifs
+// (ex. ULIS). Chaque option est identifiée par une clé "cls:<id>" ou
+// "disp:<id>". Il n'y a jamais d'option "Toutes les classes" : on affiche
+// toujours une seule de ces entités à la fois.
+function optionsFiltreClasse(){
+  const classes = (config.classes || []).map(cl=>({ cle: "cls:"+cl.id, nom: cl.nom }));
+  const dispositifs = (config.dispositifs || []).map(d=>({ cle: "disp:"+d.id, nom: d.nom }));
+  return classes.concat(dispositifs);
+}
+
 function matchFiltreClasse(g){
-  if(!classeFiltreCourante) return true; // "Toutes les classes"
-  if((g.classeId||"") === classeFiltreCourante) return true;
+  if(!classeFiltreCourante) return true; // aucune option disponible (config vide)
+  if(classeFiltreCourante.startsWith("disp:")){
+    const dispositifId = classeFiltreCourante.slice(5);
+    return (g.dispositifId||"") === dispositifId;
+  }
+  const classeId = classeFiltreCourante.slice(4);
+  if((g.classeId||"") === classeId) return true;
   // Les groupes non rattachés à une classe précise (AESH, autonomie,
-  // groupes de besoin ULIS, briques ajoutées à la main) concernent
-  // potentiellement des élèves de plusieurs classes : on les garde
-  // visibles quel que soit l'onglet de classe sélectionné.
-  if(!g.classeId) return true;
+  // groupes de besoin ULIS sans classe d'origine unique, briques ajoutées
+  // à la main) concernent potentiellement des élèves de plusieurs classes :
+  // on les garde visibles quel que soit l'onglet de classe sélectionné —
+  // sauf s'ils appartiennent déjà à un dispositif (ceux-là ne s'affichent
+  // que sous leur propre onglet, voir ci-dessus).
+  if(!g.classeId && !g.dispositifId) return true;
   return false;
 }
 
 function renderClasseFilterBar(){
   const bar = $("classe-filter-bar");
   if(!bar) return;
-  const classes = config.classes || [];
-  if(!classes.length){ bar.innerHTML = ""; return; }
-  if(classeFiltreCourante && !classes.some(c=>c.id===classeFiltreCourante)) classeFiltreCourante = null;
+  const options = optionsFiltreClasse();
+  if(!options.length){ bar.innerHTML = ""; classeFiltreCourante = null; return; }
+  if(!classeFiltreCourante || !options.some(o=>o.cle===classeFiltreCourante)){
+    // Jamais de "Toutes les classes" : on retombe toujours sur la première
+    // entrée disponible (classe si elle existe, sinon dispositif).
+    classeFiltreCourante = options[0].cle;
+  }
 
-  const nb = classeId => (jour && jour.groupes ? jour.groupes : []).filter(g=>
-    classeId ? (g.classeId||"")===classeId : true
-  ).length;
+  const nb = cle => (jour && jour.groupes ? jour.groupes : []).filter(g=>{
+    if(cle.startsWith("disp:")) return (g.dispositifId||"") === cle.slice(5);
+    return (g.classeId||"") === cle.slice(4);
+  }).length;
 
-  const boutons = [
-    `<button type="button" data-classe-filtre="" class="${!classeFiltreCourante?"active":""}">Toutes les classes<span class="n">(${(jour&&jour.groupes?jour.groupes.length:0)})</span></button>`
-  ].concat(classes.map(cl=>
-    `<button type="button" data-classe-filtre="${cl.id}" class="${classeFiltreCourante===cl.id?"active":""}">${escapeHTML(cl.nom)}<span class="n">(${nb(cl.id)})</span></button>`
-  ));
+  const boutons = options.map(o=>
+    `<button type="button" data-classe-filtre="${escapeAttr(o.cle)}" class="${classeFiltreCourante===o.cle?"active":""}">${escapeHTML(o.nom)}<span class="n">(${nb(o.cle)})</span></button>`
+  );
   bar.innerHTML = boutons.join("");
   bar.querySelectorAll("[data-classe-filtre]").forEach(b=>{
     b.addEventListener("click", ()=>{
-      classeFiltreCourante = b.dataset.classeFiltre || null;
+      classeFiltreCourante = b.dataset.classeFiltre;
       renderJour();
     });
   });
@@ -930,11 +954,18 @@ function renderJour(){
   const groupesVisibles = jour.groupes.filter(matchFiltreClasse);
 
   if(!groupesVisibles.length){
-    const cl = classeFiltreCourante ? PC.classeById(config, classeFiltreCourante) : null;
+    let nomFiltre = "cette classe";
+    if(classeFiltreCourante && classeFiltreCourante.startsWith("disp:")){
+      const d = PC.dispositifById(config, classeFiltreCourante.slice(5));
+      if(d) nomFiltre = "« "+escapeHTML(d.nom)+" »";
+    } else if(classeFiltreCourante){
+      const cl = PC.classeById(config, classeFiltreCourante.slice(4));
+      if(cl) nomFiltre = "« "+escapeHTML(cl.nom)+" »";
+    }
     content.innerHTML = `
       <div class="empty-journal">
-        <h3>Aucun groupe pour ${cl ? "« "+escapeHTML(cl.nom)+" »" : "cette classe"} ce jour-là</h3>
-        <p>Cette classe n'a peut-être pas cours ce jour dans sa grille horaire, ou tous ses créneaux ont été retirés du cahier journal. Vous pouvez revenir à « Toutes les classes » ou ajouter un créneau à la main.</p>
+        <h3>Aucun groupe pour ${nomFiltre} ce jour-là</h3>
+        <p>Cette classe (ou ce dispositif) n'a peut-être pas cours ce jour dans sa grille horaire, ou tous ses créneaux ont été retirés du cahier journal. Vous pouvez sélectionner une autre classe ci-dessus ou ajouter un créneau à la main.</p>
         <button class="btn" id="btn-ajouter-bloc-vide">+ Ajouter un créneau</button>
       </div>`;
     $("btn-ajouter-bloc-vide").addEventListener("click", ()=>ajouterBloc());
