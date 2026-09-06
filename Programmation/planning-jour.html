@@ -76,6 +76,10 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .journal-tabs button.active{background:var(--panel);color:var(--ink);border-color:var(--accent-sky);}
 .journal-tab-panel{display:none;}
 .journal-tab-panel.active{display:block;}
+.classe-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;}
+.classe-filter-bar button{border:1px solid var(--line);background:var(--panel-raised);color:var(--ink-soft);padding:7px 15px;border-radius:20px;font-weight:700;font-size:12.5px;}
+.classe-filter-bar button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.classe-filter-bar button .n{font-weight:500;opacity:.8;margin-left:4px;}
 .ia-panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;}
 .ia-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px;}
 .ia-panel h2{font-size:18px;margin-bottom:5px;}
@@ -690,6 +694,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   </div>
 
   <section class="journal-tab-panel active" id="tab-journee">
+    <div class="classe-filter-bar" id="classe-filter-bar"></div>
     <div id="content"></div>
 
     <div class="journal-bottom">
@@ -743,6 +748,11 @@ let affectations = PC.chargerAffectations();
 let banque = {};
 let iso = (new URLSearchParams(location.search).get("date")) || PC.dateISO(new Date());
 let jour = null;
+// Filtre d'affichage du cahier journal par classe (onglet "Journée") :
+// null = toutes les classes ; sinon l'id d'une classe de config.classes.
+// N'affecte que le RENDU — jour.groupes (donnée réellement enregistrée)
+// n'est jamais tronqué par ce filtre.
+let classeFiltreCourante = null;
 
 /* ---------------- Coffre (repris du modèle sequences.html) ---------------- */
 let coffre = null;
@@ -849,6 +859,43 @@ function optionsElevesDisponibles(groupe){
     .map(e=>`<option value="${escapeAttr(e.identifiantSynapses)}">${escapeHTML(eleveLabel(e))}</option>`).join("");
 }
 
+/* ---------------- Filtre d'affichage par classe ---------------- */
+function matchFiltreClasse(g){
+  if(!classeFiltreCourante) return true; // "Toutes les classes"
+  if((g.classeId||"") === classeFiltreCourante) return true;
+  // Les groupes non rattachés à une classe précise (AESH, autonomie,
+  // groupes de besoin ULIS, briques ajoutées à la main) concernent
+  // potentiellement des élèves de plusieurs classes : on les garde
+  // visibles quel que soit l'onglet de classe sélectionné.
+  if(!g.classeId) return true;
+  return false;
+}
+
+function renderClasseFilterBar(){
+  const bar = $("classe-filter-bar");
+  if(!bar) return;
+  const classes = config.classes || [];
+  if(!classes.length){ bar.innerHTML = ""; return; }
+  if(classeFiltreCourante && !classes.some(c=>c.id===classeFiltreCourante)) classeFiltreCourante = null;
+
+  const nb = classeId => (jour && jour.groupes ? jour.groupes : []).filter(g=>
+    classeId ? (g.classeId||"")===classeId : true
+  ).length;
+
+  const boutons = [
+    `<button type="button" data-classe-filtre="" class="${!classeFiltreCourante?"active":""}">Toutes les classes<span class="n">(${(jour&&jour.groupes?jour.groupes.length:0)})</span></button>`
+  ].concat(classes.map(cl=>
+    `<button type="button" data-classe-filtre="${cl.id}" class="${classeFiltreCourante===cl.id?"active":""}">${escapeHTML(cl.nom)}<span class="n">(${nb(cl.id)})</span></button>`
+  ));
+  bar.innerHTML = boutons.join("");
+  bar.querySelectorAll("[data-classe-filtre]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      classeFiltreCourante = b.dataset.classeFiltre || null;
+      renderJour();
+    });
+  });
+}
+
 function renderJour(){
   $("date-picker").value = iso;
   $("day-title").textContent = PC.formatDateLong(PC.parseISO(iso));
@@ -863,6 +910,8 @@ function renderJour(){
   const content = $("content");
   content.innerHTML = "";
 
+  renderClasseFilterBar();
+
   if(!jour.groupes.length){
     content.innerHTML = `
       <div class="empty-journal">
@@ -872,6 +921,20 @@ function renderJour(){
         <button class="btn" id="btn-ajouter-bloc-vide" style="margin-left:8px;">+ Ajouter un créneau</button>
       </div>`;
     $("btn-generer-jour-vide").addEventListener("click", ()=>genererDepuisGrille(false));
+    $("btn-ajouter-bloc-vide").addEventListener("click", ()=>ajouterBloc());
+    return;
+  }
+
+  const groupesVisibles = jour.groupes.filter(matchFiltreClasse);
+
+  if(!groupesVisibles.length){
+    const cl = classeFiltreCourante ? PC.classeById(config, classeFiltreCourante) : null;
+    content.innerHTML = `
+      <div class="empty-journal">
+        <h3>Aucun groupe pour ${cl ? "« "+escapeHTML(cl.nom)+" »" : "cette classe"} ce jour-là</h3>
+        <p>Cette classe n'a peut-être pas cours ce jour dans sa grille horaire, ou tous ses créneaux ont été retirés du cahier journal. Vous pouvez revenir à « Toutes les classes » ou ajouter un créneau à la main.</p>
+        <button class="btn" id="btn-ajouter-bloc-vide">+ Ajouter un créneau</button>
+      </div>`;
     $("btn-ajouter-bloc-vide").addEventListener("click", ()=>ajouterBloc());
     return;
   }
@@ -923,7 +986,7 @@ function renderJour(){
 
   const map = new Map();
 
-  jour.groupes.forEach(g=>{
+  groupesVisibles.forEach(g=>{
     const key = [
       g.debut,
       g.fin,
