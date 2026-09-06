@@ -1728,7 +1728,14 @@
         const aff = (affectations[classeId] || {})[cleCreneau(iso, c.id)];
         const bucket = (banque[classe.niveau] && banque[classe.niveau][c.domaineCle]) || null;
         const item = (aff && aff.seanceId && bucket) ? bucket.items.find(it => it.id === aff.seanceId) : null;
-        const titre = (item && (item.titre || item.type)) || (bucket ? bucket.label : c.domaineCle);
+        // Priorité absolue au texte réellement saisi sur le créneau
+        // (à la main, ou importé depuis l'emploi du temps réel via
+        // l'Atelier IA) : c'est ce qui décrit ce qui se passe vraiment
+        // dans la classe. Un rattachement à une séance/séquence de la
+        // banque (seanceRef) n'est jamais déduit automatiquement dans ce
+        // cas : c'est à l'enseignant de le faire, en connaissance de cause.
+        const titreManuel = (c.titre && c.titre.trim()) ? c.titre.trim() : null;
+        const titre = titreManuel || (item && (item.titre || item.type)) || (bucket ? bucket.label : c.domaineCle);
         // origine vaut ici classeId + "__" + c.id, exactement la clé
         // utilisée par le registre d'affectations manuelles élève↔créneau.
         const idsManuel = affElevesManuel[origine] || [];
@@ -1736,7 +1743,7 @@
         if (existant) {
           existant.debut = c.debut; existant.fin = c.fin; existant.titre = titre;
           existant.domaineCle = c.domaineCle; existant.niveau = classe.nom; existant.classeId = classeId;
-          existant.seanceRef = item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null;
+          existant.seanceRef = titreManuel ? null : (item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null);
           if (idsManuel.length) {
             existant.eleves = existant.eleves || [];
             idsManuel.forEach(id => { if (!existant.eleves.includes(id)) existant.eleves.push(id); });
@@ -1745,7 +1752,7 @@
           jour.groupes.push({
             id: uid("grp"), debut: c.debut, fin: c.fin, origine: origine, modifie: false,
             adulte: { type: "enseignant", nom: "" }, titre: titre, domaineCle: c.domaineCle, niveau: classe.nom, classeId: classeId,
-            seanceRef: item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null,
+            seanceRef: titreManuel ? null : (item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null),
             eleves: idsManuel.slice(), remarque: "", fixe: false
           });
         }
@@ -3446,6 +3453,24 @@
                           niveau,
                           creneau.id
                         )
+                      ) {
+
+                        return;
+
+                      }
+
+
+                      // Un créneau dont le titre de séance a été saisi
+                      // explicitement (à la main, ou importé depuis
+                      // l'emploi du temps réel via l'Atelier IA) n'est
+                      // jamais réassigné à une séance de la banque : le
+                      // texte réel prime toujours sur la rotation
+                      // automatique. C'est ensuite à l'enseignant, et à
+                      // lui seul, de relier ce créneau à une séquence/
+                      // séance existante s'il le souhaite.
+                      if (
+                        creneau.titre &&
+                        String(creneau.titre).trim()
                       ) {
 
                         return;
