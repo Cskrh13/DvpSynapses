@@ -510,7 +510,11 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     try{
       for(const d of deps){ if(!d.test()) await load(d.src); }
       if(!window.PlanningCore) throw new Error("PlanningCore indisponible");
-      window.dispatchEvent(new Event("synapses-planning-dependencies-ready"));
+      // Appel direct : évite une course lorsque toutes les dépendances sont déjà chargées.
+      // Dans l'ancienne version, dispatchEvent() pouvait se produire avant que
+      // le listener placé plus bas ne soit enregistré, ce qui laissait la page
+      // entièrement statique (onglets bloqués).
+      initPlanning();
     }catch(e){
       console.error("Démarrage du planning impossible :",e);
       const box=document.createElement("div");
@@ -520,7 +524,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     }
   })();
 })();
-window.addEventListener("synapses-planning-dependencies-ready", function(){
+function initPlanning(){
 /* =========================================================
    SYNAPSES — AUTHOR MARKER
    Project: Grand Planificateur pédagogique
@@ -2141,7 +2145,7 @@ $("import-json-file").addEventListener("change", async ()=>{
   }
 });
 
-});
+}
 </script>
 </body>
 </html>

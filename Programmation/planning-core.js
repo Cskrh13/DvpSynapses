@@ -1407,40 +1407,74 @@
    * qu'après copie réussie vers une classe correspondante.
    */
   function migrerStockageClasses(config, grilles) {
-    if (!config || !Array.isArray(config.classes) || !config.classes.length) return false;
-    if (!grilles || typeof grilles !== "object") return false;
+    if (!config || !grilles || typeof grilles !== "object") return false;
 
-    const anciens = Array.isArray(config.niveauxActifs) ? config.niveauxActifs : [];
-    if (!anciens.length) return false;
+    // Ancien modèle : les grilles étaient directement indexées par niveau
+    // (CP, CE1, CE2...). On conserve toutes les données et on reconstruit
+    // seulement les entités de classe manquantes.
+    const anciens = Array.isArray(config.niveauxActifs)
+      ? config.niveauxActifs.slice()
+      : [];
+    Object.keys(grilles).forEach(k => {
+      const niveau = String(k).toUpperCase();
+      if (NIVEAUX.includes(niveau) && !anciens.some(x => String(x).toUpperCase() === niveau)) {
+        anciens.push(k);
+      }
+    });
+
+    if (!Array.isArray(config.classes)) config.classes = [];
     let modifie = false;
 
-    anciens.forEach((niveau, index) => {
-      const cl = config.classes[index] || config.classes.find(c => String(c.niveau || c.nom) === String(niveau));
-      if (!cl || !niveau || !Object.prototype.hasOwnProperty.call(grilles, niveau)) return;
-      const ancienne = grilles[niveau];
-      if (!Array.isArray(ancienne)) return;
-      if (!Array.isArray(grilles[cl.id]) || !grilles[cl.id].length) {
+    anciens.forEach(niveau => {
+      if (!niveau) return;
+      const niveauCle = String(niveau).toUpperCase();
+      let cl = config.classes.find(c =>
+        String(c.niveau || c.nom || "").toUpperCase() === niveauCle
+      );
+      if (!cl) {
+        cl = {
+          id: uid("cls"),
+          nom: niveau,
+          niveau: niveau,
+          couleur: PALETTE_CLASSES[config.classes.length % PALETTE_CLASSES.length],
+          dispositifs: []
+        };
+        config.classes.push(cl);
+        modifie = true;
+      }
+      const ancienne = grilles[niveau] || grilles[niveauCle];
+      if (Array.isArray(ancienne) &&
+          (!Array.isArray(grilles[cl.id]) || !grilles[cl.id].length)) {
         grilles[cl.id] = ancienne;
         modifie = true;
       }
     });
 
-    // Même migration pour les affectations de séances (non nominatives).
+    // Même migration pour les affectations de séances, sans supprimer les
+    // anciennes clés.
     try {
       const aff = JSON.parse(localStorage.getItem(STORE_AFFECT) || "{}");
       let affModifie = false;
-      anciens.forEach((niveau, index) => {
-        const cl = config.classes[index] || config.classes.find(c => String(c.niveau || c.nom) === String(niveau));
-        if (!cl || !Object.prototype.hasOwnProperty.call(aff, niveau)) return;
-        if (!Object.prototype.hasOwnProperty.call(aff, cl.id)) {
-          aff[cl.id] = aff[niveau];
+      anciens.forEach(niveau => {
+        const niveauCle = String(niveau).toUpperCase();
+        const cl = config.classes.find(c =>
+          String(c.niveau || c.nom || "").toUpperCase() === niveauCle
+        );
+        const ancienne = aff[niveau] || aff[niveauCle];
+        if (cl && ancienne !== undefined && !Object.prototype.hasOwnProperty.call(aff, cl.id)) {
+          aff[cl.id] = ancienne;
           affModifie = true;
         }
       });
       if (affModifie) localStorage.setItem(STORE_AFFECT, JSON.stringify(aff));
-    } catch (e) {}
+    } catch (e) {
+      // Une migration secondaire ne doit jamais empêcher le chargement du planning.
+    }
 
-    if (modifie) sauverGrilles(grilles);
+    if (modifie) {
+      sauverGrilles(grilles);
+      sauverConfig(config);
+    }
     return modifie;
   }
 
