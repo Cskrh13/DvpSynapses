@@ -178,9 +178,11 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
   <!-- =============== COFFRE : OUVERTURE / FERMETURE =============== -->
   <div class="coffre-bar">
     <div class="etat"><span class="coffre-dot" id="coffre-dot"></span><span id="coffre-etat-txt">Coffre fermé</span></div>
-    <p class="hint">Ouvrez le coffre pour charger la liste des élèves dans les classes (configuration générale). Rien n'est jamais écrit sur le disque : les élèves chargés disparaissent au rafraîchissement, à la fermeture de l'onglet ou en fermant le coffre.</p>
+    <p class="hint">Ouvrez le coffre pour charger la liste des élèves dans les classes et gérer leurs affectations individuelles. Les changements (affectations de créneaux, etc.) ne restent qu'en mémoire tant que vous n'avez pas cliqué sur « Enregistrer le coffre » : ils disparaissent sinon au rafraîchissement, à la fermeture de l'onglet ou en fermant le coffre.</p>
     <button class="btn primary" id="btn-coffre-ouvrir">🔓 Ouvrir le coffre</button>
+    <button class="btn primary" id="btn-coffre-enregistrer" style="display:none;">💾 Enregistrer le coffre (.synapses)</button>
     <button class="btn danger" id="btn-coffre-fermer" style="display:none;">🔒 Fermer le coffre</button>
+    <span class="hint" id="coffre-modif-txt" style="display:none;color:var(--danger);font-weight:600;">● Modifications non enregistrées</span>
   </div>
 
   <div class="coffre-modal-overlay" id="coffre-modal-overlay">
@@ -191,6 +193,17 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div class="field"><label>Mot de passe</label><input type="password" id="coffre-mdp"></div>
       <div class="row"><button class="btn" data-close-coffre-modal="1">Annuler</button><button class="btn primary" id="btn-coffre-confirmer">Ouvrir</button></div>
       <p class="hint" id="coffre-erreur" style="color:var(--danger);display:none;"></p>
+    </div>
+  </div>
+
+  <div class="coffre-modal-overlay" id="coffre-export-modal-overlay">
+    <div class="coffre-modal">
+      <h3>Enregistrer le coffre</h3>
+      <p class="hint">Ressaisissez le mot de passe pour chiffrer et télécharger le fichier <code>.synapses</code> à jour. Le mot de passe n'est jamais conservé en mémoire d'une action à l'autre.</p>
+      <div class="field"><label>Nom du fichier</label><input type="text" id="coffre-export-nom"></div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="coffre-export-mdp"></div>
+      <div class="row"><button class="btn" data-close-coffre-export-modal="1">Annuler</button><button class="btn primary" id="btn-coffre-export-confirmer">Télécharger</button></div>
+      <p class="hint" id="coffre-export-erreur" style="color:var(--danger);display:none;"></p>
     </div>
   </div>
 
@@ -496,7 +509,7 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
     b.classList.add("active");
     $(b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "tab-grille") renderGrilleTabs();
-    if (b.dataset.tab === "tab-affectation") renderAffectationTab();
+    if (b.dataset.tab === "tab-affectation") { renderAffgClasseSelect(); renderAffgGrille(); }
     if (b.dataset.tab === "tab-generation") { renderGenerationDispositifs(); renderGenDispositifGrille(); }
   });
 });
@@ -512,6 +525,23 @@ if(!coffreDisponible){
   console.error("SynapsesCoffre est introuvable : synapses-coffre.js (et/ou synapses-crypto.js) n'a pas été chargé. Vérifiez que ces fichiers sont bien présents à côté de planning-gestion.html.");
 }
 const coffre = coffreDisponible ? new SynapsesCoffre.Coffre() : null;
+
+// Nom du fichier .synapses actuellement ouvert (pour pré-remplir l'export)
+// et indicateur de modifications du coffre non encore réenregistrées sur
+// disque. Le mot de passe, lui, n'est JAMAIS conservé au-delà de l'appel
+// qui en a besoin (voir §2 de la synthèse projet).
+let coffreNomFichier = "coffre.synapses";
+let coffreModifie = false;
+
+/** À appeler après toute écriture dans coffre.donnees (e.planning, etc.) :
+ *  signale qu'un export est nécessaire avant de fermer le coffre en
+ *  toute sécurité. */
+function marquerCoffreModifie(){
+  coffreModifie = true;
+  const t = $("coffre-modif-txt");
+  if(t) t.style.display = "";
+}
+
 function majEtatCoffre(){
   if(!coffreDisponible){
     $("coffre-etat-txt").textContent = "Coffre indisponible (fichier synapses-coffre.js manquant)";
@@ -523,7 +553,9 @@ function majEtatCoffre(){
   $("coffre-dot").classList.toggle("ouvert", ouvert);
   $("coffre-etat-txt").textContent = ouvert ? "Coffre ouvert (en mémoire, session en cours)" : "Coffre fermé";
   $("btn-coffre-ouvrir").style.display = ouvert ? "none" : "";
+  $("btn-coffre-enregistrer").style.display = ouvert ? "" : "none";
   $("btn-coffre-fermer").style.display = ouvert ? "" : "none";
+  if(!ouvert) $("coffre-modif-txt").style.display = "none";
   $("classe-eleves-bloc").style.display = ouvert ? "" : "none";
   if(ouvert) renderClasseElevesSelect();
   if(typeof renderAffectationEleveSelect === "function"){ renderAffectationEleveSelect(); renderAffectationListe(); }
@@ -543,6 +575,9 @@ $("btn-coffre-confirmer").addEventListener("click", async ()=>{
   if(!fichier || !mdp){ $("coffre-erreur").textContent = "Choisissez un fichier .synapses et saisissez le mot de passe."; $("coffre-erreur").style.display=""; return; }
   try{
     await coffre.ouvrir(fichier, mdp);
+    coffreNomFichier = fichier.name || "coffre.synapses";
+    coffreModifie = false;
+    $("coffre-mdp").value = "";
     $("coffre-modal-overlay").classList.remove("open");
     majEtatCoffre();
     toast("Coffre ouvert.");
@@ -552,10 +587,52 @@ $("btn-coffre-confirmer").addEventListener("click", async ()=>{
   }
 });
 $("btn-coffre-fermer").addEventListener("click", ()=>{
+  if(coffreModifie){
+    const continuer = confirm(
+      "Des modifications (affectations d'élèves, etc.) n'ont pas été enregistrées dans le fichier .synapses et seront définitivement perdues.\n\n"+
+      "Cliquez sur « Annuler » pour revenir en arrière et utiliser d'abord « 💾 Enregistrer le coffre », ou sur « OK » pour fermer sans enregistrer."
+    );
+    if(!continuer) return;
+  }
   if(coffre) coffre.purger();
+  coffreModifie = false;
   majEtatCoffre();
   renderClasses(); // les libellés "N élèves chargés" redeviennent 0
   toast("Coffre fermé — données retirées de la mémoire.");
+});
+
+/* ---------------- Enregistrement du coffre (export .synapses) ----------------
+ * Le bouton "Enregistrer les élèves et leurs créneaux" (et les autres actions
+ * qui modifient e.planning) n'écrivent que dans coffre.donnees, EN MÉMOIRE.
+ * Cette étape est nécessaire pour que la session en cours (autres onglets,
+ * grille du dispositif...) voie tout de suite les changements, mais elle
+ * n'est pas suffisante : sans réenregistrer le fichier .synapses chiffré,
+ * rien ne survit à la fermeture du coffre. C'est ce que fait ce bloc, via
+ * Coffre.telecharger() (synapses-coffre.js). */
+$("btn-coffre-enregistrer").addEventListener("click", ()=>{
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre d'abord."); return; }
+  $("coffre-export-erreur").style.display = "none";
+  $("coffre-export-nom").value = coffreNomFichier;
+  $("coffre-export-mdp").value = "";
+  $("coffre-export-modal-overlay").classList.add("open");
+});
+document.querySelectorAll("[data-close-coffre-export-modal]").forEach(b=> b.addEventListener("click", ()=> $("coffre-export-modal-overlay").classList.remove("open")));
+$("btn-coffre-export-confirmer").addEventListener("click", async ()=>{
+  const nom = $("coffre-export-nom").value.trim() || "coffre.synapses";
+  const mdp = $("coffre-export-mdp").value;
+  if(!mdp){ $("coffre-export-erreur").textContent = "Saisissez le mot de passe du coffre."; $("coffre-export-erreur").style.display=""; return; }
+  try{
+    await coffre.telecharger(mdp, nom);
+    coffreNomFichier = nom;
+    coffreModifie = false;
+    $("coffre-export-mdp").value = "";
+    $("coffre-export-modal-overlay").classList.remove("open");
+    $("coffre-modif-txt").style.display = "none";
+    toast("Coffre enregistré : fichier " + nom + " téléchargé.");
+  }catch(e){
+    $("coffre-export-erreur").textContent = e.message || "Enregistrement impossible.";
+    $("coffre-export-erreur").style.display = "";
+  }
 });
 window.addEventListener("beforeunload", ()=>{ if(coffre) coffre.purger(); });
 // Filet de sécurité redondant : 'pagehide' se déclenche de façon plus
@@ -786,9 +863,14 @@ function renderClasses(){
       if(!confirm(`Supprimer la classe « ${cl.nom} » ? Sa grille horaire sera perdue.`)) return;
       PC.supprimerClasse(config, cl.id, grilles, PC.chargerAffectations());
       if(coffre && coffre.ouvert){
+        let touche=false;
         (coffre.donnees.eleves||[]).forEach(e=>{
-          if(Array.isArray(e.planning)) e.planning=e.planning.filter(p=>p.classeId!==cl.id);
+          if(!Array.isArray(e.planning)) return;
+          const avant=e.planning.length;
+          e.planning=e.planning.filter(p=>p.classeId!==cl.id);
+          if(e.planning.length!==avant) touche=true;
         });
+        if(touche) marquerCoffreModifie();
       }
       delete elevesParClasse[cl.id];
       PC.sauverConfig(config); PC.sauverGrilles(grilles);
@@ -1417,7 +1499,8 @@ $("btn-enregistrer-eleves-config").addEventListener("click",()=>{
   const classeId=$("classe-cible-eleves").value;
   try{
     const n=enregistrerElevesClasse(classeId);
-    $("affg-save-status").textContent=`${n} affectation(s) enregistrée(s) dans les plannings individuels du coffre.`;
+    if(n>0) marquerCoffreModifie();
+    $("affg-save-status").textContent=`${n} affectation(s) enregistrée(s) en mémoire — pensez à « 💾 Enregistrer le coffre » pour les conserver.`;
     toast("Planning individuel initialisé : tous les créneaux sont cochés.");
     if($("affg-classe").value===classeId) renderAffgGrille();
   }catch(e){ toast(e.message||String(e)); }
@@ -1558,9 +1641,10 @@ $("btn-enregistrer-eleves").addEventListener("click",()=>{
   try{
     const classeId=$("affg-classe").value;
     const n=enregistrerElevesClasse(classeId,affgEtatEnCours);
-    status.textContent=`${n} créneau(x) enregistré(s). Les cases décochées ont été retirées du planning individuel des élèves.`;
+    if(n>0) marquerCoffreModifie();
+    status.textContent=`${n} créneau(x) enregistré(s) en mémoire. Les cases décochées ont été retirées du planning individuel des élèves — pensez à « 💾 Enregistrer le coffre » pour les conserver dans le fichier .synapses.`;
     renderAffgGrille();
-    toast("Les plannings individuels ont été enregistrés dans le coffre.");
+    toast("Les plannings individuels ont été mis à jour dans le coffre (en mémoire).");
   }catch(e){status.textContent=e.message||String(e);toast(status.textContent);}
 });
 
@@ -1672,13 +1756,20 @@ function genererGrilleDispositifDepuisPlannings(dispositifId){
     });
   });
 
-  // La grille persistée du dispositif ne contient QUE les créneaux.
-  // Les élèves restent exclusivement dans le coffre (.synapses).
+  // La grille du dispositif ne contient que les horaires effectivement
+  // disponibles. Les horaires communs sont fusionnés en un seul créneau.
+  const ancienneGrille=Array.isArray(grilles[dispositifId])?grilles[dispositifId]:[];
   const nouvelleGrille=Array.from(slots.values())
     .sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
     .map(s=>({
-      id:PC.uid("cr"), jour:s.jour, debut:s.debut, fin:s.fin,
-      type:"autre", libelle:disp.nom, domaineCle:"", dispositifId:disp.id
+      id:PC.uid("cr"),
+      jour:s.jour,
+      debut:s.debut,
+      fin:s.fin,
+      type:"autre",
+      libelle:disp.nom,
+      domaineCle:"",
+      dispositifId:disp.id
     }));
 
   // Remplacement uniquement de la grille DU DISPOSITIF.
@@ -1848,8 +1939,9 @@ function renderGenDispositifGrille(){
 
           const cle=ref.identifiantSynapses+"::"+c.id;
           const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
-          // Les élèves ne sont jamais stockés dans la grille du dispositif.
-          // Ils sont relus exclusivement depuis le coffre et leur planning individuel.
+          // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
+          // classe de référence sur ce créneau (complémentaire des
+          // "non-affectations" de la classe de référence).
           const coche=!enClasse;
           gendEtatOriginal[cle]=coche;
           gendEtatEnCours[cle]=coche;
@@ -1906,32 +1998,47 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
     const c=creneaux.find(x=>x.id===creneauId);
     if(!c) return;
 
-    // Les affectations élève ↔ dispositif restent dans le planning individuel
-    // du coffre. La grille du dispositif reste strictement non nominative.
     if(!Array.isArray(e.planning)) e.planning=[];
-    const cibles=creneauxClasseChevauchantGend(cl.id,c);
+
     if(apres){
-      const ids=new Set(cibles.map(x=>x.id));
-      e.planning=e.planning.filter(p=>!(p.classeId===cl.id && (ids.has(p.creneauId) ||
-        cibles.some(cc=>Number(p.jour)===Number(cc.jour) && p.debut===cc.debut && p.fin===cc.fin))));
-    }else{
-      cibles.forEach(cc=>{
-        const deja=e.planning.some(p=>p.classeId===cl.id && (p.creneauId===cc.id ||
-          (Number(p.jour)===Number(cc.jour) && p.debut===cc.debut && p.fin===cc.fin)));
-        if(!deja) e.planning.push({classeId:cl.id, classeNom:cl.nom, creneauId:cc.id, jour:cc.jour, debut:cc.debut, fin:cc.fin, domaineCle:cc.domaineCle||""});
+      // Coché = affecté au dispositif => retiré du planning de la classe de
+      // référence pour tout créneau qui chevauche celui-ci.
+      e.planning = e.planning.filter(p=>{
+        if(p.classeId!==cl.id) return true;
+        if(Number(p.jour)!==Number(c.jour)) return true;
+        const chevauche=PC.chevaucheMin(
+          PC.heureVersMin(p.debut), PC.heureVersMin(p.fin),
+          PC.heureVersMin(c.debut), PC.heureVersMin(c.fin)
+        );
+        return !chevauche;
+      });
+    } else {
+      // Décoché = renvoyé dans sa classe de référence : réaffectation à
+      // tous les créneaux de la grille de cette classe qui chevauchent le
+      // créneau du dispositif.
+      creneauxClasseChevauchantGend(cl.id, c).forEach(cc=>{
+        const dejaPresent = e.planning.some(p=>p.classeId===cl.id && p.creneauId===cc.id);
+        if(dejaPresent) return;
+        e.planning.push({
+          classeId: cl.id,
+          classeNom: cl.nom,
+          creneauId: cc.id,
+          jour: cc.jour,
+          debut: cc.debut,
+          fin: cc.fin,
+          domaineCle: cc.domaineCle||""
+        });
       });
     }
     bascules++;
   });
 
-  // Aucun identifiant d'élève n'est écrit dans la grille/localStorage.
-  // Les affectations restent dans le coffre ouvert. Les autres pages doivent
-  // recharger le même fichier .synapses pour relire les plannings individuels.
+  if(bascules>0) marquerCoffreModifie();
   renderGenDispositifGrille();
   const st=$("gend-save-status");
   if(st){
     st.classList.remove("warn");
-    st.textContent = bascules ? `${bascules} affectation(s) mise(s) à jour.` : "Aucune modification à enregistrer.";
+    st.textContent = bascules ? `${bascules} affectation(s) mise(s) à jour en mémoire — pensez à « 💾 Enregistrer le coffre ».` : "Aucune modification à enregistrer.";
   }
   toast(bascules ? `${bascules} affectation(s) mise(s) à jour.` : "Aucune modification en attente.");
 });
