@@ -3115,10 +3115,11 @@
               );
               if (occupe) return;
 
+              // Sécurité : les créneaux du dispositif sont persistés sans
+              // identité d'élève. Les élèves sont rechargés exclusivement
+              // depuis le coffre et leur planning individuel fait foi.
               const disponibles = eleves.filter(e => {
                 const plan = planningDe(e);
-                // Si l'élève possède un planning individuel enregistré pour
-                // l'une des classes liées, ce planning est la source de vérité.
                 const planClasses = plan.filter(p => classeIds.has(p.classeId));
                 if (planClasses.length) {
                   return !planClasses.some(p =>
@@ -3126,8 +3127,6 @@
                     chevauche(heureVersMin(p.debut), heureVersMin(p.fin), debut, fin)
                   );
                 }
-                // Compatibilité avec les élèves non encore initialisés :
-                // on retombe sur la grille de leur classe de référence.
                 const classeRef = classeDeReferenceCorrespondante(e.classe, config);
                 if (!classeRef || !classeIds.has(classeRef.id)) return false;
                 return !(grilles[classeRef.id] || []).some(cx =>
