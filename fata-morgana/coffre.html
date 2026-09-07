@@ -150,6 +150,20 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .si-frise-type{font-weight:600;font-size:13.5px;}
 .si-frise-detail{font-size:13px;color:var(--ink-soft);}
 
+/* ===== Emploi du temps (onglet "3. Emploi du temps") ===== */
+.edt-select-wrap{max-width:340px;margin-bottom:18px;}
+.edt-vide{color:var(--ink-soft);font-size:13.5px;font-style:italic;padding:14px 0;}
+.edt-table-wrap{overflow-x:auto;}
+.edt-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;}
+.edt-table th,.edt-table td{border:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;}
+.edt-table thead th{background:#FAFAF7;color:var(--ink-soft);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;text-align:center;}
+.edt-table th.edt-heure{background:#FAFAF7;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;text-align:right;padding-right:10px;}
+.edt-case{min-width:110px;}
+.edt-case.edt-remplie{background:#EEF2FB;}
+.edt-case .edt-classe{font-weight:600;color:var(--navy);font-size:12.5px;}
+.edt-case .edt-domaine{color:var(--ink-soft);font-size:11.5px;margin-top:2px;}
+.edt-case .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:2px;}
+
 /* ===== grille-analyse.js (onglet "Analyse & IA") ===== */
 .ga-section { margin-bottom: 28px; }
 .ga-section h3 { font-family: Georgia, serif; margin: 0 0 10px; font-size: 1.1rem; }
@@ -311,9 +325,22 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
     <div id="suiviIndividuelApp"></div>
   </section>
 
+  <!-- ============ Emploi du temps ============ -->
+  <section class="card disabled-overlay" id="cardEmploiDuTemps">
+    <h2>3. Emploi du temps</h2>
+    <p class="hint">Consultez l'emploi du temps individuel d'un élève : les créneaux auxquels il a été affecté (onglet « Affectation » de Planning — Gestion), tels qu'enregistrés dans son coffre.</p>
+    <div class="field edt-select-wrap">
+      <label for="edtSelectEleve">Élève</label>
+      <select id="edtSelectEleve">
+        <option value="">— sélectionner un élève —</option>
+      </select>
+    </div>
+    <div id="edtGrilleWrap"></div>
+  </section>
+
   <!-- ============ Export / purge ============ -->
   <section class="card disabled-overlay" id="cardExport">
-    <h2>3. Sauvegarder ou effacer mes données</h2>
+    <h2>4. Sauvegarder ou effacer mes données</h2>
     <div class="grid2">
       <div>
         <h3 style="font-size:15px;margin-bottom:8px;">Sauvegarder mon fichier</h3>
@@ -380,7 +407,7 @@ const SYNAPSES_BUILD = {
 
   function refreshLockState(){
     const on = coffre.ouvert;
-    ['cardSuivi','cardExport'].forEach(id=>{
+    ['cardSuivi','cardEmploiDuTemps','cardExport'].forEach(id=>{
       $(id).classList.toggle('disabled-overlay', !on);
     });
     // Construction DOM (jamais innerHTML) : le nom d'établissement est une
@@ -405,11 +432,142 @@ const SYNAPSES_BUILD = {
 
   async function ouvrirSuivi(){
     await suivi.mount($('suiviIndividuelApp'));
+    remplirSelectEleves();
   }
 
   function fermerSuivi(){
     $('suiviIndividuelApp').innerHTML = '';
+    $('edtSelectEleve').innerHTML = '<option value="">— sélectionner un élève —</option>';
+    $('edtGrilleWrap').innerHTML = '';
   }
+
+  /* -------- Emploi du temps (onglet "3. Emploi du temps") --------
+     Affiche, pour l'élève sélectionné, ses créneaux (coffre.listerEleves()
+     -> e.planning, alimenté par Coffre.affecterCreneau()) sous forme de
+     grille heures x jours. Purement une lecture du coffre déjà ouvert :
+     aucune donnée n'est récupérée ni envoyée ailleurs. */
+  const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+  function nomAffichageEleve(e){
+    const identite = e.identite || {};
+    const nomComplet = [identite.prenom, identite.nom].filter(Boolean).join(' ');
+    return nomComplet || e.identifiantSynapses;
+  }
+
+  function remplirSelectEleves(){
+    const sel = $('edtSelectEleve');
+    const valeurPrecedente = sel.value;
+    sel.innerHTML = '';
+    const optDefaut = document.createElement('option');
+    optDefaut.value = '';
+    optDefaut.textContent = '— sélectionner un élève —';
+    sel.appendChild(optDefaut);
+    coffre.listerEleves().forEach((e) => {
+      const opt = document.createElement('option');
+      opt.value = e.identifiantSynapses;
+      opt.textContent = nomAffichageEleve(e);
+      sel.appendChild(opt);
+    });
+    if (valeurPrecedente && Array.prototype.some.call(sel.options, (o) => o.value === valeurPrecedente)) {
+      sel.value = valeurPrecedente;
+    }
+    afficherEmploiDuTemps(sel.value);
+  }
+
+  function afficherEmploiDuTemps(identifiantSynapses){
+    const wrap = $('edtGrilleWrap');
+    wrap.innerHTML = '';
+
+    if (!identifiantSynapses) {
+      wrap.appendChild(document.createElement('div')).className = 'edt-vide';
+      wrap.firstChild.textContent = 'Sélectionnez un élève ci-dessus pour afficher son emploi du temps.';
+      return;
+    }
+
+    const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
+    const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
+
+    if (!planning.length) {
+      const vide = document.createElement('div');
+      vide.className = 'edt-vide';
+      vide.textContent = 'Aucun créneau enregistré pour cet élève (voir Planning — Gestion, onglet « Affectation »).';
+      wrap.appendChild(vide);
+      return;
+    }
+
+    // Lignes = heures de début distinctes présentes dans le planning de l'élève, triées.
+    const heures = Array.from(new Set(planning.map((c) => c.debut || ''))).filter(Boolean).sort();
+
+    // Index rapide { "jour|heure" -> [créneaux] } pour gérer d'éventuels doublons sans rien perdre.
+    const index = new Map();
+    planning.forEach((c) => {
+      const cle = String(c.jour) + '|' + (c.debut || '');
+      if (!index.has(cle)) index.set(cle, []);
+      index.get(cle).push(c);
+    });
+
+    const table = document.createElement('table');
+    table.className = 'edt-table';
+
+    const thead = document.createElement('thead');
+    const trHead = document.createElement('tr');
+    trHead.appendChild(document.createElement('th'));
+    JOURS_SEMAINE.slice(0, 5).forEach((jour) => {
+      const th = document.createElement('th');
+      th.textContent = jour;
+      trHead.appendChild(th);
+    });
+    thead.appendChild(trHead);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    heures.forEach((heure) => {
+      const tr = document.createElement('tr');
+      const thHeure = document.createElement('th');
+      thHeure.className = 'edt-heure';
+      thHeure.textContent = heure;
+      tr.appendChild(thHeure);
+
+      for (let jour = 0; jour < 5; jour++) {
+        const td = document.createElement('td');
+        td.className = 'edt-case';
+        const creneaux = index.get(String(jour) + '|' + heure) || [];
+        if (creneaux.length) {
+          td.classList.add('edt-remplie');
+          creneaux.forEach((c) => {
+            const bloc = document.createElement('div');
+            const classeNom = document.createElement('div');
+            classeNom.className = 'edt-classe';
+            classeNom.textContent = c.classeNom || '(classe sans nom)';
+            bloc.appendChild(classeNom);
+            if (c.domaineCle) {
+              const domaine = document.createElement('div');
+              domaine.className = 'edt-domaine';
+              domaine.textContent = c.domaineCle;
+              bloc.appendChild(domaine);
+            }
+            const horaire = document.createElement('div');
+            horaire.className = 'edt-horaire';
+            horaire.textContent = (c.debut || '') + (c.fin ? ' – ' + c.fin : '');
+            bloc.appendChild(horaire);
+            td.appendChild(bloc);
+          });
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'edt-table-wrap';
+    tableWrap.appendChild(table);
+    wrap.appendChild(tableWrap);
+  }
+
+  $('edtSelectEleve').addEventListener('change', (e) => {
+    afficherEmploiDuTemps(e.target.value);
+  });
 
   /* -------- Force du mot de passe du coffre -------- */
   function evaluerForceMdp(mdp){
