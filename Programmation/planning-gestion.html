@@ -404,14 +404,14 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
           <span>Choisir un dispositif</span>
           <select id="generation-dispositif" style="min-width:190px;"></select>
         </label>
-        <button class="btn" id="btn-generer-dispositif">Générer le planning du dispositif</button>
+        <button class="btn" id="btn-generer-dispositif">Synchroniser le dispositif avec le cahier journal</button>
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
         <strong>Répartir les élèves :</strong> répartit automatiquement les élèves sur les créneaux de leur classe à partir de leur planning individuel enregistré dans le coffre.
-        <strong>Choisir un dispositif :</strong> pour chaque élève rattaché à une classe liée au dispositif, tous les créneaux de sa classe qui ne figurent pas dans son planning individuel deviennent des créneaux du dispositif.
-        Les créneaux ayant exactement le même jour et les mêmes horaires sont <strong>fusionnés</strong> afin qu'un seul créneau du dispositif puisse accueillir plusieurs élèves.
-        Le planning des classes n'est jamais modifié : seuls le planning individuel des élèves et la grille du dispositif sélectionné sont mis à jour.
+        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS.
+        Le bouton ci-dessous ne reconstruit plus la grille à partir des « trous » des classes : il synchronise cette grille vers le cahier journal.
+        Les affectations individuelles des élèves déterminent ensuite les élèves présents sur ces créneaux.
       </p>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
@@ -1237,7 +1237,7 @@ function telechargerGrilleDoc(classeId){
 </style></head>
 <body>
   <h1>Emploi du temps — ${escapeHTMLTexte(cl.nom)}</h1>
-  <p class="sub">Niveau ${escapeHTMLTexte(cl.niveau)} — généré depuis Synapses, Grand Planificateur pédagogique.</p>
+  <p class="sub">${estDispositifId(classeId) ? ("Dispositif " + escapeHTMLTexte(cl.type||"")) : ("Niveau " + escapeHTMLTexte(cl.niveau))} — généré depuis Synapses, Grand Planificateur pédagogique.</p>
   <table>
     <thead><tr><th>Jour</th><th>Horaire</th><th>Séance / créneau</th></tr></thead>
     <tbody>${rowsHTML}</tbody>
@@ -1689,118 +1689,45 @@ $("btn-generer").addEventListener("click", async ()=>{
 });
 
 /**
- * Construit la grille d'un dispositif à partir des TROUS du planning
- * individuel des élèves.
- *
- * Source de vérité :
- *   - grille de classe = référence des créneaux possibles, lecture seule ;
- *   - e.planning = présence réelle de l'élève ;
- *   - grille du dispositif = résultat généré.
- *
- * Les créneaux identiques (jour + début + fin) sont fusionnés.
- * Aucun créneau de classe n'est supprimé ou modifié.
+ * Synchronise l'emploi du temps du dispositif avec le cahier journal.
+ * La grille du dispositif est désormais saisie manuellement, exactement
+ * comme une grille de classe. La source de vérité est donc la grille, et non
+ * une génération automatique à partir des créneaux libres des classes.
  */
-function genererGrilleDispositifDepuisPlannings(dispositifId){
-  if(!coffre||!coffre.ouvert) throw new Error("Ouvrez le coffre avant de générer.");
+async function synchroniserDispositifDansJournal(dispositifId){
   const disp=(config.dispositifs||[]).find(d=>d.id===dispositifId);
   if(!disp) throw new Error("Dispositif introuvable.");
-
-  const classes=(config.classes||[]).filter(cl=>(cl.dispositifs||[]).includes(dispositifId));
-  if(!classes.length) throw new Error("Ce dispositif n'est rattaché à aucune classe.");
-
-  const classeIds=new Set(classes.map(cl=>cl.id));
-  const eleves=coffre.listerEleves ? coffre.listerEleves() : [];
-  const slots=new Map();
-  let elevesConcernes=0;
-
-  const classeReferenceDeEleve=e=>{
-    const normaliser=v=>String(v??"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").toLowerCase();
-    const valeur=normaliser(e.classe || (e.identite&&e.identite.classe));
-    return classes.find(cl=>{
-      return valeur===normaliser(cl.nom) || (cl.niveau && valeur===normaliser(cl.niveau));
-    })||null;
-  };
-
-  eleves.forEach(e=>{
-    const cl=classeReferenceDeEleve(e);
-    if(!cl) return;
-
-    const grilleClasse=(grilles[cl.id]||[]).filter(c=>c.jour>=1&&c.jour<=5);
-    const planning=Array.isArray(e.planning)?e.planning:[];
-    const planningClasse=planning.filter(p=>p.classeId===cl.id);
-    if(!planningClasse.length) return;
-
-    elevesConcernes++;
-
-    // Un créneau de classe absent du planning individuel = élève disponible
-    // pour le dispositif à cet horaire.
-    grilleClasse.forEach(c=>{
-      const present=planningClasse.some(p=>
-        p.creneauId===c.id ||
-        (Number(p.jour)===Number(c.jour) && p.debut===c.debut && p.fin===c.fin)
-      );
-      if(present) return;
-
-      const key=`${c.jour}::${c.debut}::${c.fin}`;
-      if(!slots.has(key)){
-        slots.set(key,{
-          jour:Number(c.jour),
-          debut:c.debut,
-          fin:c.fin,
-          type:"autre",
-          libelle:disp.nom,
-          eleves:[]
-        });
-      }
-      slots.get(key).eleves.push(e.identifiantSynapses);
+  const grille=grilles[dispositifId]||[];
+  if(!grille.length) throw new Error("La grille du dispositif est vide. Saisissez d'abord ses créneaux dans l'onglet Planning.");
+  try{ if(!Object.keys(banque).length) banque=await PC.chargerBanque(); }catch(e){}
+  const journal=PC.chargerJournal();
+  const semaines=PC.calculerSemaines(config);
+  const joursTravail=new Set((config.joursTravailles||[1,2,3,4,5]).map(Number));
+  let jours=0;
+  semaines.forEach(sem=>{
+    PC.JOURS.forEach(j=>{
+      if(!joursTravail.has(j.n)) return;
+      const iso=PC.dateISO(PC.addDays(sem.lundi,j.n-1));
+      PC.genererJournalDepuisGrille(iso,config,grilles,affectations,banque,coffre);
+      jours++;
     });
   });
-
-  // La grille du dispositif ne contient que les horaires effectivement
-  // disponibles. Les horaires communs sont fusionnés en un seul créneau.
-  const ancienneGrille=Array.isArray(grilles[dispositifId])?grilles[dispositifId]:[];
-  const nouvelleGrille=Array.from(slots.values())
-    .sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
-    .map(s=>({
-      id:PC.uid("cr"),
-      jour:s.jour,
-      debut:s.debut,
-      fin:s.fin,
-      type:"autre",
-      libelle:disp.nom,
-      domaineCle:"",
-      dispositifId:disp.id
-    }));
-
-  // Remplacement uniquement de la grille DU DISPOSITIF.
-  // Les grilles des classes restent intactes.
-  grilles[dispositifId]=nouvelleGrille;
-  PC.sauverGrilles(grilles);
-
-  // Génère également les groupes du dispositif dans le cahier journal,
-  // en s'appuyant sur les nouveaux créneaux fusionnés.
-  return {
-    dispositifs:1,
-    eleves:elevesConcernes,
-    creneaux:nouvelleGrille.length,
-    groupes:0
-  };
+  return {dispositif:disp.nom, jours, creneaux:grille.length};
 }
 
-$("btn-generer-dispositif").addEventListener("click",()=>{
+$("btn-generer-dispositif").addEventListener("click",async()=>{
   const dispositifId=$("generation-dispositif").value;
   if(!dispositifId){ toast("Choisissez un dispositif."); return; }
   try{
-    $("gen-status").textContent="Génération du planning du dispositif…";
-    const stats=genererGrilleDispositifDepuisPlannings(dispositifId);
-    const disp=(config.dispositifs||[]).find(d=>d.id===dispositifId);
+    $("gen-status").textContent="Synchronisation du dispositif avec le cahier journal…";
+    const stats=await synchroniserDispositifDansJournal(dispositifId);
     $("gen-status").textContent=
-      `${stats.creneaux} créneau(x) généré(s) pour ${disp?.nom||"le dispositif"} · ${stats.eleves} élève(s) concerné(s) · ${stats.groupes} groupe(s) dans le cahier journal.`;
-    toast("Planning du dispositif généré.");
+      `${stats.creneaux} créneau(x) de ${stats.dispositif} synchronisé(s) avec le cahier journal.`;
+    toast("Emploi du temps du dispositif synchronisé.");
     renderGenDispositifGrille();
   }catch(e){
     $("gen-status").textContent="Erreur : "+(e.message||e);
-    toast("Génération du dispositif impossible.");
+    toast("Synchronisation impossible.");
   }
 });
 
@@ -1871,7 +1798,7 @@ function renderGenDispositifGrille(){
   const creneaux = (grilles[dispId]||[]).filter(c=>c.type==="seance"||c.type==="autre");
   if(!creneaux.length){
     hint.style.display="";
-    hint.textContent="Aucun créneau dans la grille du dispositif : cliquez sur « Générer le planning du dispositif » ci-dessus.";
+    hint.textContent="Aucun créneau dans la grille du dispositif : ajoutez d'abord ses créneaux dans « Planning » puis enregistrez le planning.";
     return;
   }
 

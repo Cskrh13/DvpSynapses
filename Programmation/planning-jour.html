@@ -1600,66 +1600,33 @@ $("btn-copier-prompt-ia").addEventListener("click",async()=>{
 
 /* ---------------- Actions globales ---------------- */
 async function genererDepuisGrille(silencieux){
-  // Toujours relire l'état le plus récent (peut avoir changé dans un autre
-  // onglet : Planning — Gestion / Planning — Affichage).
+  // Toujours relire l'état le plus récent. Classes et dispositifs (ULIS
+  // compris) utilisent maintenant exactement le même mécanisme : la grille
+  // est la source des créneaux du cahier journal.
   config = PC.chargerConfig();
   grilles = PC.chargerGrilles();
   affectations = PC.chargerAffectations();
   try{
     if(!Object.keys(banque).length) banque = await PC.chargerBanque();
-  }catch(e){ /* on continue sans détail de séance */ }
+  }catch(e){}
   PC.genererJournalDepuisGrille(iso, config, grilles, affectations, banque, coffre);
-  // Charge également, sur les créneaux propres de chaque dispositif (ex.
-  // ULIS), les élèves dont le planning individuel (coffre) indique qu'ils
-  // y sont plutôt que dans leur classe à cet horaire. Sans coffre ouvert,
-  // cet appel ne fait rien (voir genererGroupesDispositifs).
-  if(typeof PC.genererGroupesDispositifs === "function"){
-    try{
-      const resDisp = PC.genererGroupesDispositifs(config, grilles, coffre);
-      if(resDisp && resDisp.raisons && resDisp.raisons.length) console.info("Dispositifs — rien à générer :", resDisp.raisons);
-    }
-    catch(e){ /* pas de dispositif configuré, ou coffre fermé : on continue */ }
-  }
-  if(!silencieux) toast("Cahier journal resynchronisé avec la grille (classes et dispositifs).");
+  if(!silencieux) toast("Cahier journal resynchronisé avec les grilles (classes et dispositifs).");
   renderJour();
 }
 $("btn-generer-jour").addEventListener("click", ()=> genererDepuisGrille(false));
 
 $("btn-repartir-eleves").addEventListener("click", async ()=>{
   if(!coffreOuvert()){ toast("Ouvrez le coffre pour répartir les élèves."); openModal('modal-coffre'); return; }
-  // Toujours relire l'état le plus récent avant de générer.
   config = PC.chargerConfig();
   grilles = PC.chargerGrilles();
-  if(typeof PC.genererGroupesBesoinULIS !== "function"){
-    toast("Version de planning-core.js obsolète : rechargez la page (ou redéployez les fichiers).");
-    return;
-  }
   try{
-    // 1) Groupes de besoin ULIS sur les créneaux libres (élèves du
-    // coffre, selon leur classe de référence) — écrase le cahier
-    // journal pour ces créneaux, référentiel BO n°44 du 26/11/2015.
-    const resultatUlis = PC.genererGroupesBesoinULIS(config, grilles, coffre);
-    // 1 bis) Créneaux propres des dispositifs (ex. ULIS) : élèves dont le
-    // planning individuel les place hors de leur classe à cet horaire.
-    let resultatDispositifs = { dispositifs: 0, groupes: 0, eleves: 0, raisons: [] };
-    if(typeof PC.genererGroupesDispositifs === "function"){
-      resultatDispositifs = PC.genererGroupesDispositifs(config, grilles, coffre);
-    }
-    // 2) Relit le jour affiché (potentiellement modifié ci-dessus) puis
-    // répartit les élèves au sein de chaque créneau : un même créneau ne
-    // comportant qu'un seul groupe est, si besoin, scindé en plusieurs
-    // groupes de besoin (voir PC.repartirElevesAuto).
-    const journal = PC.chargerJournal();
-    jour = PC.journalPourDate(iso, journal);
-    PC.repartirElevesAuto(iso, jour, coffre);
-    if(resultatDispositifs.dispositifs && !resultatDispositifs.groupes && resultatDispositifs.raisons && resultatDispositifs.raisons.length){
-      // Un dispositif est configuré mais n'a produit aucun groupe : on
-      // explique pourquoi plutôt que de laisser croire que tout est en ordre.
-      toast(resultatDispositifs.raisons[0]);
-    } else {
-      toast(`Répartition proposée (ULIS : ${resultatUlis.groupes} groupe(s) · dispositifs : ${resultatDispositifs.groupes} groupe(s)) — vérifiez et ajustez si besoin.`);
-    }
-    if(resultatDispositifs.raisons && resultatDispositifs.raisons.length) console.info("Dispositifs :", resultatDispositifs.raisons);
+    const affectationsExistantes=PC.chargerAffectations();
+    const nouvelles=await PC.genererAffectations(config.classes||[],config,grilles,affectationsExistantes);
+    PC.sauverAffectations(nouvelles);
+    const stats=PC.repartirElevesSemaineAuto(config,grilles,nouvelles,coffre);
+    PC.genererJournalDepuisGrille(iso,config,grilles,nouvelles,banque,coffre);
+    jour = PC.journalPourDate(iso, PC.chargerJournal());
+    toast(`${stats.ajouts} affectation(s) d'élève · ${stats.groupes} groupe(s) automatique(s).`);
   }catch(e){
     toast("Erreur lors de la répartition : " + (e.message || e));
   }

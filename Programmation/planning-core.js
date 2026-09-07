@@ -1320,6 +1320,7 @@
       semaines: config.semaines,
       vacances: config.vacances,
       classes: config.classes,
+      dispositifs: config.dispositifs || [],
       joursTravailles: config.joursTravailles,
       recreations: config.recreations,
       pauses: config.pauses
@@ -1341,7 +1342,17 @@
   function importerConfigJSON(config, payload) {
     if (!payload || typeof payload !== "object") throw new Error("Fichier de configuration invalide.");
     if (Array.isArray(payload.classes)) config.classes = payload.classes.map(c => ({
-      id: c.id || uid("cls"), nom: c.nom || c.niveau || "Classe", niveau: c.niveau || "", couleur: c.couleur || PALETTE_CLASSES[0]
+      id: c.id || uid("cls"),
+      nom: c.nom || c.niveau || "Classe",
+      niveau: c.niveau || "",
+      couleur: c.couleur || PALETTE_CLASSES[0],
+      dispositifs: Array.isArray(c.dispositifs) ? c.dispositifs.slice() : []
+    }));
+    if (Array.isArray(payload.dispositifs)) config.dispositifs = payload.dispositifs.map(d => ({
+      id: d.id || uid("disp"),
+      nom: d.nom || "Dispositif",
+      type: d.type || "ULIS",
+      couleur: d.couleur || PALETTE_CLASSES[0]
     }));
     if (typeof payload.rentree === "string") config.rentree = payload.rentree;
     if (typeof payload.semaines === "number") config.semaines = payload.semaines;
@@ -1748,8 +1759,8 @@
   }
 
   /**
-   * Synchronise le journal d'un jour avec la grille horaire hebdomadaire
-   * (et les affectations de séances) de chaque niveau actif.
+   * Synchronise le journal d'un jour avec les grilles horaires hebdomadaires
+   * (classes et dispositifs) et les affectations de séances.
    *
    * Peut être appelée à chaque ouverture de la page (elle est sans danger) :
    *  - un groupe jamais retouché par l'enseignant ("modifie" = false) est
@@ -1830,6 +1841,65 @@
             adulte: { type: "enseignant", nom: "" }, titre: titre, domaineCle: c.domaineCle, niveau: classe.nom, classeId: classeId,
             seanceRef: item ? { id: item.id, source: item.source, fichier: item.fichier || null } : null,
             eleves: idsPlanning.slice(), remarque: "", fixe: false
+          });
+        }
+      });
+    });
+
+    // --------------------------------------------------------------------
+    // Dispositifs (ULIS, SEGPA, RASED, …) : même logique que les classes.
+    // La grille du dispositif est la source des créneaux du cahier journal.
+    // Les élèves sont simplement rapprochés à partir de leur planning
+    // individuel : lorsqu'un créneau de classe chevauchant n'est pas présent
+    // dans leur planning, ils sont disponibles pour le dispositif.
+    // --------------------------------------------------------------------
+    (config.dispositifs || []).forEach(disp => {
+      const classesLiees = classes.filter(cl => (cl.dispositifs || []).includes(disp.id));
+      if (!classesLiees.length) return;
+      const classeIds = new Set(classesLiees.map(cl => cl.id));
+      const grille = (grilles[disp.id] || []).filter(c => c && c.jour === jourSemaine);
+      grille.forEach(c => {
+        const origine = disp.id + "__" + c.id;
+        if (jour.exclusions.indexOf(origine) !== -1) return;
+        originesVues.add(origine);
+        const existant = parOrigine.get(origine);
+        if (existant && existant.modifie) return;
+
+        const debut = heureVersMin(c.debut), fin = heureVersMin(c.fin);
+        const idsPlanning = (coffre && coffre.ouvert && typeof coffre.listerEleves === "function")
+          ? coffre.listerEleves().filter(e => {
+              const valeurClasse = e.classe || (e.identite && e.identite.classe) || "";
+              const norm = v => String(v).trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase();
+              const classeRef = classesLiees.find(cl => norm(cl.nom) === norm(valeurClasse) || (cl.niveau && norm(cl.niveau) === norm(valeurClasse)));
+              if (!classeRef) return false;
+              const plan = Array.isArray(e.planning) ? e.planning : [];
+              const planClasse = plan.filter(p => p.classeId === classeRef.id);
+              if (planClasse.length) {
+                return !planClasse.some(p => Number(p.jour) === Number(jourSemaine) &&
+                  chevaucheMin(heureVersMin(p.debut), heureVersMin(p.fin), debut, fin));
+              }
+              return !(grilles[classeRef.id] || []).some(cx => cx.jour === jourSemaine &&
+                chevaucheMin(heureVersMin(cx.debut), heureVersMin(cx.fin), debut, fin));
+            }).map(e => e.identifiantSynapses).filter(Boolean)
+          : [];
+
+        const estFixe = c.type !== "seance";
+        const titre = estFixe
+          ? ((c.libelle && c.libelle.trim()) ? c.libelle.trim() : ((TYPES_CRENEAU[c.type] || {}).label || c.type))
+          : ((c.titre && c.titre.trim()) ? c.titre.trim() : disp.nom);
+
+        if (existant) {
+          existant.debut = c.debut; existant.fin = c.fin; existant.titre = titre;
+          existant.domaineCle = c.domaineCle || ""; existant.niveau = ""; existant.classeId = "";
+          existant.dispositifId = disp.id; existant.dispositifType = disp.type || "ULIS";
+          existant.eleves = idsPlanning.slice(); existant.fixe = estFixe;
+        } else {
+          jour.groupes.push({
+            id: uid("grp"), debut: c.debut, fin: c.fin, origine, modifie: false,
+            adulte: estFixe ? null : { type: "enseignant", nom: "" },
+            titre, domaineCle: c.domaineCle || "", niveau: "", classeId: "",
+            dispositifId: disp.id, dispositifType: disp.type || "ULIS", seanceRef: null,
+            eleves: idsPlanning.slice(), remarque: "", fixe: estFixe
           });
         }
       });
@@ -3210,16 +3280,13 @@
       });
     });
 
-    // 3) Groupes de besoin ULIS, uniquement sur les créneaux qui restent
-    // libres dans l'emploi du temps de l'enseignant.
-    let ulis = { jours: 0, groupes: 0, ajouts: 0, eleves: 0 };
-    let dispositifs = { dispositifs: 0, groupes: 0, eleves: 0 };
-    if (coffre && coffre.ouvert) {
-      ulis = genererGroupesBesoinULIS(config, grilles, coffre);
-      dispositifs = genererGroupesDispositifs(config, grilles, coffre);
-    }
+    // 3) Les dispositifs (dont ULIS) suivent exactement la même logique que
+    // les classes : leur grille est une source de créneaux, et le cahier
+    // journal est synchronisé depuis cette grille. Il n'y a plus de
+    // génération parallèle « par trous » du planning individuel.
+    const dispositifs = (config.dispositifs || []).map(d => d.id).filter(id => Array.isArray(grilles[id]) && grilles[id].length).length;
 
-    return { affectations, ulis, dispositifs };
+    return { affectations, ulis: { jours: 0, groupes: 0, ajouts: 0, eleves: 0 }, dispositifs: { dispositifs, groupes: 0, eleves: 0 } };
   }
 
   // ========================================================================
@@ -3229,7 +3296,7 @@
   function exporterPlanningJSON(config, grilles, affectations, journal) {
     return {
       format: "synapses-planning",
-      version: 3,
+      version: 4,
       maj: new Date().toISOString(),
       config: config || {},
       grilles: grilles || {},
