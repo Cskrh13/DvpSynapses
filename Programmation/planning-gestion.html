@@ -1820,9 +1820,14 @@ function renderGenDispositifGrille(){
     const cl = classeReferenceParmiGend(e, classesLiees);
     if(!cl) return;
     gendClasseRefParEleve[e.identifiantSynapses] = cl;
+    const identite = e.identite || {};
+    const prenom = String(identite.prenom || "").trim();
+    const nom = String(identite.nom || "").trim();
     roster.push({
       identifiantSynapses: e.identifiantSynapses,
-      nom: (e.identite && (e.identite.prenom || e.identite.nom)) || e.identifiantSynapses
+      prenom,
+      nom,
+      libelle: [nom, prenom].filter(Boolean).join(" ") || e.identifiantSynapses
     });
   });
   if(!roster.length){
@@ -1902,7 +1907,13 @@ function renderGenDispositifGrille(){
             if(st){ st.textContent="Modifications en attente d'enregistrement."; st.classList.add("warn"); }
           });
 
-          line.appendChild(initiale); line.appendChild(cb); td.appendChild(line);
+          const identiteLabel=document.createElement("span");
+          identiteLabel.className="affg-eleve-name";
+          identiteLabel.textContent=ref.libelle;
+          line.appendChild(initiale);
+          line.appendChild(identiteLabel);
+          line.appendChild(cb);
+          td.appendChild(line);
         });
       });
       tr.appendChild(td);
