@@ -528,7 +528,7 @@ const SYNAPSES_BUILD = {
       thHeure.textContent = heure;
       tr.appendChild(thHeure);
 
-      for (let jour = 0; jour < 5; jour++) {
+      for (let jour = 1; jour <= 5; jour++) {
         const td = document.createElement('td');
         td.className = 'edt-case';
         const creneaux = index.get(String(jour) + '|' + heure) || [];
