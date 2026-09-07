@@ -1166,14 +1166,8 @@
         // "classes" (entités propres, ex. deux CE2 distincts). On migre une
         // seule fois : chaque niveau actif devient une classe portant ce
         // niveau comme nom par défaut.
-        // Migration robuste vers le modèle « classes ». Certaines versions
-        // intermédiaires ont déjà créé `classes: []` tout en conservant les
-        // anciennes grilles indexées par niveau. On ne doit jamais interpréter
-        // ce tableau vide comme une absence de classes si des traces de
-        // l'ancien modèle sont encore présentes.
-        if (!Array.isArray(c.classes) || c.classes.length === 0) {
-          const niveaux = Array.isArray(c.niveauxActifs) ? c.niveauxActifs : [];
-          c.classes = niveaux.map((n, i) => ({
+        if (!Array.isArray(c.classes)) {
+          c.classes = (c.niveauxActifs || []).map((n, i) => ({
             id: uid("cls"), nom: n, niveau: n, couleur: PALETTE_CLASSES[i % PALETTE_CLASSES.length], dispositifs: []
           }));
         }
@@ -1403,57 +1397,6 @@
       JSON.stringify(g)
     );
 
-  }
-
-  /**
-   * Migration non destructive des anciennes grilles indexées par niveau
-   * (CP/CE1/...) vers les identifiants stables des classes.
-   * Si une ancienne configuration a perdu `niveauxActifs`, les clés de
-   * grille permettent encore de reconstruire les classes manquantes.
-   */
-  function migrerStockageClasses(config, grilles) {
-    if (!config || !grilles || typeof grilles !== "object") return false;
-
-    const anciens = Array.isArray(config.niveauxActifs) ? config.niveauxActifs.slice() : [];
-    const niveauxDesGrilles = Object.keys(grilles).filter(k => NIVEAUX.includes(String(k).toUpperCase()));
-    niveauxDesGrilles.forEach(n => { if (!anciens.includes(n)) anciens.push(n); });
-
-    if (!Array.isArray(config.classes)) config.classes = [];
-
-    let modifie = false;
-    anciens.forEach((niveau, index) => {
-      if (!niveau) return;
-      let cl = config.classes.find(c => String(c.niveau || c.nom || "").toUpperCase() === String(niveau).toUpperCase());
-      if (!cl) {
-        cl = { id: uid("cls"), nom: niveau, niveau: niveau, couleur: PALETTE_CLASSES[config.classes.length % PALETTE_CLASSES.length], dispositifs: [] };
-        config.classes.push(cl);
-        modifie = true;
-      }
-      if (Object.prototype.hasOwnProperty.call(grilles, niveau) && Array.isArray(grilles[niveau]) && (!Array.isArray(grilles[cl.id]) || !grilles[cl.id].length)) {
-        grilles[cl.id] = grilles[niveau];
-        modifie = true;
-      }
-    });
-
-    // Les anciennes affectations de séances suivent la même migration.
-    try {
-      const aff = JSON.parse(localStorage.getItem(STORE_AFFECT) || "{}");
-      let affModifie = false;
-      anciens.forEach(niveau => {
-        const cl = config.classes.find(c => String(c.niveau || c.nom || "").toUpperCase() === String(niveau).toUpperCase());
-        if (cl && Object.prototype.hasOwnProperty.call(aff, niveau) && !Object.prototype.hasOwnProperty.call(aff, cl.id)) {
-          aff[cl.id] = aff[niveau];
-          affModifie = true;
-        }
-      });
-      if (affModifie) localStorage.setItem(STORE_AFFECT, JSON.stringify(aff));
-    } catch (e) {}
-
-    if (modifie) {
-      sauverGrilles(grilles);
-      sauverConfig(config);
-    }
-    return modifie;
   }
 
   // ------------------------------------------------------------------------
@@ -4089,7 +4032,6 @@
     // Grilles
     chargerGrilles,
     sauverGrilles,
-    migrerStockageClasses,
     appliquerCreneauxFixes,
 
     // Affectations
