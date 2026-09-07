@@ -3293,10 +3293,19 @@
   // IMPORT / EXPORT JSON DU PLANNING (fichier téléchargeable, hors USB)
   // ========================================================================
 
+  // ========================================================================
+  // EXPORT / IMPORT SÉCURISÉ DU PLANNING
+  // ------------------------------------------------------------------------
+  // Le coffre élèves utilise un fichier chiffré et un mot de passe. Le
+  // planning complet peut contenir des identifiants d'élèves dans les
+  // affectations et le cahier journal : il suit donc la même philosophie.
+  // Le mot de passe n'est jamais stocké dans le paquet ni dans localStorage.
+  // ========================================================================
+
   function exporterPlanningJSON(config, grilles, affectations, journal) {
     return {
       format: "synapses-planning",
-      version: 4,
+      version: 5,
       maj: new Date().toISOString(),
       config: config || {},
       grilles: grilles || {},
@@ -3305,9 +3314,82 @@
     };
   }
 
-  function telechargerPlanningJSON(config, grilles, affectations, journal) {
+  function _b64FromBytes(bytes) {
+    let binary = "";
+    const chunk = 0x8000;
+    for(let i=0;i<bytes.length;i+=chunk){
+      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i+chunk, bytes.length)));
+    }
+    return btoa(binary);
+  }
+
+  function _bytesFromB64(str) {
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function _derivePlanningKey(motDePasse, salt) {
+    if(!window.crypto || !window.crypto.subtle) {
+      throw new Error("Le chiffrement sécurisé n'est pas disponible dans ce navigateur.");
+    }
+    const enc = new TextEncoder();
+    const baseKey = await crypto.subtle.importKey(
+      "raw", enc.encode(String(motDePasse)), "PBKDF2", false, ["deriveKey"]
+    );
+    return crypto.subtle.deriveKey(
+      { name:"PBKDF2", salt, iterations:310000, hash:"SHA-256" },
+      baseKey,
+      { name:"AES-GCM", length:256 },
+      false,
+      ["encrypt","decrypt"]
+    );
+  }
+
+  async function chiffrerPlanningJSON(paquet, motDePasse) {
+    if(!motDePasse) throw new Error("Saisissez un mot de passe pour protéger le planning.");
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await _derivePlanningKey(motDePasse, salt);
+    const clair = enc.encode(JSON.stringify(paquet));
+    const chiffre = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, clair);
+    return {
+      format: "synapses-planning-secure",
+      version: 1,
+      algorithme: "AES-256-GCM",
+      derivation: "PBKDF2-SHA-256",
+      iterations: 310000,
+      salt: _b64FromBytes(salt),
+      iv: _b64FromBytes(iv),
+      data: _b64FromBytes(new Uint8Array(chiffre))
+    };
+  }
+
+  async function dechiffrerPlanningJSON(enveloppe, motDePasse) {
+    if(!enveloppe || enveloppe.format !== "synapses-planning-secure") {
+      throw new Error("Ce fichier n'est pas un export sécurisé de planning Synapses.");
+    }
+    if(!motDePasse) throw new Error("Saisissez le mot de passe du planning.");
+    try{
+      const salt = _bytesFromB64(enveloppe.salt);
+      const iv = _bytesFromB64(enveloppe.iv);
+      const chiffre = _bytesFromB64(enveloppe.data);
+      const key = await _derivePlanningKey(motDePasse, salt);
+      const clair = await crypto.subtle.decrypt({name:"AES-GCM", iv}, key, chiffre);
+      const paquet = JSON.parse(new TextDecoder().decode(clair));
+      if(!paquet || paquet.format !== "synapses-planning") throw new Error("Contenu de planning invalide.");
+      return paquet;
+    }catch(e){
+      throw new Error("Mot de passe incorrect ou fichier de planning endommagé.");
+    }
+  }
+
+  async function telechargerPlanningJSON(config, grilles, affectations, journal, motDePasse) {
     const paquet = exporterPlanningJSON(config, grilles, affectations, journal);
-    const blob = new Blob([JSON.stringify(paquet, null, 2)], { type: "application/json" });
+    const securise = await chiffrerPlanningJSON(paquet, motDePasse);
+    const blob = new Blob([JSON.stringify(securise, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -3315,8 +3397,8 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
-    return paquet;
+    setTimeout(()=>URL.revokeObjectURL(url), 0);
+    return securise;
   }
 
   function lireFichierJSON(file) {
@@ -3332,8 +3414,9 @@
   }
 
   /**
-   * Applique un paquet importé (fichier .json exporté par Synapses) au
-   * stockage local courant. Retourne un résumé des parties appliquées.
+   * Applique un paquet de planning déjà déchiffré au stockage local courant.
+   * Les anciens exports JSON en clair restent importables pour compatibilité,
+   * mais tous les nouveaux exports complets sont chiffrés.
    */
   function appliquerPaquetPlanning(paquet) {
     if (!paquet || paquet.format !== "synapses-planning") {
@@ -4003,6 +4086,8 @@
 
     // Import / export JSON
     exporterPlanningJSON,
+    chiffrerPlanningJSON,
+    dechiffrerPlanningJSON,
     telechargerPlanningJSON,
     lireFichierJSON,
     appliquerPaquetPlanning,

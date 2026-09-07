@@ -100,6 +100,7 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .coffre-modal p.hint{margin-top:2px;}
 .coffre-modal .field{margin-top:12px;}
 .coffre-modal input[type="password"],.coffre-modal input[type="file"]{width:100%;}
+.coffre-modal .security-note{margin-top:10px;padding:9px 10px;border-radius:7px;background:var(--panel-raised);border:1px solid var(--line);font-size:11.5px;color:var(--ink-soft);}
 .coffre-modal .row{margin-top:18px;justify-content:flex-end;}
 
 /* ---- Onglets de la page ---- */
@@ -204,6 +205,17 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div class="field"><label>Mot de passe</label><input type="password" id="coffre-export-mdp"></div>
       <div class="row"><button class="btn" data-close-coffre-export-modal="1">Annuler</button><button class="btn primary" id="btn-coffre-export-confirmer">Télécharger</button></div>
       <p class="hint" id="coffre-export-erreur" style="color:var(--danger);display:none;"></p>
+    </div>
+  </div>
+
+  <div class="coffre-modal-overlay" id="planning-crypto-modal-overlay">
+    <div class="coffre-modal">
+      <h3 id="planning-crypto-title">Protéger le planning</h3>
+      <p class="hint" id="planning-crypto-message">Le planning complet peut contenir des identifiants d'élèves. Il sera chiffré avant d'être enregistré.</p>
+      <div class="field"><label id="planning-crypto-label">Mot de passe</label><input type="password" id="planning-crypto-mdp" autocomplete="new-password"></div>
+      <div class="security-note">🔐 Chiffrement local avec AES-256-GCM. Le mot de passe n'est jamais enregistré dans le fichier ni dans le stockage local.</div>
+      <div class="row"><button class="btn" id="btn-planning-crypto-annuler">Annuler</button><button class="btn primary" id="btn-planning-crypto-confirmer">Continuer</button></div>
+      <p class="hint" id="planning-crypto-erreur" style="color:var(--danger);display:none;"></p>
     </div>
   </div>
 
@@ -447,15 +459,15 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <h2>Planning complet</h2>
       <p class="hint">
         Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
-        et cahier journal jour par jour) dans un fichier <code>.json</code> que vous pouvez
-        conserver, transférer sur un autre poste ou déposer sur une clé USB. Ce fichier ne
-        contient aucune donnée nominative : seuls des identifiants Synapses (ELEVE-xxxx)
-        peuvent y apparaître si des groupes de journal ont été renseignés.
+        et cahier journal jour par jour) dans un fichier <code>.json</code>. Comme il peut
+        contenir des identifiants d'élèves, <strong>l'export est désormais chiffré et protégé
+        par un mot de passe</strong>, comme le coffre élèves. Le fichier peut ensuite être
+        conservé, transféré sur un autre poste ou déposé sur une clé USB.
       </p>
       <div class="row" style="align-items:center;gap:14px;">
-        <button class="btn primary" id="btn-export-json">⬇ Exporter en .json</button>
+        <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
         <button class="btn" id="btn-import-json-browse">📁 Importer un fichier .json…</button>
-        <input type="file" id="import-json-file" accept=".json,application/json" style="display:none;">
+        <input type="file" id="import-json-file" accept=".json,.synapses-planning,application/json" style="display:none;">
         <span id="import-json-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
       </div>
     </section>
@@ -1994,27 +2006,83 @@ $("import-config-file").addEventListener("change", async ()=>{
   }
 });
 
-/* ---------------- Import / export du planning complet (JSON) ---------------- */
-$("btn-export-json").addEventListener("click", ()=>{
-  const journal = PC.chargerJournal();
-  const affectationsActuelles = PC.chargerAffectations();
-  PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal);
-  toast("Export téléchargé.");
-});
+/* ---------------- Import / export du planning complet (chiffré) ---------------- */
+let planningCryptoMode = null;
+
+function ouvrirModalCryptoPlanning(mode){
+  planningCryptoMode = mode;
+  $("planning-crypto-title").textContent = mode === "export" ? "Protéger le planning" : "Ouvrir le planning protégé";
+  $("planning-crypto-message").textContent = mode === "export"
+    ? "Le planning complet peut contenir des identifiants d'élèves. Il sera chiffré avant d'être enregistré."
+    : "Saisissez le mot de passe utilisé lors de l'export. Le contenu ne sera déchiffré qu'en mémoire. Le mot de passe n'est jamais conservé.";
+  $("planning-crypto-mdp").value = "";
+  $("planning-crypto-erreur").style.display = "none";
+  $("planning-crypto-modal-overlay").classList.add("open");
+  setTimeout(()=>$("planning-crypto-mdp").focus(),50);
+}
+
+function fermerModalCryptoPlanning(){
+  planningCryptoMode = null;
+  $("planning-crypto-mdp").value = "";
+  $("planning-crypto-modal-overlay").classList.remove("open");
+}
+
+$("btn-export-json").addEventListener("click", ()=> ouvrirModalCryptoPlanning("export"));
 $("btn-import-json-browse").addEventListener("click", ()=> $("import-json-file").click());
+$("btn-planning-crypto-annuler").addEventListener("click", fermerModalCryptoPlanning);
+$("planning-crypto-mdp").addEventListener("keydown", e=>{
+  if(e.key === "Enter") $("btn-planning-crypto-confirmer").click();
+  if(e.key === "Escape") fermerModalCryptoPlanning();
+});
+
+$("btn-planning-crypto-confirmer").addEventListener("click", async ()=>{
+  const mdp = $("planning-crypto-mdp").value;
+  const mode = planningCryptoMode;
+  if(!mdp){ $("planning-crypto-erreur").textContent = "Saisissez le mot de passe."; $("planning-crypto-erreur").style.display=""; return; }
+  try{
+    if(mode === "export"){
+      const journal = PC.chargerJournal();
+      const affectationsActuelles = PC.chargerAffectations();
+      await PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal, mdp);
+      fermerModalCryptoPlanning();
+      toast("Planning chiffré exporté.");
+    }else if(mode === "import"){
+      const f = $("import-json-file").files[0];
+      if(!f) throw new Error("Choisissez d'abord un fichier de planning.");
+      const enveloppe = await PC.lireFichierJSON(f);
+      const paquet = enveloppe && enveloppe.format === "synapses-planning-secure"
+        ? await PC.dechiffrerPlanningJSON(enveloppe, mdp)
+        : enveloppe; // compatibilité avec les anciens exports en clair
+      const applique = PC.appliquerPaquetPlanning(paquet);
+      $("import-json-status").textContent = "Importé (" + f.name + ") : " + applique.join(", ") + ".";
+      fermerModalCryptoPlanning();
+      toast(enveloppe && enveloppe.format === "synapses-planning-secure" ? "Planning déchiffré et importé." : "Ancien export importé — pensez à le réexporter chiffré.");
+      setTimeout(()=> location.reload(), 900);
+    }
+  }catch(e){
+    $("planning-crypto-erreur").textContent = e.message || "Opération impossible.";
+    $("planning-crypto-erreur").style.display = "";
+  }
+});
+
 $("import-json-file").addEventListener("change", async ()=>{
   const f = $("import-json-file").files[0];
   if(!f) return;
   try{
-    const paquet = await PC.lireFichierJSON(f);
-    const applique = PC.appliquerPaquetPlanning(paquet);
-    $("import-json-status").textContent = "Importé (" + f.name + ") : " + applique.join(", ") + ".";
-    toast("Import réussi — la page va se recharger.");
-    setTimeout(()=> location.reload(), 900);
+    const enveloppe = await PC.lireFichierJSON(f);
+    if(enveloppe && enveloppe.format === "synapses-planning-secure"){
+      ouvrirModalCryptoPlanning("import");
+    }else{
+      // Les anciens exports non chiffrés restent lisibles pour permettre la
+      // migration vers le nouveau format protégé.
+      const applique = PC.appliquerPaquetPlanning(enveloppe);
+      $("import-json-status").textContent = "Ancien export importé (" + f.name + ") : " + applique.join(", ") + ". Réexportez-le chiffré pour le protéger.";
+      toast("Ancien export importé — pensez à le réexporter chiffré.");
+      setTimeout(()=> location.reload(), 900);
+    }
   }catch(e){
-    $("import-json-status").textContent = "Import impossible : " + e.message;
-    toast("Import impossible : " + e.message);
-  }finally{
+    $("import-json-status").textContent = "Import impossible : " + (e.message || e);
+    toast("Import impossible : " + (e.message || e));
     $("import-json-file").value = "";
   }
 });
