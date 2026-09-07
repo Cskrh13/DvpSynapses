@@ -1672,20 +1672,13 @@ function genererGrilleDispositifDepuisPlannings(dispositifId){
     });
   });
 
-  // La grille du dispositif ne contient que les horaires effectivement
-  // disponibles. Les horaires communs sont fusionnés en un seul créneau.
-  const ancienneGrille=Array.isArray(grilles[dispositifId])?grilles[dispositifId]:[];
+  // La grille persistée du dispositif ne contient QUE les créneaux.
+  // Les élèves restent exclusivement dans le coffre (.synapses).
   const nouvelleGrille=Array.from(slots.values())
     .sort((a,b)=>a.jour-b.jour||PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
     .map(s=>({
-      id:PC.uid("cr"),
-      jour:s.jour,
-      debut:s.debut,
-      fin:s.fin,
-      type:"autre",
-      libelle:disp.nom,
-      domaineCle:"",
-      dispositifId:disp.id
+      id:PC.uid("cr"), jour:s.jour, debut:s.debut, fin:s.fin,
+      type:"autre", libelle:disp.nom, domaineCle:"", dispositifId:disp.id
     }));
 
   // Remplacement uniquement de la grille DU DISPOSITIF.
@@ -1855,9 +1848,8 @@ function renderGenDispositifGrille(){
 
           const cle=ref.identifiantSynapses+"::"+c.id;
           const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
-          // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
-          // classe de référence sur ce créneau (complémentaire des
-          // "non-affectations" de la classe de référence).
+          // Les élèves ne sont jamais stockés dans la grille du dispositif.
+          // Ils sont relus exclusivement depuis le coffre et leur planning individuel.
           const coche=!enClasse;
           gendEtatOriginal[cle]=coche;
           gendEtatEnCours[cle]=coche;
@@ -1914,41 +1906,27 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
     const c=creneaux.find(x=>x.id===creneauId);
     if(!c) return;
 
+    // Les affectations élève ↔ dispositif restent dans le planning individuel
+    // du coffre. La grille du dispositif reste strictement non nominative.
     if(!Array.isArray(e.planning)) e.planning=[];
-
+    const cibles=creneauxClasseChevauchantGend(cl.id,c);
     if(apres){
-      // Coché = affecté au dispositif => retiré du planning de la classe de
-      // référence pour tout créneau qui chevauche celui-ci.
-      e.planning = e.planning.filter(p=>{
-        if(p.classeId!==cl.id) return true;
-        if(Number(p.jour)!==Number(c.jour)) return true;
-        const chevauche=PC.chevaucheMin(
-          PC.heureVersMin(p.debut), PC.heureVersMin(p.fin),
-          PC.heureVersMin(c.debut), PC.heureVersMin(c.fin)
-        );
-        return !chevauche;
-      });
-    } else {
-      // Décoché = renvoyé dans sa classe de référence : réaffectation à
-      // tous les créneaux de la grille de cette classe qui chevauchent le
-      // créneau du dispositif.
-      creneauxClasseChevauchantGend(cl.id, c).forEach(cc=>{
-        const dejaPresent = e.planning.some(p=>p.classeId===cl.id && p.creneauId===cc.id);
-        if(dejaPresent) return;
-        e.planning.push({
-          classeId: cl.id,
-          classeNom: cl.nom,
-          creneauId: cc.id,
-          jour: cc.jour,
-          debut: cc.debut,
-          fin: cc.fin,
-          domaineCle: cc.domaineCle||""
-        });
+      const ids=new Set(cibles.map(x=>x.id));
+      e.planning=e.planning.filter(p=>!(p.classeId===cl.id && (ids.has(p.creneauId) ||
+        cibles.some(cc=>Number(p.jour)===Number(cc.jour) && p.debut===cc.debut && p.fin===cc.fin))));
+    }else{
+      cibles.forEach(cc=>{
+        const deja=e.planning.some(p=>p.classeId===cl.id && (p.creneauId===cc.id ||
+          (Number(p.jour)===Number(cc.jour) && p.debut===cc.debut && p.fin===cc.fin)));
+        if(!deja) e.planning.push({classeId:cl.id, classeNom:cl.nom, creneauId:cc.id, jour:cc.jour, debut:cc.debut, fin:cc.fin, domaineCle:cc.domaineCle||""});
       });
     }
     bascules++;
   });
 
+  // Aucun identifiant d'élève n'est écrit dans la grille/localStorage.
+  // Les affectations restent dans le coffre ouvert. Les autres pages doivent
+  // recharger le même fichier .synapses pour relire les plannings individuels.
   renderGenDispositifGrille();
   const st=$("gend-save-status");
   if(st){
