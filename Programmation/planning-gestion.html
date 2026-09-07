@@ -489,7 +489,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
    Project: Grand Planificateur pédagogique
    Author: Cskrh13 / Vincent
    Copyright: © 2026
-   Version: 0.9.0-test
+   Version: 0.9.2-fix-migration-safe
    Build: 2026-08-27
    ========================================================= */
 
@@ -497,8 +497,8 @@ const SYNAPSES_BUILD = {
     project: "Synapses",
     author: "Cskrh13",
     year: 2026,
-    version: "0.9.0-test",
-    build: "2026-08-27"
+    version: "0.9.2-fix-migration-safe",
+    build: "2026-09-07"
 };
 
 "use strict";
@@ -508,6 +508,15 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 
 let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
+// Migration rétrocompatible et non destructive : les anciennes grilles
+// indexées par niveau doivent rester accessibles après le passage au modèle
+// « classes ». Une erreur de migration ne doit jamais empêcher l'ouverture
+// de la page.
+try {
+  if (typeof PC.migrerStockageClasses === "function") PC.migrerStockageClasses(config, grilles);
+} catch (e) {
+  console.warn("Migration du planning non bloquante :", e);
+}
 let banque = {}; // rempli au chargement
 let grilleClasseCourant = null;
 function entiteGrilleById(id){ return (config.classes||[]).find(x=>x.id===id) || (config.dispositifs||[]).find(x=>x.id===id) || null; }
