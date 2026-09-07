@@ -442,7 +442,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     </section>
   </div>
 
-  <!-- =============== ONGLET : IMPORT / EXPORT JSON =============== -->
+  <!-- =============== ONGLET : IMPORT / EXPORT =============== -->
   <div class="tab-panel" id="tab-import">
     <section class="card">
       <h2>Configuration (classes, jours, récréations, calendrier)</h2>
@@ -459,16 +459,16 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <h2>Planning complet</h2>
       <p class="hint">
         Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
-        et cahier journal jour par jour) dans un fichier <code>.json</code>. Comme il peut
-        contenir des identifiants d'élèves, <strong>l'export est désormais chiffré et protégé
-        par un mot de passe</strong>, comme le coffre élèves. Le fichier peut ensuite être
-        conservé, transféré sur un autre poste ou déposé sur une clé USB.
+        et cahier journal jour par jour) dans un fichier <code>.synapses</code>. Comme il peut
+        contenir des identifiants d'élèves, <strong>le fichier est toujours chiffré et protégé
+        par un mot de passe</strong>, exactement comme le coffre élèves. Le contenu est
+        illisible hors de Synapses.
       </p>
       <div class="row" style="align-items:center;gap:14px;">
         <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
-        <button class="btn" id="btn-import-json-browse">📁 Importer un fichier .json…</button>
-        <input type="file" id="import-json-file" accept=".json,.synapses-planning,application/json" style="display:none;">
-        <span id="import-json-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
+        <button class="btn" id="btn-import-json-browse">📁 Ouvrir un planning .synapses…</button>
+        <input type="file" id="import-json-file" accept=".synapses" style="display:none;">
+        <span id="import-json-status" class="hint" style="margin:0;">Aucun planning importé.</span>
       </div>
     </section>
   </div>
@@ -2045,18 +2045,19 @@ $("btn-planning-crypto-confirmer").addEventListener("click", async ()=>{
       const affectationsActuelles = PC.chargerAffectations();
       await PC.telechargerPlanningJSON(config, grilles, affectationsActuelles, journal, mdp);
       fermerModalCryptoPlanning();
-      toast("Planning chiffré exporté.");
+      toast("Planning .synapses chiffré exporté.");
     }else if(mode === "import"){
       const f = $("import-json-file").files[0];
       if(!f) throw new Error("Choisissez d'abord un fichier de planning.");
       const enveloppe = await PC.lireFichierJSON(f);
-      const paquet = enveloppe && enveloppe.format === "synapses-planning-secure"
-        ? await PC.dechiffrerPlanningJSON(enveloppe, mdp)
-        : enveloppe; // compatibilité avec les anciens exports en clair
+      if(!enveloppe || enveloppe.format !== "synapses-planning-secure"){
+        throw new Error("Ce fichier n'est pas un planning .synapses protégé. Les anciens exports JSON en clair ne sont plus acceptés.");
+      }
+      const paquet = await PC.dechiffrerPlanningJSON(enveloppe, mdp);
       const applique = PC.appliquerPaquetPlanning(paquet);
       $("import-json-status").textContent = "Importé (" + f.name + ") : " + applique.join(", ") + ".";
       fermerModalCryptoPlanning();
-      toast(enveloppe && enveloppe.format === "synapses-planning-secure" ? "Planning déchiffré et importé." : "Ancien export importé — pensez à le réexporter chiffré.");
+      toast("Planning .synapses déchiffré et importé.");
       setTimeout(()=> location.reload(), 900);
     }
   }catch(e){
@@ -2070,45 +2071,13 @@ $("import-json-file").addEventListener("change", async ()=>{
   if(!f) return;
   try{
     const enveloppe = await PC.lireFichierJSON(f);
-    if(enveloppe && enveloppe.format === "synapses-planning-secure"){
-      ouvrirModalCryptoPlanning("import");
-    }else{
-      // Les anciens exports non chiffrés restent lisibles pour permettre la
-      // migration vers le nouveau format protégé.
-      const applique = PC.appliquerPaquetPlanning(enveloppe);
-      $("import-json-status").textContent = "Ancien export importé (" + f.name + ") : " + applique.join(", ") + ". Réexportez-le chiffré pour le protéger.";
-      toast("Ancien export importé — pensez à le réexporter chiffré.");
-      setTimeout(()=> location.reload(), 900);
+    if(!enveloppe || enveloppe.format !== "synapses-planning-secure"){
+      throw new Error("Ce fichier n'est pas un planning .synapses protégé. Les anciens exports JSON en clair ne sont plus acceptés.");
     }
+    ouvrirModalCryptoPlanning("import");
   }catch(e){
     $("import-json-status").textContent = "Import impossible : " + (e.message || e);
     toast("Import impossible : " + (e.message || e));
     $("import-json-file").value = "";
   }
 });
-
-/* ---------------- Initialisation ---------------- */
-(async function init(){
-  majEtatCoffre();
-  renderConfig();
-  renderClasses();
-  renderClasseElevesSelect();
-  try{
-    banque = await PC.chargerBanque();
-  }catch(e){
-    toast("Impossible de charger le référentiel de séances.");
-  }
-  renderGrilleTabs();
-  renderSummary();
-renderGenerationDispositifs();
-  renderAffgClasseSelect();
-  renderAffgGrille();
-})();
-</script>
-
-<footer class="synapses-footer">
-    <div>Synapses — Grand Planificateur pédagogique</div>
-    <div>© 2026 Cskrh13 / Vincent · v0.9.0-test · 27/08/2026</div>
-</footer>
-</body>
-</html>
