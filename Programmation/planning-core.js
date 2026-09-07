@@ -1132,14 +1132,10 @@
   // ========================================================================
 
   function chargerConfig() {
-    // Migration RGPD : les anciennes affectations élève↔créneau et
-    // exclusions nominatives ne doivent plus rester dans le stockage local.
-    // Elles sont désormais portées exclusivement par le planning de chaque
-    // élève dans le coffre Synapses.
-    try {
-      localStorage.removeItem(STORE_AFFECT_ELEVES);
-      localStorage.removeItem(STORE_EXCLUSIONS_CRENEAU);
-    } catch (e) {}
+    // IMPORTANT : ne jamais supprimer silencieusement des données locales.
+    // Les anciennes affectations/exclusions restent conservées pour assurer
+    // la rétrocompatibilité ; le coffre demeure la source de vérité pour les
+    // données nominatives. Une éventuelle migration doit être explicite.
 
     try {
 
@@ -1166,8 +1162,13 @@
         // "classes" (entités propres, ex. deux CE2 distincts). On migre une
         // seule fois : chaque niveau actif devient une classe portant ce
         // niveau comme nom par défaut.
-        if (!Array.isArray(c.classes)) {
-          c.classes = (c.niveauxActifs || []).map((n, i) => ({
+        // Ancien stockage : `niveauxActifs` était la liste des clés de
+        // grille. Certaines versions intermédiaires avaient déjà créé
+        // `classes: []` sans recopier cette liste. Dans les deux cas, si des
+        // niveaux historiques existent, ils doivent redevenir des classes.
+        if (!Array.isArray(c.classes) || (c.classes.length === 0 && Array.isArray(c.niveauxActifs) && c.niveauxActifs.length)) {
+          const anciens = Array.isArray(c.niveauxActifs) ? c.niveauxActifs : [];
+          c.classes = anciens.map((n, i) => ({
             id: uid("cls"), nom: n, niveau: n, couleur: PALETTE_CLASSES[i % PALETTE_CLASSES.length], dispositifs: []
           }));
         }
@@ -1397,6 +1398,50 @@
       JSON.stringify(g)
     );
 
+  }
+
+  /**
+   * Restaure les clés de stockage de l'ancien modèle (CP/CE1/…) vers les
+   * identifiants stables des nouvelles classes. Cette migration est
+   * volontairement non destructive : les anciennes clés ne sont supprimées
+   * qu'après copie réussie vers une classe correspondante.
+   */
+  function migrerStockageClasses(config, grilles) {
+    if (!config || !Array.isArray(config.classes) || !config.classes.length) return false;
+    if (!grilles || typeof grilles !== "object") return false;
+
+    const anciens = Array.isArray(config.niveauxActifs) ? config.niveauxActifs : [];
+    if (!anciens.length) return false;
+    let modifie = false;
+
+    anciens.forEach((niveau, index) => {
+      const cl = config.classes[index] || config.classes.find(c => String(c.niveau || c.nom) === String(niveau));
+      if (!cl || !niveau || !Object.prototype.hasOwnProperty.call(grilles, niveau)) return;
+      const ancienne = grilles[niveau];
+      if (!Array.isArray(ancienne)) return;
+      if (!Array.isArray(grilles[cl.id]) || !grilles[cl.id].length) {
+        grilles[cl.id] = ancienne;
+        modifie = true;
+      }
+    });
+
+    // Même migration pour les affectations de séances (non nominatives).
+    try {
+      const aff = JSON.parse(localStorage.getItem(STORE_AFFECT) || "{}");
+      let affModifie = false;
+      anciens.forEach((niveau, index) => {
+        const cl = config.classes[index] || config.classes.find(c => String(c.niveau || c.nom) === String(niveau));
+        if (!cl || !Object.prototype.hasOwnProperty.call(aff, niveau)) return;
+        if (!Object.prototype.hasOwnProperty.call(aff, cl.id)) {
+          aff[cl.id] = aff[niveau];
+          affModifie = true;
+        }
+      });
+      if (affModifie) localStorage.setItem(STORE_AFFECT, JSON.stringify(aff));
+    } catch (e) {}
+
+    if (modifie) sauverGrilles(grilles);
+    return modifie;
   }
 
   // ------------------------------------------------------------------------
@@ -4032,6 +4077,7 @@
     // Grilles
     chargerGrilles,
     sauverGrilles,
+    migrerStockageClasses,
     appliquerCreneauxFixes,
 
     // Affectations

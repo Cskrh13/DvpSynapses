@@ -489,7 +489,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
    Project: Grand Planificateur pédagogique
    Author: Cskrh13 / Vincent
    Copyright: © 2026
-   Version: 0.9.0-test
+   Version: 0.9.1-fix-migration
    Build: 2026-08-27
    ========================================================= */
 
@@ -497,8 +497,8 @@ const SYNAPSES_BUILD = {
     project: "Synapses",
     author: "Cskrh13",
     year: 2026,
-    version: "0.9.0-test",
-    build: "2026-08-27"
+    version: "0.9.1-fix-migration",
+    build: "2026-09-07"
 };
 
 "use strict";
@@ -508,6 +508,17 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 
 let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
+// Restaure immédiatement les anciennes grilles indexées par niveau (CP,
+// CE1, …) vers les nouveaux identifiants de classes. Cette étape est
+// indispensable lors du premier chargement après la migration du modèle.
+if (typeof PC.migrerStockageClasses === "function") {
+  PC.migrerStockageClasses(config, grilles);
+}
+// Persiste la configuration migrée afin qu'un prochain chargement n'ait pas
+// à recréer des identifiants de classes différents.
+if (Array.isArray(config.classes) && config.classes.length && Array.isArray(config.niveauxActifs)) {
+  PC.sauverConfig(config);
+}
 let banque = {}; // rempli au chargement
 let grilleClasseCourant = null;
 function entiteGrilleById(id){ return (config.classes||[]).find(x=>x.id===id) || (config.dispositifs||[]).find(x=>x.id===id) || null; }
