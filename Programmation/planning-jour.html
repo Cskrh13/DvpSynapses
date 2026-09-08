@@ -365,6 +365,19 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line);}
 
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:90;}
+
+/* -------- Résumé du jour -------- */
+.day-summary{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 14px;font-size:12.5px;color:var(--ink-soft);}
+.day-summary strong{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
+.day-summary .warn{color:var(--gold);font-weight:600;}
+
+/* -------- Nettoyage des créneaux de test -------- */
+.nettoyage-jour{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+.nettoyage-jour-head{background:var(--panel-raised);padding:8px 12px;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center;}
+.nettoyage-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--line);font-size:12.5px;}
+.nettoyage-item .item-info{flex:1;min-width:0;}
+.nettoyage-item .item-titre{font-weight:600;}
+.nettoyage-item .item-heure{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-size:11.5px;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 .synapses-footer{margin-top:40px;padding:18px 24px;text-align:center;font-size:11px;color:var(--ink-soft);border-top:1px solid var(--line);}
@@ -396,15 +409,12 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     font-size:10.5pt;
   }
 
-  /* Tout ce qui sert à la navigation/édition disparaît. */
-  header.site-header,
-  .onboarding,
-  .day-toolbar,
-  #content,
-  .journal-bottom,
-  .synapses-footer,
-  .toast,
-  .modal-overlay{
+  /* Tout ce qui sert à la navigation/édition disparaît : seule la vue
+     imprimable dédiée (.print-journal, ajoutée directement à <body>) doit
+     apparaître. Cette règle générique évite qu'un élément d'écran ajouté
+     par la suite (résumé du jour, onglets, filtres…) ne se retrouve par
+     mégarde sur le papier. */
+  body > *:not(.print-journal){
     display:none !important;
   }
 
@@ -424,16 +434,44 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     align-items:flex-end;
     justify-content:space-between;
     gap:15px;
-    padding:0 0 7px;
-    margin-bottom:8px;
-    border-bottom:2px solid #222;
+    padding:0 0 9px;
+    margin-bottom:10px;
+    border-bottom:3px solid #1E2A4A;
+  }
+
+  .print-brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .print-brand .mark{
+    width:26px;
+    height:26px;
+    border-radius:6px;
+    background:linear-gradient(160deg,#2E5EAA,#5486d6);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:Georgia,'Times New Roman',serif;
+    font-weight:700;
+    font-size:13pt;
+  }
+
+  .print-brand .sub{
+    font-size:7.5pt;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:#5B5F6B;
   }
 
   .print-title{
     font-family:Georgia,'Times New Roman',serif;
-    font-size:19pt;
+    font-size:17pt;
     font-weight:700;
-    line-height:1.1;
+    line-height:1.15;
+    color:#1E2A4A;
   }
 
   .print-date{
@@ -441,6 +479,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     font-weight:600;
     text-align:right;
     white-space:nowrap;
+    color:#1E2A4A;
   }
 
   .print-schedule{
@@ -476,9 +515,10 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     align-items:center;
     gap:7px;
     padding:4px 6px;
-    background:#eee;
-    border-bottom:1px solid #aaa;
+    background:#EAF0FA;
+    border-bottom:1px solid #B9C6E5;
     font-weight:700;
+    color:#1E2A4A;
   }
 
   .print-time{
@@ -656,6 +696,35 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-nettoyage">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <h3>Nettoyer les créneaux de test</h3>
+      <button class="modal-close" data-close="modal-nettoyage">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 12px;line-height:1.6;">
+        Repère, sur tout le cahier journal, les groupes vides (sans adulte, sans élève, sans remarque) qui portent
+        un titre par défaut ou évoquant un essai — souvent des restes de tests de génération d'emploi du temps.
+        Rien n'est jamais supprimé automatiquement : vous choisissez ce qui part.
+      </p>
+      <div id="nettoyage-liste"></div>
+      <div id="nettoyage-vide" style="display:none;padding:18px;text-align:center;color:var(--ink-soft);font-size:13px;">
+        Aucun créneau suspect détecté. Le cahier journal est propre !
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;">
+        <input type="checkbox" id="nettoyage-tout"> Tout sélectionner
+      </label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" data-close="modal-nettoyage">Fermer</button>
+        <button class="btn danger" id="btn-nettoyage-supprimer">✕ Supprimer la sélection</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <main>
   <h1 style="font-size:24px;margin:0 0 14px;">Cahier journal</h1>
 
@@ -683,6 +752,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
       <button class="btn" id="btn-repartir-eleves">🎯 Répartir les élèves</button>
       <button class="btn" id="btn-import-sequences">📥 Importer séquences / séances</button>
       <input type="file" id="import-sequences-file" accept=".json,application/json" style="display:none;">
+      <button class="btn" id="btn-nettoyage" title="Repérer et supprimer les créneaux/groupes vides laissés par des essais">🧹 Nettoyer</button>
       <button class="btn" id="btn-print">🖨 Imprimer</button>
       <a class="btn" href="planning-affichage.html">← Retour à la semaine</a>
     </div>
@@ -695,6 +765,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
   <section class="journal-tab-panel active" id="tab-journee">
     <div class="classe-filter-bar" id="classe-filter-bar"></div>
+    <div class="day-summary" id="day-summary"></div>
     <div id="content"></div>
 
     <div class="journal-bottom">
@@ -765,16 +836,17 @@ try{ coffre = new SynapsesCoffre.Coffre(); }catch(e){ coffre = null; }
 function coffreDisponible(){ return !!coffre; }
 function coffreOuvert(){ return !!(coffre && coffre.ouvert); }
 function eleveLabel(e){
-  // N'affiche que les INITIALES de l'élève, calculées à la volée à partir
-  // de son identité (coffre ouvert, en mémoire uniquement) : ce libellé
-  // n'est jamais stocké — seul l'identifiant d'anonymat (identifiantSynapses)
-  // est enregistré dans les groupes du jour, dans localStorage (non chiffré).
-  // Le nom/prénom réel de l'élève ne doit jamais en sortir.
-  const nom = ((e.identite && (e.identite.prenom || e.identite.nom)) || "").trim();
-  if(!nom) return e.identifiantSynapses;
-  const morceaux = nom.split(/\s+/).filter(Boolean);
-  if(morceaux.length === 1) return morceaux[0].slice(0,2).toUpperCase();
-  return (morceaux[0][0] + morceaux[morceaux.length-1][0]).toUpperCase();
+  // Affiche le prénom et le nom de l'élève, calculés à la volée à partir de
+  // son identité (coffre ouvert, en mémoire uniquement du navigateur) : ce
+  // libellé n'est jamais stocké — seul l'identifiant d'anonymat
+  // (identifiantSynapses) est enregistré dans les groupes du jour, dans
+  // localStorage (non chiffré). Le nom/prénom réel n'existe donc qu'à
+  // l'écran (et sur l'impression), jamais persisté hors du fichier
+  // .synapses lui-même.
+  const prenom = ((e.identite && e.identite.prenom) || "").trim();
+  const nomFamille = ((e.identite && e.identite.nom) || "").trim();
+  const complet = [prenom, nomFamille].filter(Boolean).join(" ");
+  return complet || e.identifiantSynapses;
 }
 function updateCoffreWidget(){
   const status = $("coffre-status"), btn = $("btn-coffre-toggle");
@@ -801,7 +873,7 @@ if($("btn-coffre-toggle")){
         coffre.purger();
         updateCoffreWidget();
         toast("Coffre fermé, données purgées");
-        renderJour();
+        genererDepuisGrille(true);
       }
     } else {
       openModal('modal-coffre');
@@ -824,8 +896,12 @@ if($("btn-coffre-toggle")){
       $("coffre-file").value = "";
       $("coffre-file-name").textContent = "Aucun fichier sélectionné.";
       updateCoffreWidget();
-      toast("Coffre ouvert : " + coffre.listerEleves().length + " élève(s)");
-      renderJour();
+      // Resynchronise IMMÉDIATEMENT le cahier journal : les élèves du
+      // coffre qui ont un planning individuel (onglet Affectation) ou qui
+      // relèvent d'un dispositif (ULIS…) apparaissent aussitôt, par leur
+      // prénom/nom, sur les créneaux concernés — sans action supplémentaire.
+      await genererDepuisGrille(true);
+      toast("Coffre ouvert : " + coffre.listerEleves().length + " élève(s) chargé(s) sur la journée");
     }catch(e){
       toast("Impossible d'ouvrir le coffre : " + e.message);
     }
@@ -943,6 +1019,7 @@ function renderJour(){
   content.innerHTML = "";
 
   renderClasseFilterBar();
+  renderDaySummary(jour.groupes.filter(matchFiltreClasse));
 
   if(!jour.groupes.length){
     content.innerHTML = `
@@ -1598,6 +1675,126 @@ $("btn-copier-prompt-ia").addEventListener("click",async()=>{
   $("prompt-ia-status").textContent="Prompt copié.";
 });
 
+/* ---------------- Résumé du jour ---------------- */
+function renderDaySummary(groupesVisibles){
+  const el = $("day-summary");
+  if(!el) return;
+  const nonFixes = groupesVisibles.filter(g=>!g.fixe);
+  const idsAffectes = new Set();
+  nonFixes.forEach(g=>(g.eleves||[]).forEach(id=>idsAffectes.add(id)));
+  const sansEleve = nonFixes.filter(g=>!(g.eleves||[]).length).length;
+  const parts = [`<span><strong>${nonFixes.length}</strong> séance(s) affichée(s)</span>`];
+  if(coffreOuvert()){
+    parts.push(`<span><strong>${idsAffectes.size}</strong> élève(s) placé(s) sur cette vue</span>`);
+    if(sansEleve) parts.push(`<span class="warn">⚠ ${sansEleve} séance(s) sans élève affecté</span>`);
+  } else {
+    parts.push(`<span>Ouvrez le coffre pour voir les élèves affectés</span>`);
+  }
+  el.innerHTML = parts.join("");
+}
+
+/* ---------------- Nettoyage des créneaux de test ----------------
+   Repère, sur TOUT le cahier journal (pas seulement le jour affiché), les
+   groupes vides et génériques qui n'ont jamais servi : c'est typiquement ce
+   qui reste après plusieurs essais de génération d'emploi du temps. Rien
+   n'est jamais supprimé sans confirmation explicite et sélection au cas
+   par cas — même logique de prudence que pour la création de données
+   (cf. grille-analyse.js : « le système suggère, l'enseignant valide »).
+--------------------------------------------------------------------- */
+const RE_TITRE_SUSPECT = /^(nouveau groupe|nouveau cr[ée]neau|cr[ée]neau|groupe|sans titre|test.*|essai.*|)$/i;
+
+function estGroupeSuspect(g){
+  if(g.fixe) return false; // récréations/pauses générées par la grille : jamais concernées
+  const vide = !(g.eleves && g.eleves.length) &&
+    !(g.adulte && g.adulte.nom && g.adulte.nom.trim()) &&
+    !(g.remarque && g.remarque.trim()) &&
+    !g.seanceRef;
+  if(!vide) return false;
+  return RE_TITRE_SUSPECT.test(String(g.titre||"").trim());
+}
+
+function scannerGroupesSuspects(){
+  const journal = PC.chargerJournal();
+  const resultats = [];
+  Object.keys(journal).sort().forEach(iso=>{
+    const j = journal[iso];
+    (j.groupes||[]).forEach(g=>{
+      if(estGroupeSuspect(g)) resultats.push({ iso, groupe: g });
+    });
+  });
+  return resultats;
+}
+
+function renderNettoyageModal(){
+  const suspects = scannerGroupesSuspects();
+  const liste = $("nettoyage-liste");
+  const vide = $("nettoyage-vide");
+  const toutCase = $("nettoyage-tout");
+  toutCase.checked = false;
+
+  if(!suspects.length){
+    liste.innerHTML = "";
+    vide.style.display = "block";
+    return;
+  }
+  vide.style.display = "none";
+
+  const parIso = new Map();
+  suspects.forEach(s=>{
+    if(!parIso.has(s.iso)) parIso.set(s.iso, []);
+    parIso.get(s.iso).push(s.groupe);
+  });
+
+  liste.innerHTML = Array.from(parIso.entries()).map(([dateIso, groupes])=>`
+    <div class="nettoyage-jour">
+      <div class="nettoyage-jour-head">
+        <span>${escapeHTML(PC.formatDateLong(PC.parseISO(dateIso)))}</span>
+        <span>${groupes.length} créneau(x) suspect(s)</span>
+      </div>
+      ${groupes.map(g=>`
+        <label class="nettoyage-item">
+          <input type="checkbox" data-iso="${escapeAttr(dateIso)}" data-groupe-id="${escapeAttr(g.id)}">
+          <span class="item-info">
+            <span class="item-titre">${escapeHTML(g.titre && g.titre.trim() ? g.titre : "(sans titre)")}</span>
+            — <span class="item-heure">${escapeAttr(g.debut)}–${escapeAttr(g.fin)}</span>
+          </span>
+        </label>
+      `).join("")}
+    </div>
+  `).join("");
+}
+
+$("btn-nettoyage").addEventListener("click", ()=>{
+  renderNettoyageModal();
+  openModal("modal-nettoyage");
+});
+
+$("nettoyage-tout").addEventListener("change", e=>{
+  document.querySelectorAll("#nettoyage-liste input[type=checkbox]").forEach(cb=>cb.checked=e.target.checked);
+});
+
+$("btn-nettoyage-supprimer").addEventListener("click", ()=>{
+  const cases = Array.from(document.querySelectorAll("#nettoyage-liste input[type=checkbox]:checked"));
+  if(!cases.length){ toast("Aucun créneau sélectionné."); return; }
+  if(!confirm(`Supprimer définitivement ${cases.length} créneau(x) sélectionné(s) ?`)) return;
+
+  const journal = PC.chargerJournal();
+  let touchAujourdhui = false;
+  cases.forEach(cb=>{
+    const dIso = cb.dataset.iso, gId = cb.dataset.groupeId;
+    const j = journal[dIso];
+    if(!j) return;
+    const g = (j.groupes||[]).find(x=>x.id===gId);
+    if(g && g.origine) j.exclusions = (j.exclusions||[]).concat(g.origine);
+    j.groupes = (j.groupes||[]).filter(x=>x.id!==gId);
+    if(dIso===iso) touchAujourdhui = true;
+  });
+  PC.sauverJournal(journal);
+  toast(`${cases.length} créneau(x) supprimé(s).`);
+  closeModal("modal-nettoyage");
+  if(touchAujourdhui) renderJour();
+});
+
 /* ---------------- Actions globales ---------------- */
 async function genererDepuisGrille(silencieux){
   // Toujours relire l'état le plus récent. Classes et dispositifs (ULIS
@@ -1672,8 +1869,14 @@ function construireVueImpression(){
     "print-head";
 
   head.innerHTML = `
-    <div class="print-title">
-      Cahier journal
+    <div>
+      <div class="print-brand">
+        <span class="mark">RÉ</span>
+        <span class="sub">Synapses — Planning</span>
+      </div>
+      <div class="print-title">
+        Cahier journal
+      </div>
     </div>
     <div class="print-date">
       ${escapeHTML(
