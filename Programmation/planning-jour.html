@@ -93,6 +93,13 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .empty-journal h3{color:var(--ink);margin-bottom:8px;}
 .empty-journal p{max-width:520px;margin:0 auto 16px;font-size:13.5px;}
 
+/* -------- Portail d'import (page vide tant qu'aucun planning n'est chargé) -------- */
+#import-gate{max-width:640px;margin:40px auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:36px 32px;text-align:center;}
+#import-gate h2{font-size:20px;margin-bottom:10px;}
+#import-gate p{color:var(--ink-soft);font-size:13.5px;line-height:1.6;max-width:480px;margin:0 auto 22px;}
+#import-gate .gate-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+#import-gate .gate-note{margin-top:20px;font-size:12px;color:var(--ink-soft);}
+
 /* -------- Tableau cahier journal -------- */
 .view-toggle{display:flex;gap:6px;margin:0 0 14px;}
 .view-toggle button{border:1px solid var(--line);background:var(--panel-raised);color:var(--ink-soft);padding:7px 14px;border-radius:20px;font-weight:700;font-size:12.5px;}
@@ -693,6 +700,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     <div class="coffre-widget">
       <span class="badge-coffre" id="coffre-status">Coffre fermé</span>
       <button class="btn small on-header" id="btn-coffre-toggle">Ouvrir le coffre</button>
+      <button class="btn small on-header" id="btn-changer-planning" style="display:none;" title="Revenir à l'écran d'import">🔄 Changer de planning</button>
     </div>
   </div>
 </header>
@@ -723,10 +731,50 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-planning-import">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Importer un planning .synapses</h3>
+      <button class="modal-close" data-close="modal-planning-import">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;line-height:1.6;">
+        Choisissez le fichier <code>.synapses</code> exporté depuis « Planning — Gestion » (bouton « Exporter le planning »). Il contient la configuration, les grilles horaires, les affectations et le cahier journal.
+      </p>
+      <div class="field">
+        <label>Fichier .synapses — sur cet ordinateur</label>
+        <button type="button" class="btn" id="planning-import-browse-btn" style="width:100%;text-align:left;">📁 Parcourir mon ordinateur…</button>
+        <input type="file" id="planning-import-file" accept=".synapses" style="display:none;">
+        <div id="planning-import-file-name" style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;">Aucun fichier sélectionné.</div>
+      </div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="planning-import-password" placeholder="Mot de passe du planning"></div>
+      <p id="planning-import-erreur" style="display:none;color:var(--danger);font-size:12.5px;margin:10px 0 0;"></p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:14px 0 0;line-height:1.6;">
+        ⚠️ Ce planning remplace entièrement celui actuellement enregistré dans cet onglet (configuration, grilles, affectations, cahier journal).
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="modal-planning-import">Annuler</button>
+      <button class="btn primary" id="btn-planning-import-confirm">Importer</button>
+    </div>
+  </div>
+</div>
+
 
 <main>
   <h1 style="font-size:24px;margin:0 0 14px;">Cahier journal</h1>
 
+  <div id="import-gate">
+    <h2>Aucun planning chargé</h2>
+    <p>Cette page reste vide tant qu'aucun planning n'a été importé : elle n'affiche plus automatiquement d'anciennes données. Importez le fichier <code>.synapses</code> exporté depuis « Planning — Gestion » pour afficher le cahier journal, puis, si besoin, ouvrez le coffre élèves pour voir les noms.</p>
+    <div class="gate-actions">
+      <button class="btn primary" id="btn-ouvrir-import-planning">📥 Importer le planning (.synapses)</button>
+      <button class="btn" id="btn-ouvrir-coffre-depuis-gate">🔐 Ouvrir le coffre élèves</button>
+    </div>
+    <p class="gate-note">Les deux fichiers sont indépendants : le planning (classes, grilles, cahier journal) vient de « Planning — Gestion » ; le coffre (identités des élèves) est un fichier <code>.synapses</code> séparé.</p>
+  </div>
+
+  <div id="app-content" style="display:none;">
   <div class="onboarding" id="onboarding">
     <button class="close-onboarding" id="btn-close-onboarding">Masquer ✕</button>
     <h3>Comment utiliser cette page ?</h3>
@@ -792,6 +840,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
       <div id="prompt-ia-status" class="hint"></div>
     </div>
   </section>
+  </div>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -827,6 +876,25 @@ let classeFiltreCourante = null;
 const VUE_JOURNAL_KEY = "synapses_planning_vue_journal";
 let vueJournal = localStorage.getItem(VUE_JOURNAL_KEY) === "cj" ? "cj" : "cartes";
 // Préférence d'affichage uniquement (aucune donnée élève) : peut vivre en localStorage.
+
+/* ---------------- Portail d'import ----------------
+   Cette page ne doit plus jamais afficher automatiquement d'anciennes
+   données accumulées dans le stockage partagé (config/grilles/journal) :
+   elle reste vide tant qu'un planning .synapses n'a pas été importé
+   explicitement DANS CETTE PAGE. Ce drapeau, propre à planning-jour.html,
+   ne touche à aucune donnée : il ne fait que décider si l'écran d'import
+   ou le cahier journal est affiché. Un import réel remplace de toute
+   façon entièrement config/grilles/affectations/journal (voir
+   PC.appliquerPaquetPlanning), ce qui règle aussi la pollution des
+   données elles-mêmes, pas seulement leur affichage. */
+const SESSION_KEY = "synapses_planning_jour_session_active";
+function sessionActive(){ return localStorage.getItem(SESSION_KEY) === "1"; }
+function afficherEtatSelonSession(){
+  const actif = sessionActive();
+  $("import-gate").style.display = actif ? "none" : "";
+  $("app-content").style.display = actif ? "" : "none";
+  $("btn-changer-planning").style.display = actif ? "" : "none";
+}
 
 /* ---------------- Coffre (repris du modèle sequences.html) ---------------- */
 let coffre = null;
@@ -912,6 +980,52 @@ if($("btn-coffre-toggle")){
   // donc il ne purge pas le coffre pendant une utilisation normale.
   window.addEventListener('pagehide', ()=>{ if(coffre) coffre.purger(); });
 }
+
+/* ---------------- Portail d'import : planning .synapses ---------------- */
+$("planning-import-browse-btn").addEventListener("click", ()=> $("planning-import-file").click());
+$("planning-import-file").addEventListener("change", ()=>{
+  const f = $("planning-import-file").files[0];
+  $("planning-import-file-name").textContent = f ? ("Sélectionné : " + f.name) : "Aucun fichier sélectionné.";
+});
+$("btn-planning-import-confirm").addEventListener("click", async ()=>{
+  const erreurEl = $("planning-import-erreur");
+  erreurEl.style.display = "none";
+  const file = $("planning-import-file").files[0];
+  const pwd = $("planning-import-password").value;
+  if(!file){ erreurEl.textContent = "Choisissez d'abord un fichier .synapses."; erreurEl.style.display = ""; return; }
+  if(!pwd){ erreurEl.textContent = "Saisissez le mot de passe du planning."; erreurEl.style.display = ""; return; }
+  try{
+    const enveloppe = await PC.lireFichierJSON(file);
+    if(!enveloppe || enveloppe.format !== "synapses-planning-secure"){
+      throw new Error("Ce fichier n'est pas un planning .synapses protégé.");
+    }
+    const paquet = await PC.dechiffrerPlanningJSON(enveloppe, pwd);
+    const applique = PC.appliquerPaquetPlanning(paquet);
+    localStorage.setItem(SESSION_KEY, "1");
+    closeModal('modal-planning-import');
+    $("planning-import-password").value = "";
+    $("planning-import-file").value = "";
+    $("planning-import-file-name").textContent = "Aucun fichier sélectionné.";
+    afficherEtatSelonSession();
+    rafraichirEtat();
+    toast("Planning importé : " + applique.join(", ") + ".");
+  }catch(e){
+    erreurEl.textContent = e.message || "Import impossible.";
+    erreurEl.style.display = "";
+  }
+});
+$("btn-ouvrir-import-planning").addEventListener("click", ()=> openModal('modal-planning-import'));
+if($("btn-ouvrir-coffre-depuis-gate")){
+  $("btn-ouvrir-coffre-depuis-gate").addEventListener("click", ()=>{
+    if(!coffreDisponible()){ toast("Le coffre est indisponible : synapses-coffre.js n'a pas pu être chargé."); return; }
+    openModal('modal-coffre');
+  });
+}
+$("btn-changer-planning").addEventListener("click", ()=>{
+  if(!confirm("Revenir à l'écran d'import ? Rien n'est supprimé : le planning actuellement enregistré reste intact, vous pourrez le réimporter à tout moment.")) return;
+  localStorage.removeItem(SESSION_KEY);
+  afficherEtatSelonSession();
+});
 
 /* ---------------- Onboarding ---------------- */
 const ONB_KEY = "synapses_journal_onboarding_vu";
@@ -2316,9 +2430,10 @@ $("date-picker").addEventListener("change", e=>{ if(e.target.value) allerA(e.tar
 // Si la grille/config/affectations changent dans un autre onglet (Planning
 // — Gestion ou Planning — Affichage), on relit l'état ici aussi, sans
 // jamais toucher aux groupes déjà modifiés à la main et sans jamais
-// générer automatiquement de séance.
+// générer automatiquement de séance. On ne le fait que si un planning a
+// été explicitement importé dans cette page (voir portail d'import).
 window.addEventListener("storage", (e)=>{
-  if([PC.STORE_CONFIG, PC.STORE_GRILLES, PC.STORE_AFFECT].includes(e.key)){
+  if(sessionActive() && [PC.STORE_CONFIG, PC.STORE_GRILLES, PC.STORE_AFFECT].includes(e.key)){
     rafraichirEtat();
   }
 });
@@ -2326,7 +2441,8 @@ window.addEventListener("storage", (e)=>{
 /* ---------------- Initialisation ---------------- */
 (function init(){
   updateCoffreWidget();
-  rafraichirEtat();
+  afficherEtatSelonSession();
+  if(sessionActive()) rafraichirEtat();
 })();
 </script>
 
