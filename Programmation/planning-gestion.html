@@ -2145,6 +2145,21 @@ $("import-json-file").addEventListener("change", async ()=>{
   }
 });
 
+/* ---------------- Initialisation ----------------
+   Sans cet appel, rien ne s'affiche au chargement de la page : chaque
+   render*() n'était jusqu'ici déclenché que par une action manuelle
+   (créer une classe, ouvrir un onglet précis...). Les données chargées
+   autrement — import de configuration, import d'un planning .synapses,
+   ou simplement l'ouverture normale de la page après un rechargement —
+   restaient donc invisibles tant qu'aucun clic ne forçait un re-rendu,
+   alors même qu'elles étaient bien enregistrées dans le stockage local. */
+renderConfig();
+renderClasses();
+renderDispositifs();
+renderGrilleTabs();
+renderSummary();
+majEtatCoffre();
+
 }
 </script>
 </body>
