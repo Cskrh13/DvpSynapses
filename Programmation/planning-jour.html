@@ -723,34 +723,6 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-nettoyage">
-  <div class="modal" style="max-width:640px;">
-    <div class="modal-head">
-      <h3>Nettoyer les créneaux de test</h3>
-      <button class="modal-close" data-close="modal-nettoyage">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 12px;line-height:1.6;">
-        Repère, sur tout le cahier journal, les groupes vides (sans adulte, sans élève, sans remarque) qui portent
-        un titre par défaut ou évoquant un essai — souvent des restes de tests de génération d'emploi du temps.
-        Rien n'est jamais supprimé automatiquement : vous choisissez ce qui part.
-      </p>
-      <div id="nettoyage-liste"></div>
-      <div id="nettoyage-vide" style="display:none;padding:18px;text-align:center;color:var(--ink-soft);font-size:13px;">
-        Aucun créneau suspect détecté. Le cahier journal est propre !
-      </div>
-    </div>
-    <div class="modal-foot" style="justify-content:space-between;">
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;">
-        <input type="checkbox" id="nettoyage-tout"> Tout sélectionner
-      </label>
-      <div style="display:flex;gap:8px;">
-        <button class="btn" data-close="modal-nettoyage">Fermer</button>
-        <button class="btn danger" id="btn-nettoyage-supprimer">✕ Supprimer la sélection</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <main>
   <h1 style="font-size:24px;margin:0 0 14px;">Cahier journal</h1>
@@ -759,9 +731,8 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     <button class="close-onboarding" id="btn-close-onboarding">Masquer ✕</button>
     <h3>Comment utiliser cette page ?</h3>
     <ol>
-      <li><strong>Synchronisation automatique</strong> — ce jour se met à jour tout seul depuis la grille de « Planning — Gestion » à chaque ouverture de page. Dès que vous modifiez un groupe (titre, adulte, horaire), il devient « figé » et n'est plus jamais écrasé automatiquement.</li>
-      <li><strong>Organiser</strong> — pour chaque créneau, ajoutez ou ajustez les groupes de besoin/travail (colonnes), affectez un adulte (enseignant, AESH, ATSEM…) et un titre de séance à chacun.</li>
-      <li><strong>Répartir</strong> — ouvrez le coffre élèves puis cliquez sur « Répartir les élèves » : Synapses propose une répartition à partir des besoins/objectifs actifs de chaque élève. <strong>Vous validez toujours</strong> en ajustant les chips élève à la main.</li>
+      <li><strong>Organiser</strong> — pour chaque créneau, ajoutez ou ajustez les groupes de besoin/travail (colonnes), affectez un adulte (enseignant, AESH, ATSEM…) et un titre à chacun.</li>
+      <li><strong>Élèves</strong> — ouvrez le coffre élèves pour affecter des élèves aux groupes du jour et voir leurs noms.</li>
     </ol>
     <p style="font-size:12px;color:var(--ink-soft);margin:0;">Aucune identité d'élève n'est jamais écrite dans ce planning : seuls des identifiants Synapses (ELEVE-xxxx) y apparaissent, rapprochés des noms en mémoire uniquement si le coffre est ouvert dans cet onglet.</p>
   </div>
@@ -775,13 +746,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     </div>
     <div class="day-title" id="day-title">—</div>
     <div class="day-actions">
-      <button class="btn" id="btn-generer-jour">↺ Resynchroniser avec la grille</button>
-      <button class="btn" id="btn-repartir-eleves">🎯 Répartir les élèves</button>
-      <button class="btn" id="btn-import-sequences">📥 Importer séquences / séances</button>
-      <input type="file" id="import-sequences-file" accept=".json,application/json" style="display:none;">
-      <button class="btn" id="btn-nettoyage" title="Repérer et supprimer les créneaux/groupes vides laissés par des essais">🧹 Nettoyer</button>
       <button class="btn" id="btn-print">🖨 Imprimer</button>
-      <a class="btn" href="planning-affichage.html">← Retour à la semaine</a>
     </div>
   </div>
 
@@ -849,7 +814,6 @@ function escapeHTML(s){ return (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&"
 let config = PC.chargerConfig();
 let grilles = PC.chargerGrilles();
 let affectations = PC.chargerAffectations();
-let banque = {};
 let iso = (new URLSearchParams(location.search).get("date")) || PC.dateISO(new Date());
 let jour = null;
 // Filtre d'affichage du cahier journal (onglet "Journée") : il n'existe
@@ -907,7 +871,7 @@ if($("btn-coffre-toggle")){
         coffre.purger();
         updateCoffreWidget();
         toast("Coffre fermé, données purgées");
-        genererDepuisGrille(true);
+        rafraichirEtat();
       }
     } else {
       openModal('modal-coffre');
@@ -934,7 +898,7 @@ if($("btn-coffre-toggle")){
       // coffre qui ont un planning individuel (onglet Affectation) ou qui
       // relèvent d'un dispositif (ULIS…) apparaissent aussitôt, par leur
       // prénom/nom, sur les créneaux concernés — sans action supplémentaire.
-      await genererDepuisGrille(true);
+      rafraichirEtat();
       toast("Coffre ouvert : " + coffre.listerEleves().length + " élève(s) chargé(s) sur la journée");
     }catch(e){
       toast("Impossible d'ouvrir le coffre : " + e.message);
@@ -1062,11 +1026,9 @@ function renderJour(){
     content.innerHTML = `
       <div class="empty-journal">
         <h3>Aucun cahier journal pour ce jour</h3>
-        <p>Synchronisez-le automatiquement depuis la grille horaire hebdomadaire définie dans « Planning — Gestion », puis ajustez les groupes, les adultes et les élèves. Vous pouvez aussi ajouter un premier créneau à la main.</p>
-        <button class="btn primary" id="btn-generer-jour-vide">↺ Resynchroniser avec la grille</button>
-        <button class="btn" id="btn-ajouter-bloc-vide" style="margin-left:8px;">+ Ajouter un créneau</button>
+        <p>Ajoutez un premier créneau à la main pour commencer à organiser cette journée.</p>
+        <button class="btn primary" id="btn-ajouter-bloc-vide">+ Ajouter un créneau</button>
       </div>`;
-    $("btn-generer-jour-vide").addEventListener("click", ()=>genererDepuisGrille(false));
     $("btn-ajouter-bloc-vide").addEventListener("click", ()=>ajouterBloc());
     return;
   }
@@ -1682,24 +1644,11 @@ function renderGroupeCard(g){
   }
 
   const typesOptions = PC.TYPES_ADULTE.map(t=>`<option value="${t.id}" ${g.adulte && g.adulte.type===t.id?'selected':''}>${t.label}</option>`).join("");
-  const cadenas = g.modifie ? `<span title="Modifié à la main : ne sera plus écrasé par une resynchronisation" style="float:right;font-size:11px;color:var(--ink-soft);">🔒</span>` : "";
-
-  const items = [];
-  Object.entries(banque || {}).forEach(([niveau, domaines])=>{
-    Object.entries(domaines || {}).forEach(([cle, bucket])=>{
-      (bucket.items || []).forEach(it=>items.push(Object.assign({},it,{_niveau:niveau,_domaineCle:it.domaineCle||cle,_domaineLabel:bucket.label||cle})));
-    });
-  });
-  const uniques = new Map();
-  items.forEach(it=>{if(it.id && !uniques.has(it.id)) uniques.set(it.id,it);});
-  const sessionItems = Array.from(uniques.values());
-  const currentId = g.seanceRef && g.seanceRef.id ? g.seanceRef.id : "";
-  const sessionOptions = `<option value="">— Sélectionner une séance —</option>` + sessionItems.map(it=>`<option value="${escapeAttr(it.id)}" ${it.id===currentId?'selected':''}>${escapeHTML((it._niveau?it._niveau+" · ":"")+(it.seqTitre?it.seqTitre+" · ":"")+(it.titre||it.type||it.id))}</option>`).join("");
+  const cadenas = g.modifie ? `<span title="Modifié à la main" style="float:right;font-size:11px;color:var(--ink-soft);">🔒</span>` : "";
 
   card.innerHTML = `
     <input class="groupe-titre" value="${escapeAttr(g.titre)}" placeholder="Titre du groupe / séance">
     ${cadenas}
-    <select class="groupe-seance" data-role="seance" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12px;background:#fff;margin-bottom:6px;">${sessionOptions}</select>
     ${g.domaineCle ? `<span class="domaine-tag">${escapeHTML(g.niveau||"")} · ${escapeHTML(g.domaineCle)}</span>` : ""}
     <div class="row1">
       <select class="adulte-type">${typesOptions}</select>
@@ -1739,15 +1688,6 @@ function renderGroupeCard(g){
   card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
-  card.querySelector('[data-role=seance]').addEventListener("change",e=>{
-    const item=sessionItems.find(x=>x.id===e.target.value);
-    if(!item){g.seanceRef=null;g.domaineCle="";marquerPersonnalise();sauver();renderJour();return;}
-    g.seanceRef={id:item.id,source:item.source,fichier:item.fichier||null};
-    g.titre=item.titre||item.type||g.titre||"Séance";
-    g.domaineCle=item._domaineCle||g.domaineCle||"";
-    g.niveau=g.niveau||item._niveau||"";
-    marquerPersonnalise();sauver();renderJour();
-  });
   card.querySelector('[data-role=add-eleve]').addEventListener("change",e=>{
     const id=e.target.value;if(!id)return;g.eleves=g.eleves||[];if(!g.eleves.includes(id))g.eleves.push(id);marquerPersonnalise();sauver();renderChips();
     e.target.innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
@@ -1775,20 +1715,6 @@ document.querySelectorAll("[data-journal-tab]").forEach(btn=>{
     document.querySelectorAll(".journal-tab-panel").forEach(p=>p.classList.toggle("active",p.id===btn.dataset.journalTab));
     if(btn.dataset.journalTab==="tab-ia-devoirs") genererPromptIA();
   });
-});
-
-/* ---------------- Import séquences / séances ---------------- */
-$("btn-import-sequences").addEventListener("click",()=>$("import-sequences-file").click());
-$("import-sequences-file").addEventListener("change",async e=>{
-  const file=e.target.files[0]; if(!file)return;
-  try{
-    const payload=await PC.lireFichierJSON(file);
-    const r=PC.importerBibliothequeJSON(payload);
-    banque=await PC.chargerBanque();
-    toast(`Import réussi : ${r.sequences} séquence(s), ${r.seances} séance(s).`);
-    renderJour();
-  }catch(err){ toast("Import impossible : "+(err.message||err)); }
-  finally{ e.target.value=""; }
 });
 
 /* ---------------- Prompt IA pour les devoirs ---------------- */
@@ -1859,142 +1785,19 @@ function renderDaySummary(groupesVisibles){
   el.innerHTML = parts.join("");
 }
 
-/* ---------------- Nettoyage des créneaux de test ----------------
-   Repère, sur TOUT le cahier journal (pas seulement le jour affiché), les
-   groupes vides et génériques qui n'ont jamais servi : c'est typiquement ce
-   qui reste après plusieurs essais de génération d'emploi du temps. Rien
-   n'est jamais supprimé sans confirmation explicite et sélection au cas
-   par cas — même logique de prudence que pour la création de données
-   (cf. grille-analyse.js : « le système suggère, l'enseignant valide »).
+/* ---------------- Actions globales ----------------
+   Cette page ne génère plus aucune séance automatiquement depuis la
+   grille (Planning — Gestion) : elle se contente d'afficher et de
+   modifier le cahier journal tel qu'enregistré. Cette fonction ne fait
+   que recharger l'état courant (config/grilles/affectations, utile pour
+   rester cohérent avec les autres onglets) puis réaffiche le jour.
 --------------------------------------------------------------------- */
-const RE_TITRE_SUSPECT = /^(nouveau groupe|nouveau cr[ée]neau|cr[ée]neau|groupe|sans titre|test.*|essai.*|)$/i;
-
-function estGroupeSuspect(g){
-  if(g.fixe) return false; // récréations/pauses générées par la grille : jamais concernées
-  const vide = !(g.eleves && g.eleves.length) &&
-    !(g.adulte && g.adulte.nom && g.adulte.nom.trim()) &&
-    !(g.remarque && g.remarque.trim()) &&
-    !g.seanceRef;
-  if(!vide) return false;
-  return RE_TITRE_SUSPECT.test(String(g.titre||"").trim());
-}
-
-function scannerGroupesSuspects(){
-  const journal = PC.chargerJournal();
-  const resultats = [];
-  Object.keys(journal).sort().forEach(iso=>{
-    const j = journal[iso];
-    (j.groupes||[]).forEach(g=>{
-      if(estGroupeSuspect(g)) resultats.push({ iso, groupe: g });
-    });
-  });
-  return resultats;
-}
-
-function renderNettoyageModal(){
-  const suspects = scannerGroupesSuspects();
-  const liste = $("nettoyage-liste");
-  const vide = $("nettoyage-vide");
-  const toutCase = $("nettoyage-tout");
-  toutCase.checked = false;
-
-  if(!suspects.length){
-    liste.innerHTML = "";
-    vide.style.display = "block";
-    return;
-  }
-  vide.style.display = "none";
-
-  const parIso = new Map();
-  suspects.forEach(s=>{
-    if(!parIso.has(s.iso)) parIso.set(s.iso, []);
-    parIso.get(s.iso).push(s.groupe);
-  });
-
-  liste.innerHTML = Array.from(parIso.entries()).map(([dateIso, groupes])=>`
-    <div class="nettoyage-jour">
-      <div class="nettoyage-jour-head">
-        <span>${escapeHTML(PC.formatDateLong(PC.parseISO(dateIso)))}</span>
-        <span>${groupes.length} créneau(x) suspect(s)</span>
-      </div>
-      ${groupes.map(g=>`
-        <label class="nettoyage-item">
-          <input type="checkbox" data-iso="${escapeAttr(dateIso)}" data-groupe-id="${escapeAttr(g.id)}">
-          <span class="item-info">
-            <span class="item-titre">${escapeHTML(g.titre && g.titre.trim() ? g.titre : "(sans titre)")}</span>
-            — <span class="item-heure">${escapeAttr(g.debut)}–${escapeAttr(g.fin)}</span>
-          </span>
-        </label>
-      `).join("")}
-    </div>
-  `).join("");
-}
-
-$("btn-nettoyage").addEventListener("click", ()=>{
-  renderNettoyageModal();
-  openModal("modal-nettoyage");
-});
-
-$("nettoyage-tout").addEventListener("change", e=>{
-  document.querySelectorAll("#nettoyage-liste input[type=checkbox]").forEach(cb=>cb.checked=e.target.checked);
-});
-
-$("btn-nettoyage-supprimer").addEventListener("click", ()=>{
-  const cases = Array.from(document.querySelectorAll("#nettoyage-liste input[type=checkbox]:checked"));
-  if(!cases.length){ toast("Aucun créneau sélectionné."); return; }
-  if(!confirm(`Supprimer définitivement ${cases.length} créneau(x) sélectionné(s) ?`)) return;
-
-  const journal = PC.chargerJournal();
-  let touchAujourdhui = false;
-  cases.forEach(cb=>{
-    const dIso = cb.dataset.iso, gId = cb.dataset.groupeId;
-    const j = journal[dIso];
-    if(!j) return;
-    const g = (j.groupes||[]).find(x=>x.id===gId);
-    if(g && g.origine) j.exclusions = (j.exclusions||[]).concat(g.origine);
-    j.groupes = (j.groupes||[]).filter(x=>x.id!==gId);
-    if(dIso===iso) touchAujourdhui = true;
-  });
-  PC.sauverJournal(journal);
-  toast(`${cases.length} créneau(x) supprimé(s).`);
-  closeModal("modal-nettoyage");
-  if(touchAujourdhui) renderJour();
-});
-
-/* ---------------- Actions globales ---------------- */
-async function genererDepuisGrille(silencieux){
-  // Toujours relire l'état le plus récent. Classes et dispositifs (ULIS
-  // compris) utilisent maintenant exactement le même mécanisme : la grille
-  // est la source des créneaux du cahier journal.
+function rafraichirEtat(){
   config = PC.chargerConfig();
   grilles = PC.chargerGrilles();
   affectations = PC.chargerAffectations();
-  try{
-    if(!Object.keys(banque).length) banque = await PC.chargerBanque();
-  }catch(e){}
-  PC.genererJournalDepuisGrille(iso, config, grilles, affectations, banque, coffre);
-  if(!silencieux) toast("Cahier journal resynchronisé avec les grilles (classes et dispositifs).");
   renderJour();
 }
-$("btn-generer-jour").addEventListener("click", ()=> genererDepuisGrille(false));
-
-$("btn-repartir-eleves").addEventListener("click", async ()=>{
-  if(!coffreOuvert()){ toast("Ouvrez le coffre pour répartir les élèves."); openModal('modal-coffre'); return; }
-  config = PC.chargerConfig();
-  grilles = PC.chargerGrilles();
-  try{
-    const affectationsExistantes=PC.chargerAffectations();
-    const nouvelles=await PC.genererAffectations(config.classes||[],config,grilles,affectationsExistantes);
-    PC.sauverAffectations(nouvelles);
-    const stats=PC.repartirElevesSemaineAuto(config,grilles,nouvelles,coffre);
-    PC.genererJournalDepuisGrille(iso,config,grilles,nouvelles,banque,coffre);
-    jour = PC.journalPourDate(iso, PC.chargerJournal());
-    toast(`${stats.ajouts} affectation(s) d'élève · ${stats.groupes} groupe(s) automatique(s).`);
-  }catch(e){
-    toast("Erreur lors de la répartition : " + (e.message || e));
-  }
-  renderJour();
-});
 
 /* ---------------- Impression ergonomique ----------------
    La version imprimée est une vue dédiée :
@@ -2503,7 +2306,7 @@ async function allerA(nouvIso){
   const url = new URL(location.href);
   url.searchParams.set("date", iso);
   history.replaceState(null, "", url);
-  await genererDepuisGrille(true); // fluidité : resynchronisation silencieuse à chaque changement de jour
+  rafraichirEtat();
 }
 $("prev-day").addEventListener("click", ()=> allerA(PC.dateISO(PC.addDays(PC.parseISO(iso), -1))));
 $("next-day").addEventListener("click", ()=> allerA(PC.dateISO(PC.addDays(PC.parseISO(iso), 1))));
@@ -2511,18 +2314,19 @@ $("btn-today").addEventListener("click", ()=> allerA(PC.dateISO(new Date())));
 $("date-picker").addEventListener("change", e=>{ if(e.target.value) allerA(e.target.value); });
 
 // Si la grille/config/affectations changent dans un autre onglet (Planning
-// — Gestion ou Planning — Affichage), on resynchronise silencieusement ici
-// aussi, sans jamais toucher aux groupes déjà modifiés à la main.
+// — Gestion ou Planning — Affichage), on relit l'état ici aussi, sans
+// jamais toucher aux groupes déjà modifiés à la main et sans jamais
+// générer automatiquement de séance.
 window.addEventListener("storage", (e)=>{
   if([PC.STORE_CONFIG, PC.STORE_GRILLES, PC.STORE_AFFECT].includes(e.key)){
-    genererDepuisGrille(true);
+    rafraichirEtat();
   }
 });
 
 /* ---------------- Initialisation ---------------- */
-(async function init(){
+(function init(){
   updateCoffreWidget();
-  await genererDepuisGrille(true);
+  rafraichirEtat();
 })();
 </script>
 
