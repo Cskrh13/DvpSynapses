@@ -160,9 +160,14 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-table th.edt-heure{background:#FAFAF7;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;text-align:right;padding-right:10px;}
 .edt-case{min-width:110px;}
 .edt-case.edt-remplie{background:#EEF2FB;}
-.edt-case .edt-classe{font-weight:600;color:var(--navy);font-size:12.5px;}
-.edt-case .edt-domaine{color:var(--ink-soft);font-size:11.5px;margin-top:2px;}
+.edt-bloc{padding:4px 0;}
+.edt-bloc + .edt-bloc{border-top:1px dashed var(--line);margin-top:4px;}
+.edt-case .edt-titre{font-weight:600;color:var(--navy);font-size:12.5px;}
+.edt-case .edt-type{display:inline-block;color:var(--ink-soft);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;margin-top:1px;}
+.edt-case .edt-classe{color:var(--ink-soft);font-size:11px;margin-top:2px;}
+.edt-case .edt-domaine{color:var(--ink-soft);font-size:11px;margin-top:1px;font-style:italic;}
 .edt-case .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:2px;}
+.edt-bloc-recreation .edt-titre,.edt-bloc-pause .edt-titre,.edt-bloc-autre .edt-titre{color:var(--ink-soft);font-weight:500;}
 
 /* ===== grille-analyse.js (onglet "Analyse & IA") ===== */
 .ga-section { margin-bottom: 28px; }
@@ -448,6 +453,34 @@ const SYNAPSES_BUILD = {
      aucune donnée n'est récupérée ni envoyée ailleurs. */
   const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
+  // Libellés des types de créneau (copie volontairement réduite de
+  // PC.TYPES_CRENEAU de planning-core.js : coffre.html ne charge pas ce
+  // script, pour rester une page autonome et légère).
+  const LIBELLES_TYPE_CRENEAU = {
+    seance: 'Séance',
+    recreation: 'Récréation',
+    pause: 'Pause méridienne',
+    autre: 'Autre / rituel'
+  };
+
+  /** Nom de séance à afficher pour un créneau du planning individuel d'un
+   *  élève. Priorité au titre saisi sur la grille de la classe ; à défaut,
+   *  le libellé du créneau (créneaux hors "séance"), puis le domaine, puis
+   *  un intitulé générique — pour rester lisible même sur un coffre
+   *  enregistré avant l'ajout du titre/type au planning individuel. */
+  function nomSeanceCreneau(c){
+    const titre = (c.titre || '').trim();
+    if (titre) return titre;
+    const libelle = (c.libelle || '').trim();
+    if (libelle) return libelle;
+    if (c.domaineCle) return c.domaineCle;
+    return LIBELLES_TYPE_CRENEAU[c.type] || 'Séance';
+  }
+
+  function typeSeanceCreneau(c){
+    return LIBELLES_TYPE_CRENEAU[c.type] || (c.type ? c.type : 'Séance');
+  }
+
   function nomAffichageEleve(e){
     const identite = e.identite || {};
     const nomComplet = [identite.prenom, identite.nom].filter(Boolean).join(' ');
@@ -536,11 +569,30 @@ const SYNAPSES_BUILD = {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
             const bloc = document.createElement('div');
+            bloc.className = 'edt-bloc edt-bloc-' + (c.type || 'seance');
+
+            // Nom de séance (ex. "Orthographe", "Rituel", "Récréation") :
+            // c'est l'information qui manquait auparavant (voir
+            // enregistrerElevesClasse() dans planning-gestion.html).
+            const titre = document.createElement('div');
+            titre.className = 'edt-titre';
+            titre.textContent = nomSeanceCreneau(c);
+            bloc.appendChild(titre);
+
+            // Type de séance, affiché sous forme de petite étiquette.
+            const type = document.createElement('div');
+            type.className = 'edt-type';
+            type.textContent = typeSeanceCreneau(c);
+            bloc.appendChild(type);
+
+            // Classe + domaine restent affichés, mais en information
+            // secondaire : ils ne suffisaient pas à eux seuls à distinguer
+            // deux séances différentes d'un même domaine.
             const classeNom = document.createElement('div');
             classeNom.className = 'edt-classe';
             classeNom.textContent = c.classeNom || '(classe sans nom)';
             bloc.appendChild(classeNom);
-            if (c.domaineCle) {
+            if (c.domaineCle && c.domaineCle !== nomSeanceCreneau(c)) {
               const domaine = document.createElement('div');
               domaine.className = 'edt-domaine';
               domaine.textContent = c.domaineCle;

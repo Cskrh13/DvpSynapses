@@ -1543,6 +1543,11 @@ function enregistrerElevesClasse(classeId, etat){
       if(!coche) return;
 
       // Écriture uniquement dans e.planning, donc dans le .synapse.
+      // On recopie aussi type/titre/libelle (et pas seulement domaineCle) :
+      // sans eux, l'emploi du temps individuel (coffre.html) ne peut pas
+      // distinguer deux créneaux du même domaine (ex. "Orthographe 20'" vs
+      // "Écriture 25'" en français), ni les créneaux hors "séance"
+      // (rituels, récréation, pause) qui n'ont pas de domaineCle du tout.
       e.planning.push({
         classeId: cl.id,
         classeNom: cl.nom,
@@ -1550,6 +1555,9 @@ function enregistrerElevesClasse(classeId, etat){
         jour: c.jour,
         debut: c.debut,
         fin: c.fin,
+        type: c.type || "seance",
+        titre: c.titre || "",
+        libelle: c.libelle || "",
         domaineCle: c.domaineCle||""
       });
       enregistres++;

@@ -290,9 +290,14 @@
      * horaires génériques).
      * @param {string} identifiantSynapses
      * @param {object} affectation - { classeId, classeNom, creneauId,
-     *   jour, debut, fin, domaineCle }. jour/debut/fin/domaineCle sont
-     *   recopiés au moment de l'affectation, pour rester lisibles même si
-     *   la grille de la classe est modifiée par la suite.
+     *   jour, debut, fin, type, titre, libelle, domaineCle }.
+     *   jour/debut/fin/type/titre/libelle/domaineCle sont recopiés au
+     *   moment de l'affectation, pour rester lisibles même si la grille
+     *   de la classe est modifiée par la suite. type/titre/libelle sont
+     *   ce qui permet à l'emploi du temps individuel (coffre.html)
+     *   d'afficher le nom et le type de chaque séance plutôt que
+     *   seulement le domaine (qui peut être partagé par plusieurs
+     *   séances distinctes).
      * @returns {boolean} false si l'élève est déjà affecté à ce créneau
      *   (même classeId + creneauId) — aucun doublon n'est jamais créé.
      */
@@ -314,6 +319,9 @@
         jour: a.jour != null ? Number(a.jour) : null,
         debut: a.debut || '',
         fin: a.fin || '',
+        type: a.type || 'seance',
+        titre: a.titre || '',
+        libelle: a.libelle || '',
         domaineCle: a.domaineCle || '',
         dateAffectation: nowIso()
       });
