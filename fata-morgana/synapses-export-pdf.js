@@ -378,8 +378,8 @@
       if (!eleve.besoins.length) {
         y = this._texteVide(doc, y, 'Aucun besoin enregistré pour cet élève.');
       } else {
-        const rows = eleve.besoins.map((b) => [b.hypothese || '', niveauLisible(b.priorite, MOTS_PRIORITE)]);
-        y = this._table(doc, y, ['Hypothèse de besoin', 'Priorité'], rows, { 1: { cellWidth: 110 } });
+        const rows = eleve.besoins.map((b) => [b.libelle || b.hypothese || '', b.libelle ? (b.hypothese || '') : '', niveauLisible(b.priorite, MOTS_PRIORITE)]);
+        y = this._table(doc, y, ['Besoin', 'Hypothèse', 'Priorité'], rows, { 2: { cellWidth: 80 } });
       }
       y = this._sauteDePageSiNecessaire(doc, y);
 
