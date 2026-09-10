@@ -463,17 +463,69 @@ const SYNAPSES_BUILD = {
     autre: 'Autre / rituel'
   };
 
+  // Résolution des identifiants techniques de domaine (ex. "fran_ais::lecture")
+  // en libellés lisibles (ex. "Français — Lecture"), à partir de
+  // index.json (données publiques du référentiel pédagogique, ~39 Ko,
+  // aucune donnée d'élève). Nécessaire uniquement pour les créneaux qui
+  // n'ont pas de titre saisi (voir nomSeanceCreneau ci-dessous) : sans
+  // cette correspondance, coffre.html afficherait la clé technique brute
+  // telle quelle (accents parfois altérés dans ces identifiants).
+  const libellesDomaineCle = {};
+  let libellesDomaineChargement = null;
+
+  async function chargerLibellesDomaine(){
+    if (libellesDomaineChargement) return libellesDomaineChargement;
+    libellesDomaineChargement = (async () => {
+      try {
+        const r = await fetch('../Programmation/data/index.json', { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json();
+        (data.niveaux || []).forEach((niveau) => {
+          (niveau.disciplines || []).forEach((discipline) => {
+            (discipline.domaines || []).forEach((domaine) => {
+              const cle = discipline.id + '::' + domaine.id;
+              if (!libellesDomaineCle[cle]) {
+                libellesDomaineCle[cle] = discipline.nom + ' — ' + domaine.nom;
+              }
+            });
+          });
+        });
+      } catch (e) {
+        console.warn('[Synapses] Référentiel de domaines introuvable, affichage en repli.', e);
+      }
+    })();
+    return libellesDomaineChargement;
+  }
+
+  /** Repli lisible quand un domaineCle n'est pas (ou pas encore) résolu par
+   *  index.json : "fran_ais::lecture" -> "Fran ais · Lecture". Moins bon
+   *  qu'un vrai libellé, mais toujours plus lisible qu'une clé technique
+   *  brute avec ses "::" et ses "_". */
+  function joliDomaineCle(domaineCle){
+    return domaineCle
+      .split('::')
+      .map((morceau) => morceau.replace(/_/g, ' ').trim())
+      .filter(Boolean)
+      .map((morceau) => morceau.charAt(0).toUpperCase() + morceau.slice(1))
+      .join(' · ');
+  }
+
+  function libelleDomaine(domaineCle){
+    if (!domaineCle) return '';
+    return libellesDomaineCle[domaineCle] || joliDomaineCle(domaineCle);
+  }
+
   /** Nom de séance à afficher pour un créneau du planning individuel d'un
    *  élève. Priorité au titre saisi sur la grille de la classe ; à défaut,
-   *  le libellé du créneau (créneaux hors "séance"), puis le domaine, puis
-   *  un intitulé générique — pour rester lisible même sur un coffre
-   *  enregistré avant l'ajout du titre/type au planning individuel. */
+   *  le libellé du créneau (créneaux hors "séance"), puis le libellé du
+   *  domaine, puis un intitulé générique — pour rester lisible même sur un
+   *  coffre enregistré avant l'ajout du titre/type au planning individuel. */
   function nomSeanceCreneau(c){
     const titre = (c.titre || '').trim();
     if (titre) return titre;
     const libelle = (c.libelle || '').trim();
     if (libelle) return libelle;
-    if (c.domaineCle) return c.domaineCle;
+    if (c.domaineCle) return libelleDomaine(c.domaineCle);
     return LIBELLES_TYPE_CRENEAU[c.type] || 'Séance';
   }
 
@@ -505,6 +557,11 @@ const SYNAPSES_BUILD = {
       sel.value = valeurPrecedente;
     }
     afficherEmploiDuTemps(sel.value);
+    // Rafraîchit automatiquement l'affichage dès que les libellés de
+    // domaine (Français, Mathématiques…) sont disponibles, pour les
+    // créneaux qui n'ont pas de titre propre et affichaient jusque-là
+    // leur clé technique brute (ex. "fran_ais::lecture").
+    chargerLibellesDomaine().then(() => afficherEmploiDuTemps($('edtSelectEleve').value));
   }
 
   function afficherEmploiDuTemps(identifiantSynapses){
@@ -570,20 +627,26 @@ const SYNAPSES_BUILD = {
           creneaux.forEach((c) => {
             const bloc = document.createElement('div');
             bloc.className = 'edt-bloc edt-bloc-' + (c.type || 'seance');
+            const nomSeance = nomSeanceCreneau(c);
+            const typeLabel = typeSeanceCreneau(c);
 
             // Nom de séance (ex. "Orthographe", "Rituel", "Récréation") :
             // c'est l'information qui manquait auparavant (voir
             // enregistrerElevesClasse() dans planning-gestion.html).
             const titre = document.createElement('div');
             titre.className = 'edt-titre';
-            titre.textContent = nomSeanceCreneau(c);
+            titre.textContent = nomSeance;
             bloc.appendChild(titre);
 
-            // Type de séance, affiché sous forme de petite étiquette.
-            const type = document.createElement('div');
-            type.className = 'edt-type';
-            type.textContent = typeSeanceCreneau(c);
-            bloc.appendChild(type);
+            // Type de séance, affiché sous forme de petite étiquette —
+            // sauf quand il redit exactement le nom de séance (créneau
+            // sans aucune information saisie : évite "Séance" / "SÉANCE").
+            if (typeLabel.toLowerCase() !== nomSeance.toLowerCase()) {
+              const type = document.createElement('div');
+              type.className = 'edt-type';
+              type.textContent = typeLabel;
+              bloc.appendChild(type);
+            }
 
             // Classe + domaine restent affichés, mais en information
             // secondaire : ils ne suffisaient pas à eux seuls à distinguer
@@ -592,11 +655,14 @@ const SYNAPSES_BUILD = {
             classeNom.className = 'edt-classe';
             classeNom.textContent = c.classeNom || '(classe sans nom)';
             bloc.appendChild(classeNom);
-            if (c.domaineCle && c.domaineCle !== nomSeanceCreneau(c)) {
-              const domaine = document.createElement('div');
-              domaine.className = 'edt-domaine';
-              domaine.textContent = c.domaineCle;
-              bloc.appendChild(domaine);
+            if (c.domaineCle) {
+              const domaineLabel = libelleDomaine(c.domaineCle);
+              if (domaineLabel !== nomSeance) {
+                const domaine = document.createElement('div');
+                domaine.className = 'edt-domaine';
+                domaine.textContent = domaineLabel;
+                bloc.appendChild(domaine);
+              }
             }
             const horaire = document.createElement('div');
             horaire.className = 'edt-horaire';
