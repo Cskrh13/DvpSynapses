@@ -141,10 +141,6 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .si-table{width:100%;border-collapse:collapse;font-size:13px;}
 .si-table th,.si-table td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);}
 .si-table th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
-.si-ligne-edition{background:#EEF2FB;}
-.si-ligne-edition input,.si-ligne-edition select{width:100%;min-width:0;font-size:13px;padding:5px 7px;}
-.si-frise-item.si-ligne-edition{background:#EEF2FB;border-radius:7px;padding:8px 10px 14px;}
-.si-frise-item.si-ligne-edition input{width:100%;min-width:0;}
 .si-empty{color:var(--ink-soft);font-size:13.5px;font-style:italic;}
 .si-hint{color:var(--ink-soft);font-size:12.5px;margin-top:10px;}
 .si-frise{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);padding-left:16px;}
@@ -155,6 +151,12 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .si-frise-detail{font-size:13px;color:var(--ink-soft);}
 
 /* ===== Emploi du temps (onglet "3. Emploi du temps") ===== */
+.edt-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.edt-head-row h2{margin-bottom:0;}
+.btn-small{padding:7px 13px;font-size:12.5px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn:disabled:hover{background:inherit;border-color:inherit;color:inherit;}
+.btn-outline:disabled:hover{background:#fff;border-color:var(--line);color:var(--ink);}
 .edt-select-wrap{max-width:340px;margin-bottom:18px;}
 .edt-vide{color:var(--ink-soft);font-size:13.5px;font-style:italic;padding:14px 0;}
 .edt-table-wrap{overflow-x:auto;}
@@ -164,13 +166,9 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-table th.edt-heure{background:#FAFAF7;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;text-align:right;padding-right:10px;}
 .edt-case{min-width:110px;}
 .edt-case.edt-remplie{background:#EEF2FB;}
-.edt-bloc{padding:4px 0;}
-.edt-bloc + .edt-bloc{border-top:1px dashed var(--line);margin-top:4px;}
-.edt-case .edt-titre{font-weight:600;color:var(--navy);font-size:12.5px;}
-.edt-case .edt-type{display:inline-block;color:var(--ink-soft);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;margin-top:1px;}
-.edt-case .edt-classe{color:var(--ink-soft);font-size:11px;margin-top:2px;}
+.edt-case .edt-classe{font-weight:600;color:var(--navy);font-size:12.5px;}
+.edt-case .edt-domaine{color:var(--ink-soft);font-size:11.5px;margin-top:2px;}
 .edt-case .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:2px;}
-.edt-bloc-recreation .edt-titre,.edt-bloc-pause .edt-titre,.edt-bloc-autre .edt-titre{color:var(--ink-soft);font-weight:500;}
 
 /* ===== grille-analyse.js (onglet "Analyse & IA") ===== */
 .ga-section { margin-bottom: 28px; }
@@ -335,7 +333,10 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 
   <!-- ============ Emploi du temps ============ -->
   <section class="card disabled-overlay" id="cardEmploiDuTemps">
-    <h2>3. Emploi du temps</h2>
+    <div class="edt-head-row">
+      <h2>3. Emploi du temps</h2>
+      <button class="btn btn-outline btn-small" id="btnExporterEdtPdf" disabled>Télécharger en PDF</button>
+    </div>
     <p class="hint">Consultez l'emploi du temps individuel d'un élève : les créneaux auxquels il a été affecté (onglet « Affectation » de Planning — Gestion), tels qu'enregistrés dans son coffre.</p>
     <div class="field edt-select-wrap">
       <label for="edtSelectEleve">Élève</label>
@@ -405,6 +406,10 @@ const SYNAPSES_BUILD = {
 
 (function(){
   const coffre = new SynapsesCoffre.Coffre();
+  // Instance partagée par l'onglet "3. Emploi du temps" pour l'export PDF ci-dessous
+  // (pas de dépendance à suivi-individuel.js : cette grille n'a pas besoin des libellés
+  // de domaines BARRY/S4C ni du moteur d'analyse, contrairement à la fiche élève complète).
+  const exportPDFEdt = (global => global.SynapsesExportPDF ? new global.SynapsesExportPDF.ExportFichePDF(coffre) : null)(window);
 
   const $ = (id) => document.getElementById(id);
 
@@ -453,38 +458,8 @@ const SYNAPSES_BUILD = {
      Affiche, pour l'élève sélectionné, ses créneaux (coffre.listerEleves()
      -> e.planning, alimenté par Coffre.affecterCreneau()) sous forme de
      grille heures x jours. Purement une lecture du coffre déjà ouvert :
-     aucune donnée n'est récupérée ni envoyée ailleurs.
-     Champs affichés par créneau : classe (classeNom — la classe OU le
-     dispositif, ex. ULIS, sur lequel l'élève est positionné à ce moment),
-     type, titre, libelle. domaineCle n'est PAS affiché : c'est une clé
-     technique interne (parfois mal formée, ex. "fran_ais::lecture"),
-     jamais un texte destiné à être lu. */
+     aucune donnée n'est récupérée ni envoyée ailleurs. */
   const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-
-  // Libellés des types de créneau (copie volontairement réduite de
-  // PC.TYPES_CRENEAU de planning-core.js : coffre.html ne charge pas ce
-  // script, pour rester une page autonome et légère).
-  const LIBELLES_TYPE_CRENEAU = {
-    seance: 'Séance',
-    recreation: 'Récréation',
-    pause: 'Pause méridienne',
-    autre: 'Autre / rituel'
-  };
-
-  /** Nom de séance à afficher pour un créneau du planning individuel d'un
-   *  élève : titre (créneaux de type "séance"), sinon libelle (autres
-   *  types), sinon le type lui-même. domaineCle n'intervient jamais ici. */
-  function nomSeanceCreneau(c){
-    const titre = (c.titre || '').trim();
-    if (titre) return titre;
-    const libelle = (c.libelle || '').trim();
-    if (libelle) return libelle;
-    return LIBELLES_TYPE_CRENEAU[c.type] || 'Séance';
-  }
-
-  function typeSeanceCreneau(c){
-    return LIBELLES_TYPE_CRENEAU[c.type] || (c.type ? c.type : 'Séance');
-  }
 
   function nomAffichageEleve(e){
     const identite = e.identite || {};
@@ -514,7 +489,10 @@ const SYNAPSES_BUILD = {
 
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
+    const btnPdf = $('btnExporterEdtPdf');
     wrap.innerHTML = '';
+    btnPdf.disabled = true;
+    btnPdf.dataset.identifiant = '';
 
     if (!identifiantSynapses) {
       wrap.appendChild(document.createElement('div')).className = 'edt-vide';
@@ -531,6 +509,11 @@ const SYNAPSES_BUILD = {
       vide.textContent = 'Aucun créneau enregistré pour cet élève (voir Planning — Gestion, onglet « Affectation »).';
       wrap.appendChild(vide);
       return;
+    }
+
+    if (exportPDFEdt) {
+      btnPdf.disabled = false;
+      btnPdf.dataset.identifiant = identifiantSynapses;
     }
 
     // Lignes = heures de début distinctes présentes dans le planning de l'élève, triées.
@@ -574,35 +557,16 @@ const SYNAPSES_BUILD = {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
             const bloc = document.createElement('div');
-            bloc.className = 'edt-bloc edt-bloc-' + (c.type || 'seance');
-            const nomSeance = nomSeanceCreneau(c);
-            const typeLabel = typeSeanceCreneau(c);
-
-            // Nom de séance (ex. "Orthographe", "Rituel", "Récréation") :
-            // c'est l'information qui manquait auparavant (voir
-            // enregistrerElevesClasse() dans planning-gestion.html).
-            const titre = document.createElement('div');
-            titre.className = 'edt-titre';
-            titre.textContent = nomSeance;
-            bloc.appendChild(titre);
-
-            // Type de séance, affiché sous forme de petite étiquette —
-            // sauf quand il redit exactement le nom de séance (créneau
-            // sans aucune information saisie : évite "Séance" / "SÉANCE").
-            if (typeLabel.toLowerCase() !== nomSeance.toLowerCase()) {
-              const type = document.createElement('div');
-              type.className = 'edt-type';
-              type.textContent = typeLabel;
-              bloc.appendChild(type);
-            }
-
-            // Classe (ou dispositif, ex. ULIS) sur lequel l'élève est
-            // positionné pendant ce créneau. domaineCle n'est volontairement
-            // jamais affiché (clé technique interne, non destinée à être lue).
             const classeNom = document.createElement('div');
             classeNom.className = 'edt-classe';
             classeNom.textContent = c.classeNom || '(classe sans nom)';
             bloc.appendChild(classeNom);
+            if (c.domaineCle) {
+              const domaine = document.createElement('div');
+              domaine.className = 'edt-domaine';
+              domaine.textContent = c.domaineCle;
+              bloc.appendChild(domaine);
+            }
             const horaire = document.createElement('div');
             horaire.className = 'edt-horaire';
             horaire.textContent = (c.debut || '') + (c.fin ? ' – ' + c.fin : '');
@@ -624,6 +588,16 @@ const SYNAPSES_BUILD = {
 
   $('edtSelectEleve').addEventListener('change', (e) => {
     afficherEmploiDuTemps(e.target.value);
+  });
+
+  $('btnExporterEdtPdf').addEventListener('click', () => {
+    const identifiant = $('btnExporterEdtPdf').dataset.identifiant;
+    if (!exportPDFEdt || !identifiant) return;
+    try {
+      exportPDFEdt.telechargerEmploiDuTemps(identifiant);
+    } catch (err) {
+      alert('Impossible de générer le PDF : ' + err.message);
+    }
   });
 
   /* -------- Force du mot de passe du coffre -------- */
