@@ -364,7 +364,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div class="ia-atelier">
         <h3>🤖 Atelier IA — Récupérer les horaires depuis un fichier</h3>
         <p class="hint" style="margin-top:0;">
-          Copiez le prompt ci-dessous, collez-le dans votre IA habituelle (avec le fichier Excel, PDF, Word ou une photo/scan de l'emploi du temps en pièce jointe), puis collez la réponse obtenue dans la seconde zone. La grille de la classe sélectionnée ci-dessus (<strong id="ia-classe-nom">—</strong>) sera remplie automatiquement — vous gardez la main pour tout ajuster ensuite créneau par créneau.
+          Copiez le prompt ci-dessous, collez-le dans votre IA habituelle (avec le fichier Excel, PDF, Word ou une photo/scan de l'emploi du temps en pièce jointe), puis collez la réponse obtenue dans la seconde zone. La grille de la classe ou du dispositif sélectionné ci-dessus (<strong id="ia-classe-nom">—</strong>) sera remplie automatiquement — vous gardez la main pour tout ajuster ensuite créneau par créneau. Fonctionne aussi bien pour l'emploi du temps d'une classe que pour celui d'un dispositif (ULIS, SEGPA, RASED…).
         </p>
 
         <div class="field">
@@ -413,20 +413,16 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <h2>Génération du planning</h2>
       <p class="hint">Répartit automatiquement, pour chaque créneau de type « Séance », la prochaine séance disponible du domaine choisi (fichiers du dépôt + séances créées dans « Séquences &amp; séances »). Les créneaux déjà modifiés à la main dans la page d'affichage <strong>ne sont jamais écrasés</strong>.</p>
       <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;">
-        <button class="btn primary" id="btn-generer">Répartir les élèves</button>
         <label class="field" style="margin:0;">
           <span>Choisir un dispositif</span>
           <select id="generation-dispositif" style="min-width:190px;"></select>
         </label>
-        <button class="btn" id="btn-generer-dispositif">Synchroniser le dispositif avec le cahier journal</button>
-        <button class="btn primary" id="btn-repartir-besoin">Répartir les élèves en groupes de besoin</button>
+        <button class="btn primary" id="btn-sync-affectations">Synchroniser les affectations</button>
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
-        <strong>Répartir les élèves :</strong> répartit automatiquement les élèves sur les créneaux de leur classe à partir de leur planning individuel enregistré dans le coffre.
-        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS.
-        Le bouton « Synchroniser » ne reconstruit plus la grille à partir des « trous » des classes : il synchronise cette grille vers le cahier journal, avec tous les élèves disponibles regroupés sur chaque créneau.
-        <strong>Répartir les élèves en groupes de besoin :</strong> reprend chaque créneau du dispositif choisi ci-dessus et sépare les élèves disponibles en plusieurs groupes selon le domaine (français, mathématiques…) qu'il leur reste à travailler cette semaine au regard du BO n°44, dans la limite de <strong>3 groupes</strong> simultanés sur un même créneau — exactement comme pour l'ajout manuel de groupes dans le cahier journal. Un créneau déjà retouché à la main dans le cahier journal n'est jamais écrasé.
+        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS. Les élèves affectés au dispositif sur chaque créneau se règlent ci-dessous.
+        <strong>Synchroniser les affectations :</strong> pour tous les créneaux du dispositif choisi, un élève qui n'est pas dans sa classe de référence à cet horaire est considéré présent sur le dispositif, et le cahier journal est mis à jour en conséquence.
       </p>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
@@ -1079,8 +1075,6 @@ function renderGrilleTabs(){
     wrap.appendChild(b);
   });
   renderGrilleBody();
-  const iaAtelier = document.querySelector(".ia-atelier");
-  if(iaAtelier) iaAtelier.style.display = estDispositifId(grilleClasseCourant) ? "none" : "";
   if(typeof refreshIaAtelier === "function") refreshIaAtelier();
   if(typeof refreshGrilleClasseNomActions === "function") refreshGrilleClasseNomActions();
 }
@@ -1331,13 +1325,21 @@ $("grille-telecharger-format").addEventListener("change", (e)=>{
 
 /* ---------------- Atelier IA : import d'un emploi du temps ---------------- */
 
+// L'Atelier IA fonctionne aussi bien sur la grille d'une classe que sur
+// celle d'un dispositif (ULIS, SEGPA, RASED, …) : les deux sont saisies
+// exactement de la même façon (voir renderGrilleTabs et entiteGrilleById).
+
 function genererPromptIa(){
-  const cl = PC.classeById(config, grilleClasseCourant);
-  if(!cl) return "Sélectionnez une classe pour importer sa grille horaire.";
+  const ent = entiteGrilleById(grilleClasseCourant);
+  if(!ent) return "Sélectionnez une classe ou un dispositif pour importer sa grille horaire.";
+  const estDisp = estDispositifId(grilleClasseCourant);
+  const ligneEntite = estDisp
+    ? `Dispositif concerné : ${ent.nom} (${ent.type || "ULIS"}) — pas de niveau unique, les créneaux sont ceux du dispositif lui-même (ex. emploi du temps ULIS).`
+    : `Classe concernée : ${ent.nom} (niveau ${ent.niveau}).`;
   return (
 `Tu es un assistant qui extrait un emploi du temps scolaire à partir d'un document joint (Excel, PDF, Word, photo ou scan).
 
-Classe concernée : ${cl.nom} (niveau ${cl.niveau}).
+${ligneEntite}
 
 Renvoie UNIQUEMENT un tableau JSON. Chaque objet représente un créneau horaire récurrent de la semaine :
 
@@ -1352,10 +1354,10 @@ Règles impératives :
 - "type" : "seance", "recreation", "pause" ou "autre".
 - "nom" : nom/libellé visible du créneau, sans inventer de séance précise.
 - NE FOURNIS PAS de champ "matiere", "domaine" ou "domaineCle" : le domaine reste une donnée interne à Synapses et sera déterminé plus tard lors de la génération.
-- NE FAIS AUCUNE affectation d'élève et ne renseigne aucun élève.
+- NE FAIS AUCUNE affectation d'élève et ne renseigne aucun élève, ni aucun nom d'élève même si le document en comporte.
 - Ne fusionne pas deux créneaux différents.
 - Ne crée pas de créneau absent du document.
-- Pour une séance, "nom" peut être la matière ou l'intitulé général visible (ex. "Français", "Mathématiques", "Lecture"). Le rattachement à une séance précise se fera dans le cahier journal.
+- Pour une séance, "nom" peut être la matière ou l'intitulé général visible (ex. "Français", "Mathématiques", "Lecture"${estDisp ? `, "Groupe de besoin"` : ""}). Le rattachement à une séance précise se fera dans le cahier journal.
 - Pour une récréation, pause ou autre temps non pédagogique, indique son libellé dans "nom".
 
 Réponds uniquement avec le tableau JSON, sans commentaire ni bloc de code.`
@@ -1363,8 +1365,10 @@ Réponds uniquement avec le tableau JSON, sans commentaire ni bloc de code.`
 }
 
 function refreshIaAtelier(){
-  const cl = PC.classeById(config, grilleClasseCourant);
-  $("ia-classe-nom").textContent = cl ? cl.nom : "—";
+  const ent = entiteGrilleById(grilleClasseCourant);
+  $("ia-classe-nom").textContent = ent
+    ? (estDispositifId(grilleClasseCourant) ? `${ent.nom} (${ent.type || "ULIS"})` : ent.nom)
+    : "—";
   $("ia-prompt").value = genererPromptIa();
 }
 
@@ -1460,7 +1464,7 @@ function parserResultatIa(texte){
 $("btn-ia-remplir").addEventListener("click", ()=>{
   const statusEl = $("ia-status");
   statusEl.className = "ia-status";
-  if(!grilleClasseCourant){ statusEl.textContent = "Sélectionnez d'abord une classe."; statusEl.classList.add("err"); return; }
+  if(!grilleClasseCourant){ statusEl.textContent = "Sélectionnez d'abord une classe ou un dispositif."; statusEl.classList.add("err"); return; }
 
   const lignes = parserResultatIa($("ia-resultat").value);
   if(!lignes.length){
@@ -1768,25 +1772,6 @@ function renderGenerationDispositifs(){
   if(prev && dispositifs.some(d=>d.id===prev)) sel.value=prev;
 }
 
-$("btn-generer").addEventListener("click", async ()=>{
-  if(!config.rentree){ toast("Renseignez une date de rentrée avant de répartir."); return; }
-  if(!config.classes.length){ toast("Créez au moins une classe."); return; }
-  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de répartir les élèves."); return; }
-  $("gen-status").textContent="Répartition des élèves en cours…";
-  try{
-    const affectationsExistantes=PC.chargerAffectations();
-    const nouvelles=await PC.genererAffectations(config.classes,config,grilles,affectationsExistantes);
-    PC.sauverAffectations(nouvelles);
-    const stats=PC.repartirElevesSemaineAuto(config,grilles,nouvelles,coffre);
-    $("gen-status").textContent=
-      `${stats.ajouts} affectation(s) d'élève · ${stats.groupes} groupe(s) automatique(s).`;
-    toast("Répartition des élèves terminée.");
-  }catch(e){
-    $("gen-status").textContent="Erreur : "+(e.message||e);
-    toast("Répartition impossible.");
-  }
-});
-
 /**
  * Synchronise l'emploi du temps du dispositif avec le cahier journal.
  * La grille du dispositif est désormais saisie manuellement, exactement
@@ -1814,45 +1799,20 @@ async function synchroniserDispositifDansJournal(dispositifId){
   return {dispositif:disp.nom, jours, creneaux:grille.length};
 }
 
-$("btn-generer-dispositif").addEventListener("click",async()=>{
+$("btn-sync-affectations").addEventListener("click",async()=>{
   const dispositifId=$("generation-dispositif").value;
   if(!dispositifId){ toast("Choisissez un dispositif."); return; }
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de synchroniser les affectations."); return; }
   try{
-    $("gen-status").textContent="Synchronisation du dispositif avec le cahier journal…";
+    $("gen-status").textContent="Synchronisation des affectations en cours…";
     const stats=await synchroniserDispositifDansJournal(dispositifId);
     $("gen-status").textContent=
       `${stats.creneaux} créneau(x) de ${stats.dispositif} synchronisé(s) avec le cahier journal.`;
-    toast("Emploi du temps du dispositif synchronisé.");
+    toast("Affectations synchronisées.");
     renderGenDispositifGrille();
   }catch(e){
     $("gen-status").textContent="Erreur : "+(e.message||e);
     toast("Synchronisation impossible.");
-  }
-});
-
-/**
- * Répartit les élèves du dispositif choisi ci-dessus en groupes de
- * besoin, créneau par créneau, dans la limite de 3 groupes simultanés.
- * Voir PC.repartirGroupesBesoinDispositif pour le détail du principe.
- */
-$("btn-repartir-besoin").addEventListener("click",()=>{
-  const dispositifId=$("generation-dispositif").value;
-  if(!dispositifId){ toast("Choisissez un dispositif."); return; }
-  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de répartir les élèves."); return; }
-  try{
-    $("gen-status").textContent="Répartition en groupes de besoin en cours…";
-    const stats=PC.repartirGroupesBesoinDispositif(config,grilles,coffre,dispositifId);
-    if(stats.raisons && stats.raisons.length){
-      $("gen-status").textContent=stats.raisons.join(" ");
-    } else {
-      $("gen-status").textContent=
-        `${stats.groupes} groupe(s) de besoin créé(s) pour ${stats.eleves} affectation(s) d'élève sur « ${stats.dispositif} ».`;
-    }
-    toast(stats.groupes ? "Répartition en groupes de besoin terminée." : "Aucun créneau à répartir.");
-    renderGenDispositifGrille();
-  }catch(e){
-    $("gen-status").textContent="Erreur : "+(e.message||e);
-    toast("Répartition impossible.");
   }
 });
 
@@ -2008,16 +1968,13 @@ function renderGenDispositifGrille(){
             const lignePec=document.createElement("div");
             lignePec.className="affg-eleve-line affg-eleve-pec";
             lignePec.title=`${ref.nom} — ${pec.intervenant||"prise en charge extérieure"} (santé), à l'extérieur sur ce créneau`;
-            const initialePec=document.createElement("span");
-            initialePec.className="affg-eleve-initial";
-            initialePec.textContent=initialesEleve(ref);
             const badgePec=document.createElement("span");
             badgePec.className="affg-badge-pec";
             badgePec.textContent="🏥";
             const nomPec=document.createElement("span");
             nomPec.className="affg-eleve-name";
             nomPec.textContent=ref.libelle;
-            lignePec.appendChild(initialePec);lignePec.appendChild(nomPec);lignePec.appendChild(badgePec);
+            lignePec.appendChild(nomPec);lignePec.appendChild(badgePec);
             td.appendChild(lignePec);
             return;
           }
@@ -2033,10 +1990,6 @@ function renderGenDispositifGrille(){
           const line=document.createElement("label");
           line.className="affg-eleve-line"+(coche?"":" exclu");
 
-          const initiale=document.createElement("span");
-          initiale.className="affg-eleve-initial";
-          initiale.textContent=initialesEleve(ref);
-
           const cb=document.createElement("input");
           cb.type="checkbox"; cb.checked=coche;
           cb.setAttribute("aria-label", `${ref.nom} — ${j.nom} ${c.debut}–${c.fin}`);
@@ -2050,7 +2003,6 @@ function renderGenDispositifGrille(){
           const identiteLabel=document.createElement("span");
           identiteLabel.className="affg-eleve-name";
           identiteLabel.textContent=ref.libelle;
-          line.appendChild(initiale);
           line.appendChild(identiteLabel);
           line.appendChild(cb);
           td.appendChild(line);
