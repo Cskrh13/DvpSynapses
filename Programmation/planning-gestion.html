@@ -149,6 +149,8 @@ table.affg .affg-eleve-line{display:flex;align-items:center;justify-content:cent
 table.affg .affg-eleve-initial{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;min-width:22px;text-align:center;}
 table.affg input[type="checkbox"]{width:16px;height:16px;cursor:pointer;flex:0 0 auto;}
 table.affg .affg-eleve-line.exclu{background:#FBEEE9;opacity:.7;}
+table.affg .affg-eleve-line.affg-eleve-pec{background:#FDF3E7;opacity:1;cursor:default;justify-content:flex-start;}
+table.affg .affg-badge-pec{font-size:12px;line-height:1;}
 table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opacity:.7;}
 </style>
 </head>
@@ -394,7 +396,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
   <div class="tab-panel" id="tab-affectation">
     <section class="card">
       <h2>Affectation des élèves — semaine complète</h2>
-      <p class="hint">Sélectionnez une classe pour afficher tous ses créneaux du lundi au vendredi. Les créneaux sont ceux de la grille horaire type et ne sont pas modifiables ici. Pour chaque élève chargé dans la classe, chaque cellule indique s'il est affecté ou non au créneau.</p>
+      <p class="hint">Sélectionnez une classe pour afficher tous ses créneaux du lundi au vendredi. Les créneaux sont ceux de la grille horaire type et ne sont pas modifiables ici. Pour chaque élève chargé dans la classe, chaque cellule indique s'il est affecté ou non au créneau. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau (voir coffre.html, onglet « Emploi du temps ») : il n'est proposé ni pour la classe ni pour un dispositif tant que cette prise en charge est active.</p>
       <div class="row" style="margin-bottom:14px;">
         <div class="field"><label>Classe</label><select id="affg-classe"></select></div>
         <button class="btn primary" id="btn-enregistrer-eleves">Enregistrer les élèves et leurs créneaux</button>
@@ -429,7 +431,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
         <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
           <p class="hint" style="margin:0;max-width:640px;">
-            Élèves affectés au dispositif choisi ci-dessus, créneau par créneau. Cocher un élève l'affecte au dispositif à ce créneau et le retire de l'affectation de sa classe de référence ; décocher fait l'inverse. Par défaut, la case est cochée pour chaque créneau où l'élève n'est <strong>pas</strong> déjà affecté à sa classe de référence.
+            Élèves affectés au dispositif choisi ci-dessus, créneau par créneau. Cocher un élève l'affecte au dispositif à ce créneau et le retire de l'affectation de sa classe de référence ; décocher fait l'inverse. Par défaut, la case est cochée pour chaque créneau où l'élève n'est <strong>pas</strong> déjà affecté à sa classe de référence. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau : ni classe ni dispositif ne lui sont proposés.
           </p>
           <div class="row" style="gap:8px;align-items:center;">
             <span id="gend-save-status" class="hint" style="margin:0;"></span>
@@ -1674,6 +1676,30 @@ function renderAffgGrille(){
 
           const cle=ref.identifiantSynapses+"::"+c.id;
 
+          // 3ᵉ possibilité : prise en charge extérieure (santé) active sur
+          // ce créneau. Elle est prioritaire — l'élève n'est ni affecté à
+          // la classe ni au dispositif à ce moment-là. On ne propose donc
+          // pas de case à cocher : l'entrée n'est jamais ajoutée à
+          // affgEtatEnCours, donc jamais réaffectée à la classe lors de
+          // l'enregistrement (voir enregistrerElevesClasse).
+          const pec = coffre.priseEnChargeExterieureSurCreneau
+            ? coffre.priseEnChargeExterieureSurCreneau(ref.identifiantSynapses, j.n, c.debut, c.fin)
+            : null;
+          if(pec){
+            const lignePec=document.createElement("div");
+            lignePec.className="affg-eleve-line affg-eleve-pec";
+            lignePec.title=`${ref.nom} — ${pec.intervenant||"prise en charge extérieure"} (santé), à l'extérieur sur ce créneau`;
+            const initialePec=document.createElement("span");
+            initialePec.className="affg-eleve-initial";
+            initialePec.textContent=initialesEleve(ref);
+            const badgePec=document.createElement("span");
+            badgePec.className="affg-badge-pec";
+            badgePec.textContent="🏥";
+            lignePec.appendChild(initialePec);lignePec.appendChild(badgePec);
+            td.appendChild(lignePec);
+            return;
+          }
+
           // Par défaut : coché si aucun planning individuel n'a encore
           // été enregistré pour cette classe.
           const coche=info.aDejaUnPlanning ? info.ids.has(c.id) : true;
@@ -1942,6 +1968,33 @@ function renderGenDispositifGrille(){
           if(!cl) return;
 
           const cle=ref.identifiantSynapses+"::"+c.id;
+
+          // 3ᵉ possibilité : prise en charge extérieure (santé) active sur
+          // ce créneau — prioritaire sur classe ET dispositif. On ne
+          // propose pas de case à cocher : l'entrée n'est jamais ajoutée à
+          // gendEtatEnCours/gendEtatOriginal, donc jamais affectée au
+          // dispositif lors de l'enregistrement.
+          const pec = coffre.priseEnChargeExterieureSurCreneau
+            ? coffre.priseEnChargeExterieureSurCreneau(ref.identifiantSynapses, c.jour, c.debut, c.fin)
+            : null;
+          if(pec){
+            const lignePec=document.createElement("div");
+            lignePec.className="affg-eleve-line affg-eleve-pec";
+            lignePec.title=`${ref.nom} — ${pec.intervenant||"prise en charge extérieure"} (santé), à l'extérieur sur ce créneau`;
+            const initialePec=document.createElement("span");
+            initialePec.className="affg-eleve-initial";
+            initialePec.textContent=initialesEleve(ref);
+            const badgePec=document.createElement("span");
+            badgePec.className="affg-badge-pec";
+            badgePec.textContent="🏥";
+            const nomPec=document.createElement("span");
+            nomPec.className="affg-eleve-name";
+            nomPec.textContent=ref.libelle;
+            lignePec.appendChild(initialePec);lignePec.appendChild(nomPec);lignePec.appendChild(badgePec);
+            td.appendChild(lignePec);
+            return;
+          }
+
           const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
           // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
           // classe de référence sur ce créneau (complémentaire des
