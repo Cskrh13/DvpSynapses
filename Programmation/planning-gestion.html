@@ -1991,6 +1991,7 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
   if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre d'abord."); return; }
   const dispId=$("generation-dispositif").value;
   if(!dispId){ toast("Choisissez un dispositif."); return; }
+  const disp=(config.dispositifs||[]).find(d=>d.id===dispId);
   const creneaux=(grilles[dispId]||[]);
   let bascules=0;
 
@@ -2012,7 +2013,12 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
 
     if(apres){
       // Coché = affecté au dispositif => retiré du planning de la classe de
-      // référence pour tout créneau qui chevauche celui-ci.
+      // référence pour tout créneau qui chevauche celui-ci, ET ajouté au
+      // planning individuel pour CE créneau du dispositif. Sans cet ajout,
+      // l'élève n'était affecté nulle part (ni classe, ni dispositif) : il
+      // redevenait éligible à être replacé dans un groupe de sa classe par
+      // la répartition automatique alors qu'il est censé être à l'ULIS —
+      // d'où des élèves affichés simultanément sur deux créneaux.
       e.planning = e.planning.filter(p=>{
         if(p.classeId!==cl.id) return true;
         if(Number(p.jour)!==Number(c.jour)) return true;
@@ -2022,10 +2028,28 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
         );
         return !chevauche;
       });
+      const dejaPresent = e.planning.some(p=>p.classeId===dispId && p.creneauId===c.id);
+      if(!dejaPresent){
+        e.planning.push({
+          classeId: dispId,
+          classeNom: disp ? disp.nom : "",
+          creneauId: c.id,
+          jour: c.jour,
+          debut: c.debut,
+          fin: c.fin,
+          type: c.type || "seance",
+          titre: c.titre || "",
+          libelle: c.libelle || "",
+          domaineCle: c.domaineCle||""
+        });
+      }
     } else {
-      // Décoché = renvoyé dans sa classe de référence : réaffectation à
-      // tous les créneaux de la grille de cette classe qui chevauchent le
+      // Décoché = renvoyé dans sa classe de référence : on retire d'abord
+      // l'affectation au dispositif pour CE créneau précis (sans quoi
+      // l'élève resterait affecté aux deux à la fois), puis on réaffecte à
+      // tous les créneaux de la grille de la classe qui chevauchent le
       // créneau du dispositif.
+      e.planning = e.planning.filter(p => !(p.classeId===dispId && p.creneauId===c.id));
       creneauxClasseChevauchantGend(cl.id, c).forEach(cc=>{
         const dejaPresent = e.planning.some(p=>p.classeId===cl.id && p.creneauId===cc.id);
         if(dejaPresent) return;
@@ -2036,6 +2060,9 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
           jour: cc.jour,
           debut: cc.debut,
           fin: cc.fin,
+          type: cc.type || "seance",
+          titre: cc.titre || "",
+          libelle: cc.libelle || "",
           domaineCle: cc.domaineCle||""
         });
       });
