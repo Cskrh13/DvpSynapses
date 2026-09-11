@@ -172,6 +172,22 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-case .edt-type{display:inline-block;color:var(--ink-soft);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
 .edt-case .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:2px;}
 .edt-bloc-recreation .edt-classe,.edt-bloc-pause .edt-classe,.edt-bloc-autre .edt-classe{color:var(--ink-soft);font-weight:500;}
+.edt-bloc-externe{background:#FDF3E7;border-radius:5px;padding:4px 6px;margin:2px -6px;}
+.edt-bloc-externe .edt-classe{color:#8A5A16;}
+.edt-bloc-externe .edt-type{color:#8A5A16;}
+
+/* ---- Gestion des prises en charge extérieures (santé) ---- */
+.pec-wrap{margin:0 0 20px;}
+.pec-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
+.pec-table th,.pec-table td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);}
+.pec-table th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+.pec-table input,.pec-table select{width:100%;min-width:0;font-size:13px;padding:5px 7px;box-sizing:border-box;}
+.pec-ligne-edition{background:#EEF2FB;}
+.pec-inactive{opacity:.55;}
+.pec-form{background:#FDF3E7;border-radius:8px;padding:12px 14px;margin-top:10px;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end;}
+.pec-form label{display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:3px;}
+.pec-form input,.pec-form select{width:100%;box-sizing:border-box;font-size:13px;padding:6px 8px;}
+.pec-form .pec-form-actions{grid-column:1/-1;}
 
 /* ===== grille-analyse.js (onglet "Analyse & IA") ===== */
 .ga-section { margin-bottom: 28px; }
@@ -344,6 +360,7 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
         <option value="">— sélectionner un élève —</option>
       </select>
     </div>
+    <div id="edtPecWrap"></div>
     <div id="edtGrilleWrap"></div>
   </section>
 
@@ -474,7 +491,8 @@ const SYNAPSES_BUILD = {
     seance: 'Séance',
     recreation: 'Récréation',
     pause: 'Pause méridienne',
-    autre: 'Autre / rituel'
+    autre: 'Autre / rituel',
+    externe: 'Santé (extérieur)'
   };
 
   function typeSeanceCreneau(c){
@@ -541,7 +559,239 @@ const SYNAPSES_BUILD = {
     if (valeurPrecedente && Array.prototype.some.call(sel.options, (o) => o.value === valeurPrecedente)) {
       sel.value = valeurPrecedente;
     }
+    afficherPriseEnChargeExterieure(sel.value);
     afficherEmploiDuTemps(sel.value);
+  }
+
+  /* -------- Prise en charge extérieure (santé) — 3ᵉ possibilité --------
+     Créneaux hebdomadaires récurrents où l'élève est suivi par un
+     intervenant extérieur à l'école (orthophoniste, psychomotricien,
+     CMPP, hôpital de jour...). Purement déclaratif, géré ici (coffre),
+     et fondu dans la grille de l'emploi du temps ci-dessous comme un 3ᵉ
+     type de créneau, à côté de la classe et du dispositif ULIS. */
+  let pecEditionId = null;
+  let pecAjoutOuvert = false;
+
+  function selectJourPec(valeurSelectionnee){
+    const sel = document.createElement('select');
+    JOURS_SEMAINE.slice(0, 5).forEach((nom, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i + 1);
+      opt.textContent = nom;
+      if (String(valeurSelectionnee) === String(i + 1)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  function ligneChampPec(labelTexte, input){
+    const div = document.createElement('div');
+    const label = document.createElement('label');
+    label.textContent = labelTexte;
+    div.appendChild(label);
+    div.appendChild(input);
+    return div;
+  }
+
+  function afficherPriseEnChargeExterieure(identifiantSynapses){
+    const wrap = $('edtPecWrap');
+    wrap.innerHTML = '';
+    pecEditionId = null;
+    if (!identifiantSynapses) return;
+
+    const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
+    if (!eleve) return;
+
+    const section = document.createElement('div');
+    section.className = 'pec-wrap';
+
+    const titre = document.createElement('h3');
+    titre.style.cssText = 'font-size:15px;margin:0 0 4px;';
+    titre.textContent = 'Prise en charge extérieure (santé)';
+    section.appendChild(titre);
+
+    const aide = document.createElement('p');
+    aide.className = 'hint';
+    aide.style.margin = '0 0 6px';
+    aide.textContent = 'Créneaux hebdomadaires récurrents où l\'élève est suivi par un intervenant extérieur (orthophoniste, psychomotricien, CMPP, hôpital de jour…). Ces créneaux sont exclus des affectations classe/ULIS dans Planning — Gestion.';
+    section.appendChild(aide);
+
+    const btnAjout = document.createElement('button');
+    btnAjout.className = 'btn';
+    btnAjout.textContent = pecAjoutOuvert ? 'Annuler' : '+ Ajouter une prise en charge extérieure';
+    btnAjout.addEventListener('click', () => {
+      pecAjoutOuvert = !pecAjoutOuvert;
+      afficherPriseEnChargeExterieure(identifiantSynapses);
+    });
+    section.appendChild(btnAjout);
+
+    if (pecAjoutOuvert) {
+      section.appendChild(formulairePec(eleve, null));
+    }
+
+    const liste = eleve.priseEnChargeExterieure || [];
+    if (liste.length) {
+      const table = document.createElement('table');
+      table.className = 'pec-table';
+      const thead = document.createElement('thead');
+      thead.innerHTML = '<tr><th>Intervenant</th><th>Jour</th><th>Horaire</th><th>Lieu</th><th>Remarque</th><th>Actif</th><th></th></tr>';
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      liste.forEach((p) => tbody.appendChild(ligneReadonlyPec(eleve, p)));
+      table.appendChild(tbody);
+      section.appendChild(table);
+    } else if (!pecAjoutOuvert) {
+      const vide = document.createElement('p');
+      vide.className = 'hint';
+      vide.style.marginTop = '8px';
+      vide.textContent = 'Aucune prise en charge extérieure enregistrée pour cet élève.';
+      section.appendChild(vide);
+    }
+
+    wrap.appendChild(section);
+  }
+
+  function formulairePec(eleve, pecExistante){
+    const form = document.createElement('div');
+    form.className = 'pec-form';
+
+    const inputIntervenant = document.createElement('input');
+    inputIntervenant.type = 'text';
+    inputIntervenant.placeholder = 'Ex. Orthophoniste — Mme Martin';
+    inputIntervenant.value = pecExistante ? (pecExistante.intervenant || '') : '';
+
+    const selJour = selectJourPec(pecExistante ? pecExistante.jour : 1);
+
+    const inputDebut = document.createElement('input');
+    inputDebut.type = 'time';
+    inputDebut.value = pecExistante ? (pecExistante.debut || '') : '';
+
+    const inputFin = document.createElement('input');
+    inputFin.type = 'time';
+    inputFin.value = pecExistante ? (pecExistante.fin || '') : '';
+
+    const inputLieu = document.createElement('input');
+    inputLieu.type = 'text';
+    inputLieu.placeholder = 'Ex. Cabinet, hôpital de jour…';
+    inputLieu.value = pecExistante ? (pecExistante.lieu || '') : '';
+
+    const inputRemarque = document.createElement('input');
+    inputRemarque.type = 'text';
+    inputRemarque.placeholder = 'Remarque (optionnel)';
+    inputRemarque.value = pecExistante ? (pecExistante.remarque || '') : '';
+
+    form.appendChild(ligneChampPec('Intervenant', inputIntervenant));
+    form.appendChild(ligneChampPec('Jour', selJour));
+    form.appendChild(ligneChampPec('Début', inputDebut));
+    form.appendChild(ligneChampPec('Fin', inputFin));
+    form.appendChild(ligneChampPec('Lieu', inputLieu));
+    form.appendChild(ligneChampPec('Remarque', inputRemarque));
+
+    const actions = document.createElement('div');
+    actions.className = 'pec-form-actions';
+    const btnEnregistrer = document.createElement('button');
+    btnEnregistrer.className = 'btn primary';
+    btnEnregistrer.textContent = 'Enregistrer';
+    btnEnregistrer.addEventListener('click', () => {
+      if (!inputIntervenant.value.trim()) { alert('Précisez au moins l\'intervenant.'); return; }
+      if (!inputDebut.value || !inputFin.value) { alert('Précisez l\'heure de début et de fin.'); return; }
+      if (inputFin.value <= inputDebut.value) { alert('L\'heure de fin doit être après l\'heure de début.'); return; }
+      const patch = {
+        intervenant: inputIntervenant.value.trim(),
+        jour: Number(selJour.value),
+        debut: inputDebut.value,
+        fin: inputFin.value,
+        lieu: inputLieu.value.trim(),
+        remarque: inputRemarque.value.trim()
+      };
+      if (pecExistante) {
+        coffre.modifierPriseEnChargeExterieure(eleve.identifiantSynapses, pecExistante.id, patch);
+        pecEditionId = null;
+      } else {
+        coffre.ajouterPriseEnChargeExterieure(eleve.identifiantSynapses, patch);
+        pecAjoutOuvert = false;
+      }
+      afficherPriseEnChargeExterieure(eleve.identifiantSynapses);
+      afficherEmploiDuTemps(eleve.identifiantSynapses);
+      marquerCoffreModifieSiDisponible();
+    });
+    const btnAnnuler = document.createElement('button');
+    btnAnnuler.className = 'btn';
+    btnAnnuler.textContent = 'Annuler';
+    btnAnnuler.addEventListener('click', () => {
+      pecEditionId = null;
+      pecAjoutOuvert = false;
+      afficherPriseEnChargeExterieure(eleve.identifiantSynapses);
+    });
+    actions.appendChild(btnEnregistrer);
+    actions.appendChild(btnAnnuler);
+    form.appendChild(actions);
+    return form;
+  }
+
+  function ligneReadonlyPec(eleve, p){
+    if (pecEditionId === p.id) {
+      const tr = document.createElement('tr');
+      tr.className = 'pec-ligne-edition';
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.appendChild(formulairePec(eleve, p));
+      tr.appendChild(td);
+      return tr;
+    }
+    const tr = document.createElement('tr');
+    if (p.actif === false) tr.className = 'pec-inactive';
+    const tdIntervenant = document.createElement('td'); tdIntervenant.textContent = p.intervenant || '';
+    const tdJour = document.createElement('td'); tdJour.textContent = JOURS_SEMAINE[(Number(p.jour) || 1) - 1] || '';
+    const tdHoraire = document.createElement('td'); tdHoraire.textContent = (p.debut || '') + ' – ' + (p.fin || '');
+    const tdLieu = document.createElement('td'); tdLieu.textContent = p.lieu || '';
+    const tdRemarque = document.createElement('td'); tdRemarque.textContent = p.remarque || '';
+    const tdActif = document.createElement('td');
+    const btnActif = document.createElement('button');
+    btnActif.className = 'btn si-btn-small';
+    btnActif.textContent = p.actif === false ? 'Suspendu' : 'Actif';
+    btnActif.title = 'Cliquer pour basculer, sans supprimer l\'historique';
+    btnActif.addEventListener('click', () => {
+      coffre.modifierPriseEnChargeExterieure(eleve.identifiantSynapses, p.id, { actif: p.actif === false });
+      afficherPriseEnChargeExterieure(eleve.identifiantSynapses);
+      afficherEmploiDuTemps(eleve.identifiantSynapses);
+      marquerCoffreModifieSiDisponible();
+    });
+    tdActif.appendChild(btnActif);
+    const tdActions = document.createElement('td');
+    tdActions.style.whiteSpace = 'nowrap';
+    const btnEditer = document.createElement('button');
+    btnEditer.className = 'btn si-btn-small';
+    btnEditer.textContent = '✎';
+    btnEditer.addEventListener('click', () => { pecEditionId = p.id; afficherPriseEnChargeExterieure(eleve.identifiantSynapses); });
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'btn si-btn-small';
+    btnSupprimer.textContent = '🗑';
+    btnSupprimer.addEventListener('click', () => {
+      if (confirm('Supprimer définitivement cette prise en charge extérieure ?')) {
+        coffre.supprimerPriseEnChargeExterieure(eleve.identifiantSynapses, p.id);
+        afficherPriseEnChargeExterieure(eleve.identifiantSynapses);
+        afficherEmploiDuTemps(eleve.identifiantSynapses);
+        marquerCoffreModifieSiDisponible();
+      }
+    });
+    tdActions.appendChild(btnEditer);
+    tdActions.appendChild(btnSupprimer);
+    tr.appendChild(tdIntervenant);
+    tr.appendChild(tdJour);
+    tr.appendChild(tdHoraire);
+    tr.appendChild(tdLieu);
+    tr.appendChild(tdRemarque);
+    tr.appendChild(tdActif);
+    tr.appendChild(tdActions);
+    return tr;
+  }
+
+  /** Marque le coffre comme modifié si la fonction existe dans cette page
+   *  (elle est définie plus bas, près de l'export) : évite une erreur si
+   *  jamais l'ordre des scripts changeait. */
+  function marquerCoffreModifieSiDisponible(){
+    if (typeof marquerCoffreModifie === 'function') marquerCoffreModifie();
   }
 
   function afficherEmploiDuTemps(identifiantSynapses){
@@ -556,21 +806,38 @@ const SYNAPSES_BUILD = {
 
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
+    // Les prises en charge extérieures ACTIVES sont fondues dans la même
+    // grille que les créneaux classe/dispositif, comme un 3ᵉ type de
+    // créneau ("externe"), pour donner une vision d'ensemble de la
+    // semaine de l'élève en un coup d'œil.
+    const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
+      .filter((p) => p.actif !== false)
+      .map((p) => ({
+        classeNom: (p.intervenant || '').trim() || 'Prise en charge extérieure',
+        libelle: (p.lieu || '').trim(),
+        titre: (p.remarque || '').trim(),
+        type: 'externe',
+        jour: p.jour,
+        debut: p.debut || '',
+        fin: p.fin || '',
+        domaineCle: ''
+      }));
+    const toutesCases = planning.concat(pecActives);
 
-    if (!planning.length) {
+    if (!toutesCases.length) {
       const vide = document.createElement('div');
       vide.className = 'edt-vide';
-      vide.textContent = 'Aucun créneau enregistré pour cet élève (voir Planning — Gestion, onglet « Affectation »).';
+      vide.textContent = 'Aucun créneau enregistré pour cet élève (voir Planning — Gestion, onglet « Affectation », et/ou prise en charge extérieure ci-dessus).';
       wrap.appendChild(vide);
       return;
     }
 
     // Lignes = heures de début distinctes présentes dans le planning de l'élève, triées.
-    const heures = Array.from(new Set(planning.map((c) => c.debut || ''))).filter(Boolean).sort();
+    const heures = Array.from(new Set(toutesCases.map((c) => c.debut || ''))).filter(Boolean).sort();
 
     // Index rapide { "jour|heure" -> [créneaux] } pour gérer d'éventuels doublons sans rien perdre.
     const index = new Map();
-    planning.forEach((c) => {
+    toutesCases.forEach((c) => {
       const cle = String(c.jour) + '|' + (c.debut || '');
       if (!index.has(cle)) index.set(cle, []);
       index.get(cle).push(c);
@@ -666,6 +933,7 @@ const SYNAPSES_BUILD = {
   }
 
   $('edtSelectEleve').addEventListener('change', (e) => {
+    afficherPriseEnChargeExterieure(e.target.value);
     afficherEmploiDuTemps(e.target.value);
   });
 
