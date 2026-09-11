@@ -457,9 +457,14 @@ const SYNAPSES_BUILD = {
      aucune donnée n'est récupérée ni envoyée ailleurs.
      Champs affichés par créneau, dans cet ordre : classe (classeNom — la
      classe OU le dispositif, ex. ULIS, sur lequel l'élève est positionné
-     à ce moment), nom (libelle), titre, type. domaineCle n'est PAS
-     affiché : c'est une clé technique interne (parfois mal formée, ex.
-     "fran_ais::lecture"), jamais un texte destiné à être lu. */
+     à ce moment), nom (libelle), titre, type. Quand ni libelle ni titre
+     ne sont renseignés (cas fréquent des créneaux d'une classe dont la
+     grille horaire type ne détaille pas la matière), domaineCle est
+     utilisé en dernier recours, mis en forme lisible (domaineLisible) :
+     mieux vaut une indication imparfaite que "Séance" répété sur toute
+     la semaine. Les créneaux strictement identiques enregistrés en
+     double dans une même case (mêmes classe/titre/libelle/domaine/
+     horaire — ex. ancien bug d'affectation) sont fusionnés à l'affichage. */
   const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
   // Libellés des types de créneau (copie volontairement réduite de
@@ -474,6 +479,43 @@ const SYNAPSES_BUILD = {
 
   function typeSeanceCreneau(c){
     return LIBELLES_TYPE_CRENEAU[c.type] || (c.type ? c.type : 'Séance');
+  }
+
+  /** Mise en forme minimale d'un domaineCle technique (ex.
+   *  "mathematiques::numeration", "fran_ais::lecture") en un texte à peu
+   *  près lisible : underscores → espaces, "::" → " · ", 1ère lettre en
+   *  majuscule sur chaque segment. Ce n'est PAS une traduction fiable
+   *  (les accents perdus dans certaines clés ne sont pas restitués), mais
+   *  c'est nettement plus informatif qu'une case vide ou un "Séance"
+   *  générique répété toute la semaine. N'est utilisé qu'en dernier
+   *  recours, quand ni libelle ni titre ne sont renseignés. */
+  function domaineLisible(cle){
+    if (!cle) return '';
+    return String(cle)
+      .split('::')
+      .map((seg) => seg.trim().replace(/_/g, ' '))
+      .filter(Boolean)
+      .map((seg) => seg.charAt(0).toUpperCase() + seg.slice(1))
+      .join(' · ');
+  }
+
+  /** Clé de dédoublonnage d'un créneau affiché dans une case : deux
+   *  créneaux du planning individuel identiques sur tous les champs
+   *  visibles (classe, nom, titre, domaine, horaire) n'apportent aucune
+   *  information supplémentaire l'un par rapport à l'autre — un seul
+   *  bloc est affiché. */
+  function cleAffichageCreneau(c){
+    return [c.classeId, c.classeNom, c.type, c.titre, c.libelle, c.domaineCle, c.debut, c.fin].join('|');
+  }
+
+  function dedoublonnerCreneaux(liste){
+    const vues = new Set();
+    return liste.filter((c) => {
+      const cle = cleAffichageCreneau(c);
+      if (vues.has(cle)) return false;
+      vues.add(cle);
+      return true;
+    });
   }
 
   function nomAffichageEleve(e){
@@ -559,14 +601,14 @@ const SYNAPSES_BUILD = {
       for (let jour = 1; jour <= 5; jour++) {
         const td = document.createElement('td');
         td.className = 'edt-case';
-        const creneaux = index.get(String(jour) + '|' + heure) || [];
+        const creneaux = dedoublonnerCreneaux(index.get(String(jour) + '|' + heure) || []);
         if (creneaux.length) {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
             const bloc = document.createElement('div');
             bloc.className = 'edt-bloc edt-bloc-' + (c.type || 'seance');
             const typeLabel = typeSeanceCreneau(c);
-            const nom = (c.libelle || '').trim();
+            const nom = (c.libelle || '').trim() || domaineLisible(c.domaineCle);
             const titre = (c.titre || '').trim();
 
             // Ordre d'affichage voulu : classe du créneau, nom (libellé),
