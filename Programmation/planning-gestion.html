@@ -419,13 +419,14 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
           <select id="generation-dispositif" style="min-width:190px;"></select>
         </label>
         <button class="btn" id="btn-generer-dispositif">Synchroniser le dispositif avec le cahier journal</button>
+        <button class="btn primary" id="btn-repartir-besoin">Répartir les élèves en groupes de besoin</button>
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
         <strong>Répartir les élèves :</strong> répartit automatiquement les élèves sur les créneaux de leur classe à partir de leur planning individuel enregistré dans le coffre.
         <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS.
-        Le bouton ci-dessous ne reconstruit plus la grille à partir des « trous » des classes : il synchronise cette grille vers le cahier journal.
-        Les affectations individuelles des élèves déterminent ensuite les élèves présents sur ces créneaux.
+        Le bouton « Synchroniser » ne reconstruit plus la grille à partir des « trous » des classes : il synchronise cette grille vers le cahier journal, avec tous les élèves disponibles regroupés sur chaque créneau.
+        <strong>Répartir les élèves en groupes de besoin :</strong> reprend chaque créneau du dispositif choisi ci-dessus et sépare les élèves disponibles en plusieurs groupes selon le domaine (français, mathématiques…) qu'il leur reste à travailler cette semaine au regard du BO n°44, dans la limite de <strong>3 groupes</strong> simultanés sur un même créneau — exactement comme pour l'ajout manuel de groupes dans le cahier journal. Un créneau déjà retouché à la main dans le cahier journal n'est jamais écrasé.
       </p>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
@@ -1826,6 +1827,32 @@ $("btn-generer-dispositif").addEventListener("click",async()=>{
   }catch(e){
     $("gen-status").textContent="Erreur : "+(e.message||e);
     toast("Synchronisation impossible.");
+  }
+});
+
+/**
+ * Répartit les élèves du dispositif choisi ci-dessus en groupes de
+ * besoin, créneau par créneau, dans la limite de 3 groupes simultanés.
+ * Voir PC.repartirGroupesBesoinDispositif pour le détail du principe.
+ */
+$("btn-repartir-besoin").addEventListener("click",()=>{
+  const dispositifId=$("generation-dispositif").value;
+  if(!dispositifId){ toast("Choisissez un dispositif."); return; }
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de répartir les élèves."); return; }
+  try{
+    $("gen-status").textContent="Répartition en groupes de besoin en cours…";
+    const stats=PC.repartirGroupesBesoinDispositif(config,grilles,coffre,dispositifId);
+    if(stats.raisons && stats.raisons.length){
+      $("gen-status").textContent=stats.raisons.join(" ");
+    } else {
+      $("gen-status").textContent=
+        `${stats.groupes} groupe(s) de besoin créé(s) pour ${stats.eleves} affectation(s) d'élève sur « ${stats.dispositif} ».`;
+    }
+    toast(stats.groupes ? "Répartition en groupes de besoin terminée." : "Aucun créneau à répartir.");
+    renderGenDispositifGrille();
+  }catch(e){
+    $("gen-status").textContent="Erreur : "+(e.message||e);
+    toast("Répartition impossible.");
   }
 });
 
