@@ -136,7 +136,21 @@
       // planning, qui ne doit contenir que des données non nominatives).
       // Chaque entrée : { classeId, classeNom, creneauId, jour, debut,
       // fin, domaineCle, dateAffectation }.
-      planning: []
+      planning: [],
+      // Prise en charge extérieure (santé) : 3ᵉ possibilité, à côté de la
+      // classe de référence et du dispositif ULIS, pour un créneau
+      // hebdomadaire récurrent où l'élève est suivi par un intervenant
+      // extérieur à l'école (orthophoniste, psychomotricien, CMPP,
+      // hôpital de jour...). Purement déclaratif : aucune grille
+      // associée (contrairement à une classe/un dispositif), saisi et
+      // géré directement dans le coffre (onglet « Emploi du temps »).
+      // Sert à l'afficher dans l'emploi du temps individuel et à exclure
+      // l'élève des affectations/répartitions automatiques sur ce
+      // créneau (planning-gestion.html), pour ne jamais l'y afficher en
+      // double. Chaque entrée : { id, jour, debut, fin, intervenant,
+      // lieu, remarque, actif }. `actif` permet de suspendre une prise
+      // en charge sans perdre son historique.
+      priseEnChargeExterieure: []
     };
   }
 
@@ -355,10 +369,66 @@
       return e.planning.slice();
     }
 
+    // ---- Prise en charge extérieure (santé) — 3ᵉ possibilité ----
+
+    ajouterPriseEnChargeExterieure(identifiantSynapses, pec) {
+      const e = this.getEleve(identifiantSynapses);
+      const p = Object.assign(
+        { id: genId('PEC'), jour: null, debut: '', fin: '', intervenant: '', lieu: '', remarque: '', actif: true },
+        pec
+      );
+      e.priseEnChargeExterieure.push(p);
+      return p;
+    }
+
+    modifierPriseEnChargeExterieure(identifiantSynapses, pecId, patch) {
+      const e = this.getEleve(identifiantSynapses);
+      const p = e.priseEnChargeExterieure.find((x) => x.id === pecId);
+      if (!p) throw new Error('Prise en charge extérieure introuvable : ' + pecId);
+      Object.assign(p, patch || {});
+      return p;
+    }
+
+    supprimerPriseEnChargeExterieure(identifiantSynapses, pecId) {
+      const e = this.getEleve(identifiantSynapses);
+      const idx = e.priseEnChargeExterieure.findIndex((x) => x.id === pecId);
+      if (idx === -1) throw new Error('Prise en charge extérieure introuvable : ' + pecId);
+      e.priseEnChargeExterieure.splice(idx, 1);
+    }
+
+    listerPriseEnChargeExterieure(identifiantSynapses) {
+      const e = this.getEleve(identifiantSynapses);
+      return e.priseEnChargeExterieure.slice();
+    }
+
+    /** Renvoie la prise en charge extérieure ACTIVE de l'élève qui
+     *  chevauche le créneau [jour, debut, fin] donné (ou null). Ne
+     *  dépend d'aucun autre script (pas de PC.heureVersMin ici) : coffre.html
+     *  n'a pas besoin de charger planning-core.js pour cette vérification,
+     *  et planning-gestion.html peut l'utiliser aussi bien que ses propres
+     *  fonctions PC.* pour rester cohérent entre les deux pages. */
+    priseEnChargeExterieureSurCreneau(identifiantSynapses, jour, debut, fin) {
+      const e = this.getEleve(identifiantSynapses);
+      const versMin = (h) => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(String(h || '').trim());
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const dMin = versMin(debut), fMin = versMin(fin);
+      if (dMin == null || fMin == null) return null;
+      return e.priseEnChargeExterieure.find((p) => {
+        if (p.actif === false) return false;
+        if (Number(p.jour) !== Number(jour)) return false;
+        const pd = versMin(p.debut), pf = versMin(p.fin);
+        if (pd == null || pf == null) return false;
+        return pd < fMin && dMin < pf;
+      }) || null;
+    }
+
     getEleve(identifiantSynapses) {
       this._assertOuvert();
       const e = this._data.eleves.find((e) => e.identifiantSynapses === identifiantSynapses);
       if (!e) throw new Error('Élève introuvable : ' + identifiantSynapses);
+      if (!Array.isArray(e.priseEnChargeExterieure)) e.priseEnChargeExterieure = []; // compat. coffres antérieurs
       return e;
     }
 
