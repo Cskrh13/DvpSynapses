@@ -68,6 +68,23 @@
     }
   };
 
+  /**
+   * Nom d'affichage d'un créneau (grille horaire type, grille d'affectation,
+   * affectation individuelle envoyée au coffre — voir PLANNING-ELEVE-SCHEMA.md).
+   * Utilisée PARTOUT où un créneau doit être nommé, pour garantir que le nom
+   * affecté à un élève dans le coffre est TOUJOURS identique à celui affiché
+   * dans Planning — Gestion au moment de l'enregistrement, et n'est jamais
+   * vide : titre saisi (séance) → libellé saisi (récréation/pause/autre) →
+   * libellé générique du type de créneau, en tout dernier recours.
+   */
+  function libelleCreneau(c) {
+    if (!c) return "";
+    const saisi = c.type === "seance" ? (c.titre || "") : (c.libelle || "");
+    if (saisi.trim()) return saisi.trim();
+    const type = TYPES_CRENEAU[c.type];
+    return type ? type.label : "Créneau";
+  }
+
   // Référentiel horaire officiel — arrêté du 9-11-2015 (BO n°44 du
   // 26/11/2015, MENE1526553A) : horaires d'enseignement à l'école
   // élémentaire, 24 h de classe par semaine.
@@ -4119,6 +4136,7 @@
     JOURS,
     TYPES_CRENEAU,
     TYPES_ADULTE,
+    libelleCreneau,
 
     // Stockage
     STORE_CONFIG,
