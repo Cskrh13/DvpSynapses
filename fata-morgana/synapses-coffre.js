@@ -94,15 +94,30 @@
    *  et rester cohérents entre eux. */
   function formatCasePourAffichage(c, origine) {
     c = c || {};
-    if (origine === 'externe') {
+
+    // Toutes les origines utilisent désormais la même architecture.
+    // `typeLieu` est la source de vérité : classe | dispositif | externe.
+    // La branche `origine === 'externe'` reste uniquement pour la
+    // rétrocompatibilité des anciens coffres dont les PEC utilisent encore
+    // les champs plats (lieu/intervenant/activite).
+    const typeLieu = c.typeLieu || (origine === 'externe' ? 'externe' : (c.type === 'dispositif' ? 'dispositif' : 'classe'));
+    if (typeLieu === 'externe') {
+      const activiteExterne = (c.activite && typeof c.activite === 'object')
+        ? (c.activite.nom || '').trim()
+        : (c.activite || '').trim();
+      const adulteExterne = (c.adulteReference && typeof c.adulteReference === 'object')
+        ? (c.adulteReference.nom || '').trim()
+        : (c.intervenant || '').trim();
       return {
-        lieuNom: (c.lieu || '').trim() || 'Prise en charge extérieure',
+        lieuNom: (c.classeNom || c.lieu || '').trim() || 'Prise en charge extérieure',
         typeLieu: 'externe',
-        activiteNom: (c.activite || '').trim() || (c.remarque || '').trim(),
-        domaineCle: '',
-        adulteNom: (c.intervenant || '').trim(),
-        adulteRole: 'Intervenant extérieur',
-        remarque: (c.activite || '').trim() ? (c.remarque || '').trim() : '',
+        activiteNom: activiteExterne || (c.remarque || '').trim(),
+        domaineCle: (c.activite && typeof c.activite === 'object') ? (c.activite.domaineCle || '') : '',
+        adulteNom: adulteExterne,
+        adulteRole: (c.adulteReference && typeof c.adulteReference === 'object')
+          ? (c.adulteReference.role || '').trim() || 'Intervenant extérieur'
+          : 'Intervenant extérieur',
+        remarque: activiteExterne ? (c.remarque || '').trim() : '',
         jour: c.jour, debut: c.debut || '', fin: c.fin || ''
       };
     }
@@ -276,6 +291,15 @@
       const buffer = fichier instanceof ArrayBuffer ? fichier : await fichier.arrayBuffer();
       const data = await global.SynapsesCrypto.decryptCoffre(motDePasse, new Uint8Array(buffer));
       this._data = data;
+      // Migration douce : les PEC des anciens coffres sont normalisées en
+      // mémoire dès l'ouverture afin d'utiliser exactement la même
+      // architecture que les créneaux classe/dispositif.
+      if (Array.isArray(this._data.eleves)) {
+        this._data.eleves.forEach((e) => {
+          if (!Array.isArray(e.priseEnChargeExterieure)) e.priseEnChargeExterieure = [];
+          e.priseEnChargeExterieure = e.priseEnChargeExterieure.map((p) => this.normaliserPriseEnChargeExterieure(p));
+        });
+      }
       this._ouvert = true;
       return this._data;
     }
@@ -522,11 +546,54 @@
 
     // ---- Prise en charge extérieure (santé) — 3ᵉ possibilité ----
 
+    /**
+     * Normalise une prise en charge extérieure vers la même architecture
+     * que `planning[]`. Les anciens alias (`intervenant`, `lieu`, `activite`
+     * chaîne) sont conservés pour la compatibilité avec les formulaires et
+     * les coffres existants, mais les champs canoniques sont les mêmes que
+     * pour une classe ou un dispositif.
+     */
+    normaliserPriseEnChargeExterieure(pec) {
+      const p = pec || {};
+      const id = p.id || genId('PEC');
+      const activiteNom = (p.activite && typeof p.activite === 'object')
+        ? (p.activite.nom || '')
+        : (p.activite || '');
+      const intervenant = (p.adulteReference && typeof p.adulteReference === 'object')
+        ? (p.adulteReference.nom || '')
+        : (p.intervenant || '');
+      const lieu = p.classeNom || p.lieu || 'Prise en charge extérieure';
+      return Object.assign({}, p, {
+        id,
+        classeId: p.classeId || id,
+        classeNom: lieu,
+        typeLieu: 'externe',
+        creneauId: p.creneauId || id,
+        jour: p.jour != null ? Number(p.jour) : null,
+        debut: p.debut || '',
+        fin: p.fin || '',
+        activite: {
+          nom: activiteNom,
+          domaineCle: (p.activite && typeof p.activite === 'object') ? (p.activite.domaineCle || '') : (p.domaineCle || '')
+        },
+        adulteReference: {
+          nom: intervenant,
+          role: (p.adulteReference && typeof p.adulteReference === 'object')
+            ? (p.adulteReference.role || 'Intervenant extérieur')
+            : 'Intervenant extérieur'
+        },
+        // Alias historiques conservés.
+        intervenant,
+        lieu,
+        actif: p.actif !== false
+      });
+    }
+
     ajouterPriseEnChargeExterieure(identifiantSynapses, pec) {
       const e = this.getEleve(identifiantSynapses);
-      const p = Object.assign(
-        { id: genId('PEC'), jour: null, debut: '', fin: '', intervenant: '', lieu: '', activite: '', remarque: '', actif: true },
-        pec
+      if (!Array.isArray(e.priseEnChargeExterieure)) e.priseEnChargeExterieure = [];
+      const p = this.normaliserPriseEnChargeExterieure(
+        Object.assign({ id: genId('PEC'), jour: null, debut: '', fin: '', intervenant: '', lieu: '', activite: '', remarque: '', actif: true }, pec)
       );
       e.priseEnChargeExterieure.push(p);
       return p;
@@ -534,10 +601,30 @@
 
     modifierPriseEnChargeExterieure(identifiantSynapses, pecId, patch) {
       const e = this.getEleve(identifiantSynapses);
-      const p = e.priseEnChargeExterieure.find((x) => x.id === pecId);
-      if (!p) throw new Error('Prise en charge extérieure introuvable : ' + pecId);
-      Object.assign(p, patch || {});
-      return p;
+      if (!Array.isArray(e.priseEnChargeExterieure)) e.priseEnChargeExterieure = [];
+      const idx = e.priseEnChargeExterieure.findIndex((x) => x.id === pecId);
+      if (idx === -1) throw new Error('Prise en charge extérieure introuvable : ' + pecId);
+
+      const ancien = e.priseEnChargeExterieure[idx];
+      const patchLocal = Object.assign({}, patch || {});
+      // Le formulaire historique envoie `activite` (chaîne) et `intervenant`.
+      // On les convertit aussi vers les objets canoniques.
+      if (Object.prototype.hasOwnProperty.call(patchLocal, 'activite') && typeof patchLocal.activite !== 'object') {
+        patchLocal.activite = { nom: patchLocal.activite || '', domaineCle: (ancien.activite && typeof ancien.activite === 'object') ? (ancien.activite.domaineCle || '') : '' };
+      }
+      if (Object.prototype.hasOwnProperty.call(patchLocal, 'intervenant')) {
+        patchLocal.adulteReference = Object.assign(
+          { nom: '', role: 'Intervenant extérieur' },
+          ancien.adulteReference || {},
+          { nom: patchLocal.intervenant || '' }
+        );
+      }
+      if (Object.prototype.hasOwnProperty.call(patchLocal, 'lieu')) {
+        patchLocal.classeNom = patchLocal.lieu || 'Prise en charge extérieure';
+      }
+      const maj = this.normaliserPriseEnChargeExterieure(Object.assign({}, ancien, patchLocal));
+      e.priseEnChargeExterieure[idx] = maj;
+      return maj;
     }
 
     supprimerPriseEnChargeExterieure(identifiantSynapses, pecId) {

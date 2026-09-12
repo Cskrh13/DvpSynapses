@@ -594,8 +594,8 @@ const SYNAPSES_BUILD = {
    *  information supplémentaire l'un par rapport à l'autre — un seul
    *  bloc est affiché. */
   function cleAffichageCreneau(c){
-    const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
-    return [f.lieuNom, f.activiteNom, f.adulteNom, f.debut, f.fin].join('|');
+    const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c);
+    return [f.typeLieu, f.lieuNom, f.activiteNom, f.adulteNom, f.debut, f.fin].join('|');
   }
 
   function dedoublonnerCreneaux(liste){
@@ -964,14 +964,20 @@ const SYNAPSES_BUILD = {
 
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
-    // Les prises en charge extérieures ACTIVES sont fondues dans la même
-    // grille que les créneaux classe/dispositif, comme un 3ᵉ type de
-    // créneau ("externe"), pour donner une vision d'ensemble de la
+    // Les prises en charge extérieures ACTIVES utilisent la même
+    // architecture de créneau et sont distinguées par `typeLieu: "externe"`, pour donner une vision d'ensemble de la
     // semaine de l'élève en un coup d'œil.
+    // Classe, dispositif ULIS et PEC utilisent la même architecture de
+    // créneau. `typeLieu` est la source de vérité pour l'affichage.
     const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
       .filter((p) => p.actif !== false)
-      .map((p) => Object.assign({ _origine: 'externe', _brut: p }, p));
-    const casesPlanning = planning.map((c) => Object.assign({ _origine: 'planning', _brut: c }, c));
+      .map((p) => {
+        const brut = (coffre.normaliserPriseEnChargeExterieure
+          ? coffre.normaliserPriseEnChargeExterieure(p)
+          : p);
+        return Object.assign({ _brut: brut }, brut);
+      });
+    const casesPlanning = planning.map((c) => Object.assign({ _brut: c }, c));
     const toutesCases = casesPlanning.concat(pecActives);
 
     if (!toutesCases.length) {
@@ -1023,7 +1029,7 @@ const SYNAPSES_BUILD = {
         if (creneaux.length) {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
-            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c);
             const bloc = document.createElement('div');
             bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
 
@@ -1080,7 +1086,7 @@ const SYNAPSES_BUILD = {
             btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
             btnEditer.textContent = '✎';
             btnEditer.addEventListener('click', () => {
-              ouvrirEditionCase(identifiantSynapses, c._brut || c, c._origine, f);
+              ouvrirEditionCase(identifiantSynapses, c._brut || c, f.typeLieu, f);
             });
             bloc.appendChild(btnEditer);
 
