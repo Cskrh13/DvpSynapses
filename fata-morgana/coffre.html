@@ -193,6 +193,7 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-bloc-recreation .edt-horaire,.edt-bloc-pause .edt-horaire{color:var(--ink-soft);}
 .edt-bloc.edt-duree-courte .edt-adulte,.edt-bloc.edt-duree-courte .edt-titre{display:none;}
 .edt-bloc.edt-duree-tres-courte .edt-horaire{font-size:8.5px;}
+.edt-bloc:hover,.edt-bloc:focus-within{z-index:6;box-shadow:0 4px 14px rgba(20,29,51,.22);}
 .edt-btn-editer{position:absolute;top:2px;right:2px;border:none;background:rgba(255,255,255,.7);color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1;padding:2px 4px;opacity:.6;border-radius:4px;z-index:3;}
 .edt-btn-editer:hover{opacity:1;}
 .edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
@@ -977,52 +978,82 @@ const SYNAPSES_BUILD = {
     }
   }
 
-  /** Ajoute les récréations fixes définies dans Planning — Gestion.
-   * Elles ne sont pas copiées dans e.planning[] (par choix d'architecture),
-   * mais elles font partie de l'emploi du temps de la classe de référence et
-   * doivent donc être visibles ici. */
+  /** Ajoute les récréations ET pauses méridiennes fixes définies dans
+   * Planning — Gestion. Elles ne sont pas copiées dans e.planning[] (par
+   * choix d'architecture), mais elles font partie de l'emploi du temps de
+   * la classe de référence et doivent donc être visibles ici.
+   *
+   * BUG CORRIGÉ (1) : le champ `typeLieu` n'était jamais renseigné sur
+   * l'objet `_brut` transmis à formatCasePourAffichage(). Pour l'origine
+   * 'planning' (non 'externe'), cette fonction retombe alors sur
+   * `c.typeLieu || (c.type==='dispositif'?'dispositif':'classe')` : comme
+   * `type` valait 'recreation' (≠ 'dispositif'), le résultat était toujours
+   * 'classe'. Les récréations héritaient donc du même style visuel qu'un
+   * vrai créneau de classe (`.edt-bloc-classe`, inexistant, style de base)
+   * au lieu du style dédié `.edt-bloc-recreation`/`.edt-bloc-pause` : elles
+   * étaient indiscernables des créneaux de classe environnants, d'où
+   * l'impression d'un emploi du temps « tassé » sans récréations visibles.
+   *
+   * BUG CORRIGÉ (2) : si la classe de l'élève ne correspondait à aucune
+   * classe connue de Planning — Gestion (nom légèrement différent, élève
+   * en ULIS sans classe de référence renseignée, etc.), la fonction
+   * abandonnait entièrement (return []) : plus aucune récréation/pause
+   * n'apparaissait, même celles définies comme s'appliquant à toutes les
+   * classes (r.classes vide). Elles sont maintenant toujours incluses,
+   * même quand la classe précise de l'élève n'est pas identifiable. */
   function recreationsFixesPourEleve(eleve){
     const config = chargerConfigPlanningEdt();
     const classes = Array.isArray(config.classes) ? config.classes : [];
     const recreations = Array.isArray(config.recreations) ? config.recreations : [];
-    if(!classes.length || !recreations.length) return [];
+    const pauses = Array.isArray(config.pauses) ? config.pauses : [];
+    if(!recreations.length && !pauses.length) return [];
 
     const valeurClasse = normaliserClasseEdt(eleve.classe || (eleve.identite && eleve.identite.classe));
-    if(!valeurClasse) return [];
-    const classe = classes.find(cl => {
+    const classe = valeurClasse ? classes.find(cl => {
       const nom = normaliserClasseEdt(cl.nom);
       const niveau = normaliserClasseEdt(cl.niveau);
       return valeurClasse === nom || (niveau && valeurClasse === niveau);
-    });
-    if(!classe) return [];
+    }) : null;
+    const classeId = classe ? classe.id : null;
+    const classeNom = (classe && classe.nom) || eleve.classe || '';
 
     const jours = (Array.isArray(config.joursTravailles) && config.joursTravailles.length)
       ? config.joursTravailles.map(Number)
       : [1,2,3,4,5];
 
-    const resultats = [];
-    jours.forEach(jour => {
-      recreations.forEach((r, index) => {
-        const concernees = Array.isArray(r.classes) ? r.classes : [];
-        if(concernees.length && !concernees.includes(classe.id)) return;
-        if(!r.debut || !r.fin) return;
-        resultats.push({
-          id: 'coffre_fixe_recreation_' + classe.id + '_' + jour + '_' + index,
-          jour,
-          debut: r.debut,
-          fin: r.fin,
-          type: 'recreation',
-          libelle: r.label || 'Récréation',
-          classeNom: classe.nom || eleve.classe || 'Récréation',
-          typeLieu: 'classe',
-          _origine: 'recreation-fixe',
-          _brut: {
-            jour, debut:r.debut, fin:r.fin, type:'recreation',
-            libelle:r.label || 'Récréation', classeNom:classe.nom || ''
-          }
+    function ajouterCreneauxFixes(liste, type, libelleParDefaut, resultats){
+      jours.forEach(jour => {
+        liste.forEach((r, index) => {
+          const concernees = Array.isArray(r.classes) ? r.classes : [];
+          // Un créneau dont la liste `classes` est vide s'applique à
+          // toutes les classes (convention de Planning — Gestion) : on
+          // l'affiche donc même si l'élève n'a pas pu être rattaché à une
+          // classe précise. Un créneau ciblé sur des classes précises
+          // n'est en revanche affiché que si la classe de l'élève y figure.
+          if(concernees.length && (!classeId || !concernees.includes(classeId))) return;
+          if(!r.debut || !r.fin) return;
+          resultats.push({
+            id: 'coffre_fixe_' + type + '_' + (classeId || 'global') + '_' + jour + '_' + index,
+            jour,
+            debut: r.debut,
+            fin: r.fin,
+            type,
+            typeLieu: type,
+            libelle: r.label || libelleParDefaut,
+            classeNom: classeNom || libelleParDefaut,
+            _origine: 'recreation-fixe',
+            _brut: {
+              jour, debut:r.debut, fin:r.fin, type, typeLieu: type,
+              libelle: r.label || libelleParDefaut, classeNom: classeNom || ''
+            }
+          });
         });
       });
-    });
+    }
+
+    const resultats = [];
+    ajouterCreneauxFixes(recreations, 'recreation', 'Récréation', resultats);
+    ajouterCreneauxFixes(pauses, 'pause', 'Pause méridienne', resultats);
     return resultats;
   }
 
@@ -1045,6 +1076,38 @@ const SYNAPSES_BUILD = {
     return Math.ceil(min / 30) * 30;
   }
 
+  /** Calcule, pour une liste de créneaux d'un même jour (avec debutMin/finMin),
+   *  une disposition en colonnes côte à côte pour les créneaux qui se
+   *  chevauchent dans le temps (ex. une classe ET une prise en charge
+   *  extérieure positionnées par erreur sur le même horaire). Sans cela,
+   *  deux créneaux simultanés se superposent exactement l'un sur l'autre
+   *  (même position, même largeur) : le second masque entièrement le
+   *  premier, qui semble alors avoir disparu de l'emploi du temps. */
+  function disposerColonnesChevauchement(items){
+    const tries = items.slice().sort((a,b)=> a.debutMin - b.debutMin || a.finMin - b.finMin);
+    const actifs = []; // { finMin, col }
+    tries.forEach(it => {
+      for(let i = actifs.length - 1; i >= 0; i--){
+        if(actifs[i].finMin <= it.debutMin) actifs.splice(i,1);
+      }
+      const utilises = new Set(actifs.map(a => a.col));
+      let col = 0;
+      while(utilises.has(col)) col++;
+      it._col = col;
+      actifs.push({ finMin: it.finMin, col });
+    });
+    tries.forEach(it => {
+      let maxCol = it._col;
+      tries.forEach(autre => {
+        if(autre === it) return;
+        const seChevauchent = autre.debutMin < it.finMin && it.debutMin < autre.finMin;
+        if(seChevauchent) maxCol = Math.max(maxCol, autre._col);
+      });
+      it._colCount = maxCol + 1;
+    });
+    return tries;
+  }
+
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
@@ -1059,15 +1122,23 @@ const SYNAPSES_BUILD = {
       return;
     }
 
+    // Toute la construction de la grille est protégée par un try/catch :
+    // une seule entrée mal formée (ancien format, champ manquant…) ne doit
+    // jamais faire disparaître silencieusement tout l'emploi du temps de
+    // l'élève. En cas d'erreur inattendue, un message explicite s'affiche
+    // et le détail part dans la console pour diagnostic.
+    try {
+
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
     const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
       .filter((p) => p.actif !== false)
       .map((p) => Object.assign({ _origine: 'externe', _brut: p }, p));
 
-    // Les récréations fixes sont définies dans le planning générique, pas dans
-    // le coffre nominatif : on les ajoute ici pour rendre la grille individuelle
-    // complète sans jamais écrire de donnée nominative dans localStorage.
+    // Les récréations et pauses fixes sont définies dans le planning
+    // générique, pas dans le coffre nominatif : on les ajoute ici pour
+    // rendre la grille individuelle complète sans jamais écrire de donnée
+    // nominative dans localStorage.
     const recreations = eleve ? recreationsFixesPourEleve(eleve) : [];
     const casesPlanning = planning.map((c) => Object.assign({ _origine: 'planning', _brut: c }, c));
     const toutesCases = casesPlanning.concat(recreations, pecActives);
@@ -1081,11 +1152,25 @@ const SYNAPSES_BUILD = {
       return;
     }
 
+    // Mise en forme défensive : une case dont le format lève une exception
+    // (champ inattendu dans un ancien coffre, etc.) est ignorée plutôt que
+    // de faire échouer tout l'affichage. Un avertissement est journalisé
+    // pour rester diagnosticable sans jamais bloquer l'enseignant.
+    function formaterSansCasser(c){
+      try {
+        return SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+      } catch(err) {
+        console.warn('Créneau ignoré (format illisible) dans l\'emploi du temps :', c, err);
+        return null;
+      }
+    }
+
     // Dédoublonnage par jour/horaire/type/libellé : une récréation fixe ne doit
     // pas être répétée si un ancien coffre la contient déjà dans e.planning[].
     const vus = new Set();
     const casesUniques = toutesCases.filter(c => {
-      const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+      const f = formaterSansCasser(c);
+      if(!f) return false;
       const cle = [c.jour, f.debut, f.fin, f.typeLieu, f.lieuNom, f.activiteNom].join('|');
       if(vus.has(cle)) return false;
       vus.add(cle);
@@ -1093,9 +1178,10 @@ const SYNAPSES_BUILD = {
     });
 
     const valides = casesUniques.map(c => {
-      const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+      const f = formaterSansCasser(c);
+      if(!f) return null;
       return { c, f, debutMin:heureVersMinutesEdt(f.debut), finMin:heureVersMinutesEdt(f.fin) };
-    }).filter(x => Number.isFinite(x.debutMin) && Number.isFinite(x.finMin) && x.finMin > x.debutMin);
+    }).filter(x => x && Number.isFinite(x.debutMin) && Number.isFinite(x.finMin) && x.finMin > x.debutMin);
 
     if(!valides.length){
       const vide = document.createElement('div');
@@ -1108,11 +1194,26 @@ const SYNAPSES_BUILD = {
 
     const minDebut = arrondirDebutGrilleEdt(Math.min(...valides.map(x => x.debutMin)));
     const maxFin = arrondirFinGrilleEdt(Math.max(...valides.map(x => x.finMin)));
-    const hauteur = ((maxFin - minDebut) / 30) * 56;
+
+    // Échelle adaptative : si des créneaux très courts (récréation de
+    // 10-15 min, prise en charge courte…) sont présents, on agrandit la
+    // hauteur d'une demi-heure de grille pour que le texte (classe, nom du
+    // créneau, horaire) reste lisible au lieu d'être écrasé. Bornée pour
+    // ne pas non plus produire une grille démesurément haute.
+    const dureeMinMinutes = Math.min(...valides.map(x => x.finMin - x.debutMin));
+    const HAUTEUR_LISIBLE_PX = 40; // hauteur minimale visée pour le plus petit créneau
+    let px30 = 56;
+    if(dureeMinMinutes < 30){
+      px30 = Math.round(HAUTEUR_LISIBLE_PX * 30 / dureeMinMinutes);
+    }
+    px30 = Math.max(56, Math.min(112, px30));
+
+    const hauteur = ((maxFin - minDebut) / 30) * px30;
 
     const planningEl = document.createElement('div');
     planningEl.className = 'edt-planning';
     planningEl.style.setProperty('--edt-hauteur', hauteur + 'px');
+    planningEl.style.setProperty('--edt-px-30', px30 + 'px');
 
     const head = document.createElement('div');
     head.className = 'edt-planning-head';
@@ -1133,7 +1234,7 @@ const SYNAPSES_BUILD = {
     for(let m=minDebut; m<=maxFin; m+=30){
       const repere = document.createElement('div');
       repere.className = 'edt-heure-repere';
-      repere.style.top = (((m-minDebut)/30)*56) + 'px';
+      repere.style.top = (((m-minDebut)/30)*px30) + 'px';
       const label = document.createElement('span');
       label.className = 'edt-heure-label';
       label.textContent = minutesVersHeureEdt(m);
@@ -1152,19 +1253,30 @@ const SYNAPSES_BUILD = {
       for(let m=minDebut+15; m<maxFin; m+=30){
         const demi = document.createElement('div');
         demi.className = 'edt-ligne-demi';
-        demi.style.top = (((m-minDebut)/30)*56) + 'px';
+        demi.style.top = (((m-minDebut)/30)*px30) + 'px';
         col.appendChild(demi);
       }
 
-      valides.filter(x => Number(x.f.jour) === jour).forEach(x => {
+      // Créneaux qui se chevauchent réellement dans le temps (ex. une
+      // affectation de classe non exclue et une prise en charge extérieure
+      // au même horaire) : disposés côte à côte plutôt que superposés, pour
+      // qu'aucun des deux ne masque l'autre.
+      const casesDuJour = disposerColonnesChevauchement(valides.filter(x => Number(x.f.jour) === jour));
+
+      casesDuJour.forEach(x => {
         const f = x.f;
         const bloc = document.createElement('div');
         const duree = x.finMin - x.debutMin;
+        const hauteurBlocPx = Math.max(12, (duree/30)*px30 - 2);
         bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
-        if(duree < 20) bloc.classList.add('edt-duree-courte');
-        if(duree < 10) bloc.classList.add('edt-duree-tres-courte');
-        bloc.style.top = (((x.debutMin-minDebut)/30)*56) + 'px';
-        bloc.style.height = Math.max(12, (duree/30)*56 - 2) + 'px';
+        if(hauteurBlocPx < 46) bloc.classList.add('edt-duree-courte');
+        if(hauteurBlocPx < 26) bloc.classList.add('edt-duree-tres-courte');
+        bloc.style.top = (((x.debutMin-minDebut)/30)*px30) + 'px';
+        bloc.style.height = hauteurBlocPx + 'px';
+        const largeurPct = 100 / x._colCount;
+        bloc.style.left = 'calc(' + (largeurPct * x._col) + '% + 3px)';
+        bloc.style.width = 'calc(' + largeurPct + '% - 6px)';
+        bloc.style.right = 'auto';
         bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') + (f.activiteNom || typeSeanceCreneau(x.c)) + ' · ' + f.debut + '–' + f.fin;
 
         const lieuEl = document.createElement('div');
@@ -1221,6 +1333,16 @@ const SYNAPSES_BUILD = {
     tableWrap.className = 'edt-table-wrap';
     tableWrap.appendChild(planningEl);
     wrap.appendChild(tableWrap);
+
+    } catch(err) {
+      console.error('Erreur lors de l\'affichage de l\'emploi du temps :', err);
+      wrap.innerHTML = '';
+      const erreur = document.createElement('div');
+      erreur.className = 'edt-vide';
+      erreur.textContent = 'Impossible d\'afficher l\'emploi du temps de cet élève (données illisibles). Voir la console pour le détail.';
+      wrap.appendChild(erreur);
+      $('edtBtnImprimer').disabled = true;
+    }
   }
 
   $('edtSelectEleve').addEventListener('change', (e) => {
