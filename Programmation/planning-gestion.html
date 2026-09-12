@@ -1919,12 +1919,30 @@ function renderGenDispositifGrille(){
           }
 
           const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
+          // BUG CORRIGÉ : gendEtatOriginal doit refléter ce qui est VRAIMENT
+          // déjà enregistré dans e.planning pour CE créneau du dispositif —
+          // pas être recalculé comme une simple proposition par défaut à
+          // chaque rendu. Avant ce correctif, gendEtatOriginal et
+          // gendEtatEnCours valaient systématiquement la même chose (les
+          // deux étaient "!enClasse"), donc au moment d'enregistrer,
+          // "if(avant===apres) return;" sautait TOUTES les cases tant que
+          // l'enseignant n'avait pas lui-même décoché/recoché une case à la
+          // main : les cases apparaissaient cochées, "Enregistrer" ne
+          // renvoyait aucune erreur, mais aucune affectation au dispositif
+          // n'était jamais écrite dans le coffre — d'où son absence totale
+          // dans l'emploi du temps de coffre.html.
+          const dejaAffecteDispositif = Array.isArray(e.planning) && e.planning.some(
+            (p) => p.classeId === dispId && p.creneauId === c.id
+          );
           // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
           // classe de référence sur ce créneau (complémentaire des
-          // "non-affectations" de la classe de référence).
-          const coche=!enClasse;
-          gendEtatOriginal[cle]=coche;
-          gendEtatEnCours[cle]=coche;
+          // "non-affectations" de la classe de référence) — mais seulement
+          // tant qu'aucune décision n'a encore été enregistrée pour ce
+          // créneau précis ; si une affectation dispositif existe déjà, la
+          // case doit refléter cet état réel.
+          const coche = dejaAffecteDispositif ? true : !enClasse;
+          gendEtatOriginal[cle] = dejaAffecteDispositif;
+          gendEtatEnCours[cle] = coche;
 
           const line=document.createElement("label");
           line.className="affg-eleve-line"+(coche?"":" exclu");
