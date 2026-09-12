@@ -1548,7 +1548,7 @@ function enregistrerElevesClasse(classeId, etat){
       // de c.titre pour un créneau de type "seance", de c.libelle sinon
       // (récréation, pause, autre) — jamais du domaineCle, qui reste une
       // clé technique interne non affichée telle quelle.
-      const nomActivite = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
+      const nomActivite = PC.libelleCreneau(c);
       coffre.affecterCreneau(ref.identifiantSynapses, {
         classeId: cl.id,
         classeNom: cl.nom,
@@ -1663,7 +1663,7 @@ function renderAffgGrille(){
       if(!liste.length){td.innerHTML='<div class="affg-vide">—</div>';tr.appendChild(td);return;}
 
       liste.forEach(c=>{
-        const nom=c.type==="seance"?(c.titre||""):(c.libelle||"");
+        const nom=PC.libelleCreneau(c);
         if(nom){
           const lib=document.createElement("div");lib.className="affg-creneau-libelle";lib.textContent=nom;td.appendChild(lib);
         }
@@ -2018,7 +2018,7 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
         );
         return !chevauche;
       });
-      const nomActivite = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
+      const nomActivite = PC.libelleCreneau(c);
       coffre.affecterCreneau(idEleve, {
         classeId: dispId,
         classeNom: disp ? disp.nom : "",
@@ -2045,7 +2045,7 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
           ? coffre.priseEnChargeExterieureSurCreneau(idEleve, cc.jour, cc.debut, cc.fin)
           : null;
         if(pecClasse) return;
-        const nomActiviteCc = cc.type==="seance" ? (cc.titre||"") : (cc.libelle||"");
+        const nomActiviteCc = PC.libelleCreneau(cc);
         coffre.affecterCreneau(idEleve, {
           classeId: cl.id,
           classeNom: cl.nom,
