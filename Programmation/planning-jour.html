@@ -845,21 +845,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
 <div class="toast" id="toast"></div>
 
-<script src="../fata-morgana/synapses-crypto.js">
-/* Nettoyage du localStorage à la fermeture de la page.
- * Ces pages sont des outils de travail temporaires : aucune donnée ne doit
- * rester persistée côté navigateur après leur fermeture. */
-(function(){
-  let nettoye = false;
-  function nettoyerLocalStorage(){
-    if(nettoye) return;
-    nettoye = true;
-    try { localStorage.clear(); } catch(e) {}
-  }
-  window.addEventListener("pagehide", nettoyerLocalStorage);
-  window.addEventListener("beforeunload", nettoyerLocalStorage);
-})();
-</script>
+<script src="../fata-morgana/synapses-crypto.js"></script>
 <script src="../fata-morgana/synapses-coffre.js"></script>
 <script src="planning-core.js"></script>
 
@@ -1074,10 +1060,37 @@ function labelEleve(id){
   return id;
 }
 
+function normaliserTextePlanning(v){
+  return String(v||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").toLowerCase();
+}
+
+function eleveEstDansClasse(e, classeId){
+  if(!classeId) return true;
+  const cl = (config.classes||[]).find(c=>c.id===classeId);
+  if(!cl) return true;
+  const valeur = e.classe || (e.identite && e.identite.classe) || "";
+  const nv = normaliserTextePlanning(valeur);
+  return nv === normaliserTextePlanning(cl.nom) || (cl.niveau && nv === normaliserTextePlanning(cl.niveau));
+}
+
+function retirerEleveDesAutresGroupes(id, groupeCible){
+  // Planning — Jour ne modifie ni le coffre ni les données sources du
+  // planning. La réaffectation est uniquement une modification du cahier
+  // journal du jour : un élève ne peut appartenir qu'à un seul groupe de
+  // travail sur une même plage horaire.
+  (jour.groupes||[]).forEach(g=>{
+    if(g===groupeCible || g.fixe) return;
+    if(g.debut===groupeCible.debut && g.fin===groupeCible.fin){
+      g.eleves = (g.eleves||[]).filter(x=>x!==id);
+    }
+  });
+}
+
 function optionsElevesDisponibles(groupe){
   if(!coffreOuvert()) return "";
   return coffre.listerEleves()
     .filter(e=> !(groupe.eleves||[]).includes(e.identifiantSynapses))
+    .filter(e=> eleveEstDansClasse(e, groupe.classeId))
     .map(e=>`<option value="${escapeAttr(e.identifiantSynapses)}">${escapeHTML(eleveLabel(e))}</option>`).join("");
 }
 
@@ -1601,12 +1614,32 @@ function renderJour(){
 
       addBtn.addEventListener("click",()=>{
         if(bloc.groupes.length >= 3){ toast("Maximum de 3 groupes pour ce créneau."); return; }
-        jour.groupes.push({
+
+        const classeId = (classeFiltreCourante && classeFiltreCourante.startsWith("cls:"))
+          ? classeFiltreCourante.slice(4) : "";
+        const classe = (config.classes||[]).find(c=>c.id===classeId);
+
+        // Groupe volontairement indépendant de la grille : il sert à
+        // réaffecter des élèves pour cette seule journée (AESH/autonomie),
+        // sans écrire dans Planning — Gestion ni dans le coffre.
+        const nouveau = {
           id:PC.uid("grp"), debut:bloc.debut, fin:bloc.fin, origine:null, modifie:true,
-          adulte:{type:"enseignant",nom:""}, titre:"Nouveau groupe", domaineCle:"", niveau:"", classeId:"",
-          seanceRef:null, eleves:[], remarque:"", fixe:false
-        });
-        sauver(); renderJour();
+          adulte:{type:"aesh",nom:""}, titre:"Avec AESH", domaineCle:"",
+          niveau:classe ? classe.nom : "", classeId, seanceRef:null,
+          eleves:[], remarque:"Réaffectation ponctuelle", fixe:false,
+          mode:"aesh"
+        };
+        jour.groupes.push(nouveau);
+        sauver();
+        renderJour();
+        // Ramène directement l'attention sur la nouvelle carte : le choix
+        // AESH/autonomie et l'ajout des élèves sont alors immédiats.
+        setTimeout(()=>{
+          const cartes = document.querySelectorAll('.groupe-card');
+          const derniere = cartes[cartes.length-1];
+          if(derniere) derniere.scrollIntoView({behavior:"smooth", block:"nearest"});
+        },0);
+        toast("Groupe créé : ajoutez les élèves à réaffecter.");
       });
       if(bloc.groupes.length >= 3){
         addBtn.disabled=true;
@@ -1680,6 +1713,7 @@ function heureCourte(hhmm){
 
 function classifierGroupeCJ(g){
   if(g.fixe && !g.adulte) return "banner";
+  if(g.mode === "autonomie") return "auto";
   const t = g.adulte && g.adulte.type;
   if(t === "enseignant") return "ens";
   if(t === "aesh" || t === "atsem" || t === "autre") return "aesh";
@@ -1789,7 +1823,8 @@ function renderGroupeCard(g){
     return card;
   }
 
-  const typesOptions = PC.TYPES_ADULTE.map(t=>`<option value="${t.id}" ${g.adulte && g.adulte.type===t.id?'selected':''}>${t.label}</option>`).join("");
+  const typesOptions = PC.TYPES_ADULTE.map(t=>`<option value="${t.id}" ${g.mode!=="autonomie" && g.adulte && g.adulte.type===t.id?'selected':''}>${t.label}</option>`).join("")
+    + `<option value="autonomie" ${g.mode==="autonomie"?'selected':''}>Autonomie</option>`;
   const cadenas = g.modifie ? `<span title="Modifié à la main" style="float:right;font-size:11px;color:var(--ink-soft);">🔒</span>` : "";
 
   card.innerHTML = `
@@ -1831,12 +1866,40 @@ function renderGroupeCard(g){
   function marquerPersonnalise(){ g.modifie = true; if(g.repartitionAuto) g.personnalise = true; }
 
   card.querySelector(".groupe-titre").addEventListener("change",e=>{g.titre=e.target.value;marquerPersonnalise();sauver();renderJour();});
-  card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;marquerPersonnalise();sauver();});
-  card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;marquerPersonnalise();sauver();});
+  card.querySelector(".adulte-type").addEventListener("change",e=>{
+    const mode=e.target.value;
+    if(mode==="autonomie"){
+      g.mode="autonomie";
+      g.adulte={type:"autre",nom:""};
+      if(!g.titre || g.titre==="Nouveau groupe" || g.titre==="Avec AESH") g.titre="En autonomie";
+    }else{
+      g.mode=mode;
+      g.adulte=g.adulte||{};
+      g.adulte.type=mode;
+      if(mode==="aesh" && (!g.titre || g.titre==="Nouveau groupe" || g.titre==="En autonomie")) g.titre="Avec AESH";
+    }
+    marquerPersonnalise();
+    sauver();
+    renderJour();
+  });
+  card.querySelector(".adulte-nom").addEventListener("change",e=>{
+    if(g.mode==="autonomie") return;
+    g.adulte=g.adulte||{};
+    g.adulte.nom=e.target.value;
+    marquerPersonnalise();
+    sauver();
+  });
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
   card.querySelector('[data-role=add-eleve]').addEventListener("change",e=>{
-    const id=e.target.value;if(!id)return;g.eleves=g.eleves||[];if(!g.eleves.includes(id))g.eleves.push(id);marquerPersonnalise();sauver();renderChips();
-    e.target.innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
+    const id=e.target.value;if(!id)return;
+    g.eleves=g.eleves||[];
+    if(!g.eleves.includes(id)){
+      retirerEleveDesAutresGroupes(id,g);
+      g.eleves.push(id);
+    }
+    marquerPersonnalise();
+    sauver();
+    renderJour();
   });
   card.querySelector('[data-role=del-groupe]').addEventListener("click",()=>{
     if(g.origine) jour.exclusions.push(g.origine);

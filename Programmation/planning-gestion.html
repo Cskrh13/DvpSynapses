@@ -452,21 +452,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
-/* Nettoyage du localStorage à la fermeture de la page.
- * Ces pages sont des outils de travail temporaires : aucune donnée ne doit
- * rester persistée côté navigateur après leur fermeture. */
-(function(){
-  let nettoye = false;
-  function nettoyerLocalStorage(){
-    if(nettoye) return;
-    nettoye = true;
-    try { localStorage.clear(); } catch(e) {}
-  }
-  window.addEventListener("pagehide", nettoyerLocalStorage);
-  window.addEventListener("beforeunload", nettoyerLocalStorage);
-})();
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 
