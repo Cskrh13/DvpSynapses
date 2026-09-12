@@ -187,17 +187,49 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
 .edt-edition-boite input{width:100%;box-sizing:border-box;}
 .print-only{display:none;}
-#edtEnteteImpression h2{margin:0 0 4px;font-size:18px;}
-#edtEnteteImpression p{margin:0 0 14px;color:var(--ink-soft);font-size:12.5px;}
+/* En-tête d'impression : reprend la DA du site (bandeau navy, marque
+   Fraunces, eyebrow mono accent-sky) au lieu d'un simple <h2> nu, pour que
+   la feuille imprimée reste identifiable comme un document Synapses. */
+#edtEnteteImpression{display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding-bottom:12px;margin-bottom:14px;border-bottom:2px solid var(--navy);}
+#edtEnteteImpression .edt-imp-marque{display:flex;align-items:center;gap:12px;}
+#edtEnteteImpression .edt-imp-logo{width:34px;height:34px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(160deg,var(--accent-sky),#5486d6);color:#fff;
+  font-family:'Fraunces',serif;font-weight:700;font-size:15px;
+  display:flex;align-items:center;justify-content:center;}
+#edtEnteteImpression .edt-imp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--accent-sky);font-weight:600;margin:0;}
+#edtEnteteImpression h2{margin:1px 0 0;font-size:19px;color:var(--navy);}
+#edtEnteteImpression .edt-imp-meta{text-align:right;font-size:11.5px;color:var(--ink-soft);}
+#edtEnteteImpression .edt-imp-meta div+div{margin-top:2px;}
+#edtImpressionLegende{display:none;}
+#edtImpressionLegende .edt-imp-puce{display:inline-flex;align-items:center;gap:5px;}
+#edtImpressionLegende .edt-imp-carre{width:11px;height:11px;border-radius:3px;display:inline-block;}
+#edtImpressionPied{display:none;}
 @media print {
+  @page { size: landscape; margin: 10mm 12mm; }
+  html, body{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact;}
+  body{background:#fff;}
   body *{visibility:hidden;}
   #edtZoneImpression, #edtZoneImpression *{visibility:visible;}
   #edtZoneImpression{position:absolute;left:0;top:0;width:100%;padding:0;margin:0;}
   .print-only{display:block;}
+  #edtImpressionLegende{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--ink-soft);align-items:center;}
+  #edtImpressionPied{display:flex;margin-top:14px;padding-top:8px;border-top:1px solid var(--line);
+    font-size:10px;color:var(--ink-soft);justify-content:space-between;}
   .edt-btn-editer{display:none !important;}
-  .edt-table{min-width:0;}
-  .edt-case.edt-remplie{background:#fff;}
-  .edt-bloc-externe{background:#fff;border:1px solid #ccc;}
+  .edt-table{min-width:0;width:100%;table-layout:fixed;font-size:12px;}
+  .edt-table th.edt-heure{width:64px;}
+  .edt-case{min-width:0;}
+  /* Contrairement à l'écran, on CONSERVE les teintes du site sur le papier
+     (bleu dispositif, orange santé...) : c'est ce qui rend la grille
+     lisible d'un coup d'œil, et c'est la DA du site qu'on nous demande de
+     respecter — le rendu "tout blanc" précédent la neutralisait. */
+  .edt-case.edt-remplie{background:#EEF2FB;}
+  .edt-bloc-dispositif{background:#EAF1FA;border-radius:5px;padding:3px 5px;margin:2px -5px;}
+  .edt-bloc-externe{background:#FDF3E7;border-radius:5px;padding:3px 5px;margin:2px -5px;}
+  .edt-table th, .edt-table td{border-color:#B9C0D6;}
+  .edt-table thead th{background:var(--navy);color:#fff;}
 }
 
 /* ---- Gestion des prises en charge extérieures (santé) ---- */
@@ -394,6 +426,8 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
     <div id="edtZoneImpression">
       <div id="edtEnteteImpression" class="print-only"></div>
       <div id="edtGrilleWrap"></div>
+      <div id="edtImpressionLegende" class="print-only"></div>
+      <div id="edtImpressionPied" class="print-only"></div>
     </div>
     <div id="edtEditionWrap"></div>
   </section>
@@ -1083,14 +1117,76 @@ const SYNAPSES_BUILD = {
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     if (!eleve) return;
 
+    const dateEdition = new Date().toLocaleDateString('fr-FR');
+    const etablissement = (coffre.donnees && coffre.donnees.etablissement) || '';
+
+    // En-tête : reprend la marque du site (pastille dégradée + eyebrow mono
+    // + titre Fraunces) plutôt qu'un simple <h2>, pour que la page imprimée
+    // reste identifiable comme un document Synapses même hors ligne.
     const entete = $('edtEnteteImpression');
     entete.innerHTML = '';
+    const marque = document.createElement('div');
+    marque.className = 'edt-imp-marque';
+    const logo = document.createElement('div');
+    logo.className = 'edt-imp-logo';
+    logo.textContent = 'RÉ';
+    const texte = document.createElement('div');
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'edt-imp-eyebrow';
+    eyebrow.textContent = 'Synapses — Coffre individuel';
     const titre = document.createElement('h2');
     titre.textContent = 'Emploi du temps — ' + nomAffichageEleve(eleve);
-    const sousTitre = document.createElement('p');
-    sousTitre.textContent = 'Édité le ' + new Date().toLocaleDateString('fr-FR');
-    entete.appendChild(titre);
-    entete.appendChild(sousTitre);
+    texte.appendChild(eyebrow);
+    texte.appendChild(titre);
+    marque.appendChild(logo);
+    marque.appendChild(texte);
+    entete.appendChild(marque);
+
+    const meta = document.createElement('div');
+    meta.className = 'edt-imp-meta';
+    const ligneId = document.createElement('div');
+    ligneId.textContent = eleve.identifiantSynapses;
+    meta.appendChild(ligneId);
+    if (etablissement) {
+      const ligneEtab = document.createElement('div');
+      ligneEtab.textContent = etablissement;
+      meta.appendChild(ligneEtab);
+    }
+    const ligneDate = document.createElement('div');
+    ligneDate.textContent = 'Édité le ' + dateEdition;
+    meta.appendChild(ligneDate);
+    entete.appendChild(meta);
+
+    // Légende des couleurs utilisées dans la grille, pour rester lisible
+    // sans avoir à deviner à quoi correspond une teinte sur le papier.
+    const legende = $('edtImpressionLegende');
+    legende.innerHTML = '';
+    [
+      { couleur: '#EEF2FB', label: 'Classe' },
+      { couleur: '#EAF1FA', label: 'Dispositif (ULIS)' },
+      { couleur: '#FDF3E7', label: 'Prise en charge extérieure (santé)' }
+    ].forEach((item) => {
+      const puce = document.createElement('span');
+      puce.className = 'edt-imp-puce';
+      const carre = document.createElement('span');
+      carre.className = 'edt-imp-carre';
+      carre.style.background = item.couleur;
+      carre.style.border = '1px solid #B9C0D6';
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      puce.appendChild(carre);
+      puce.appendChild(label);
+      legende.appendChild(puce);
+    });
+
+    const pied = $('edtImpressionPied');
+    pied.innerHTML = '';
+    const confidentiel = document.createElement('div');
+    confidentiel.textContent = 'Document confidentiel — usage individuel, ne pas diffuser.';
+    const source = document.createElement('div');
+    source.textContent = 'Généré depuis le coffre Synapses (.synapses), hors ligne.';
+    pied.appendChild(confidentiel);
+    pied.appendChild(source);
 
     window.print();
   });
