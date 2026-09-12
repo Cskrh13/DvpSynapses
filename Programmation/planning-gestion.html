@@ -255,7 +255,6 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <button data-tab="tab-horaires">Jours travaillés &amp; horaires fixes</button>
     <button data-tab="tab-grille">Grille horaire type</button>
     <button data-tab="tab-affectation">Affectation</button>
-    <button data-tab="tab-generation">Génération</button>
   </div>
 
   <!-- =============== ONGLET : CONFIGURATION GÉNÉRALE =============== -->
@@ -426,46 +425,19 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
   <div class="tab-panel" id="tab-affectation">
     <section class="card">
       <h2>Affectation des élèves — semaine complète</h2>
-      <p class="hint">Sélectionnez une classe pour afficher tous ses créneaux du lundi au vendredi. Les créneaux sont ceux de la grille horaire type et ne sont pas modifiables ici. Pour chaque élève chargé dans la classe, chaque cellule indique s'il est affecté ou non au créneau. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau (voir coffre.html, onglet « Emploi du temps ») : il n'est proposé ni pour la classe ni pour un dispositif tant que cette prise en charge est active.</p>
+      <p class="hint" id="affg-hint-classe">Sélectionnez une classe pour afficher tous ses créneaux du lundi au vendredi. Les créneaux sont ceux de la grille horaire type et ne sont pas modifiables ici. Pour chaque élève chargé dans la classe, chaque cellule indique s'il est affecté ou non au créneau. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau (voir coffre.html, onglet « Emploi du temps ») : il n'est proposé ni pour la classe ni pour un dispositif tant que cette prise en charge est active.</p>
+      <p class="hint" id="affg-hint-dispositif" style="display:none;">La grille du dispositif est saisie comme celle d'une classe, dans « Grille horaire type » : chaque créneau y définit directement un temps de l'emploi du temps ULIS et n'est pas modifiable ici. Cocher un élève l'affecte au dispositif sur ce créneau et le retire de l'affectation de sa classe de référence ; décocher fait l'inverse. Par défaut, la case est cochée pour chaque créneau où l'élève n'est <strong>pas</strong> déjà affecté à sa classe de référence. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau : ni classe ni dispositif ne lui sont proposés.</p>
       <div class="row" style="margin-bottom:14px;">
-        <div class="field"><label>Classe</label><select id="affg-classe"></select></div>
+        <div class="field"><label>Classe / dispositif</label><select id="affg-classe"></select></div>
         <button class="btn primary" id="btn-enregistrer-eleves">Enregistrer les élèves et leurs créneaux</button>
+        <button class="btn primary" id="btn-enregistrer-gend" style="display:none;">Enregistrer ces affectations</button>
         <span id="affg-save-status" class="hint" style="margin:0;"></span>
+        <span id="gend-save-status" class="hint" style="margin:0;"></span>
       </div>
       <div id="affg-sans-coffre" class="empty-hint" style="display:none;"></div>
+      <div id="gend-sans-dispositif" class="empty-hint" style="display:none;"></div>
       <div id="affg-wrap"></div>
-    </section>
-  </div>
-
-  <!-- =============== ONGLET : GÉNÉRATION =============== -->
-  <div class="tab-panel" id="tab-generation">
-    <section class="card">
-      <h2>Génération du planning</h2>
-      <p class="hint">Répartit automatiquement, pour chaque créneau de type « Séance », la prochaine séance disponible du domaine choisi (fichiers du dépôt + séances créées dans « Séquences &amp; séances »). Les créneaux déjà modifiés à la main dans la page d'affichage <strong>ne sont jamais écrasés</strong>.</p>
-      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;">
-        <label class="field" style="margin:0;">
-          <span>Choisir un dispositif</span>
-          <select id="generation-dispositif" style="min-width:190px;"></select>
-        </label>
-        <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
-      </div>
-      <p class="hint" style="margin-top:14px;">
-        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS. Les élèves affectés au dispositif sur chaque créneau se règlent ci-dessous, et l'enregistrement des affectations (bouton « Enregistrer ces affectations ») met directement à jour le planning individuel des élèves concernés — il n'y a pas d'étape de synchronisation séparée.
-      </p>
-
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
-        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
-          <p class="hint" style="margin:0;max-width:640px;">
-            Élèves affectés au dispositif choisi ci-dessus, créneau par créneau. Cocher un élève l'affecte au dispositif à ce créneau et le retire de l'affectation de sa classe de référence ; décocher fait l'inverse. Par défaut, la case est cochée pour chaque créneau où l'élève n'est <strong>pas</strong> déjà affecté à sa classe de référence. Un élève marqué 🏥 est en prise en charge extérieure (santé) sur ce créneau : ni classe ni dispositif ne lui sont proposés.
-          </p>
-          <div class="row" style="gap:8px;align-items:center;">
-            <span id="gend-save-status" class="hint" style="margin:0;"></span>
-            <button class="btn primary" id="btn-enregistrer-gend">Enregistrer ces affectations</button>
-          </div>
-        </div>
-        <div id="gend-sans-dispositif" class="empty-hint" style="display:none;"></div>
-        <div id="gend-wrap"></div>
-      </div>
+      <div id="gend-wrap"></div>
     </section>
   </div>
 </main>
@@ -569,8 +541,7 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
     b.classList.add("active");
     $(b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "tab-grille") renderGrilleTabs();
-    if (b.dataset.tab === "tab-affectation") { renderAffgClasseSelect(); renderAffgGrille(); }
-    if (b.dataset.tab === "tab-generation") { renderGenerationDispositifs(); renderGenDispositifGrille(); }
+    if (b.dataset.tab === "tab-affectation") { renderAffgClasseSelect(); refreshAffectationTab(); }
   });
 });
 
@@ -619,8 +590,7 @@ function majEtatCoffre(){
   $("classe-eleves-bloc").style.display = ouvert ? "" : "none";
   if(ouvert) renderClasseElevesSelect();
   if(typeof renderAffectationEleveSelect === "function"){ renderAffectationEleveSelect(); renderAffectationListe(); }
-  if(typeof renderAffgGrille === "function") renderAffgGrille();
-  if(typeof renderGenDispositifGrille === "function") renderGenDispositifGrille();
+  if(typeof refreshAffectationTab === "function") refreshAffectationTab();
 }
 $("btn-coffre-ouvrir").addEventListener("click", ()=>{
   if(!coffreDisponible){ toast("Le coffre est indisponible : synapses-coffre.js n'a pas pu être chargé."); return; }
@@ -1012,8 +982,7 @@ $("btn-charger-tous-eleves").addEventListener("click", ()=>{
 
   renderClasses();
   renderClasseElevesListe();
-  if(typeof renderAffgGrille === "function" && $("affg-classe") && $("affg-classe").value) renderAffgGrille();
-  if(typeof renderGenDispositifGrille === "function") renderGenDispositifGrille();
+  if(typeof refreshAffectationTab === "function" && $("affg-classe") && $("affg-classe").value) refreshAffectationTab();
 
   if(!totalCharges){
     toast("Aucun élève du coffre ne correspond à une classe créée ici.");
@@ -1591,8 +1560,28 @@ let affgEtatEnCours={};
 function renderAffgClasseSelect(){
   const sel=$("affg-classe");
   const prev=sel.value;
-  sel.innerHTML=(config.classes||[]).map(cl=>`<option value="${cl.id}">${escapeHTMLTexte(cl.nom)}</option>`).join("")||'<option value="">Aucune classe</option>';
-  if(prev && config.classes.some(c=>c.id===prev)) sel.value=prev;
+  const optsClasses=(config.classes||[]).map(cl=>`<option value="${cl.id}">${escapeHTMLTexte(cl.nom)}</option>`);
+  const optsDispositifs=(config.dispositifs||[]).map(d=>`<option value="${d.id}">${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type||"")})</option>`);
+  sel.innerHTML=optsClasses.concat(optsDispositifs).join("")||'<option value="">Aucune classe ni dispositif</option>';
+  const dispo=(config.classes||[]).some(c=>c.id===prev)||(config.dispositifs||[]).some(d=>d.id===prev);
+  if(prev && dispo) sel.value=prev;
+}
+
+/* Bascule l'affichage classe (affg-*) / dispositif (gend-*) selon la
+ * sélection courante, puis délègue le rendu à la grille concernée. Les
+ * deux grilles restent des mécanismes distincts (logiques d'enregistrement
+ * différentes) : on ne fait que les présenter sous un même onglet. */
+function refreshAffectationTab(){
+  const id=$("affg-classe").value;
+  const estDisp=!!id && estDispositifId(id);
+  $("affg-hint-classe").style.display=estDisp?"none":"";
+  $("affg-hint-dispositif").style.display=estDisp?"":"none";
+  $("btn-enregistrer-eleves").style.display=estDisp?"none":"";
+  $("btn-enregistrer-gend").style.display=estDisp?"":"none";
+  $("affg-save-status").style.display=estDisp?"none":"";
+  $("gend-save-status").style.display=estDisp?"":"none";
+  renderAffgGrille();
+  renderGenDispositifGrille();
 }
 
 function renderAffgGrille(){
@@ -1601,7 +1590,8 @@ function renderAffgGrille(){
   wrap.innerHTML="";
   affgEtatEnCours={};
 
-  if(!classeId){hint.style.display="";hint.textContent="Créez et sélectionnez une classe.";return;}
+  if(classeId && estDispositifId(classeId)){ hint.style.display="none"; return; } // géré par renderGenDispositifGrille
+  if(!classeId){hint.style.display="";hint.textContent="Créez et sélectionnez une classe ou un dispositif.";return;}
   if(!coffre||!coffre.ouvert){hint.style.display="";hint.textContent="Ouvrez le coffre pour charger les élèves et enregistrer leur planning individuel.";return;}
 
   const roster=elevesParClasse[classeId]||[];
@@ -1731,7 +1721,7 @@ function renderAffgGrille(){
   scroll.appendChild(table);wrap.appendChild(scroll);
 }
 
-$("affg-classe").addEventListener("change",renderAffgGrille);
+$("affg-classe").addEventListener("change",refreshAffectationTab);
 $("btn-enregistrer-eleves").addEventListener("click",()=>{
   const status=$("affg-save-status");status.textContent="";
   try{
@@ -1754,18 +1744,7 @@ function renderSummary(){
   if(typeof renderGenDispositifGrille === "function") renderGenDispositifGrille();
 }
 
-function renderGenerationDispositifs(){
-  const sel=$("generation-dispositif");
-  if(!sel) return;
-  const prev=sel.value;
-  const dispositifs=config.dispositifs||[];
-  sel.innerHTML=dispositifs.length
-    ? dispositifs.map(d=>`<option value="${d.id}">${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type||"")})</option>`).join("")
-    : '<option value="">Aucun dispositif</option>';
-  if(prev && dispositifs.some(d=>d.id===prev)) sel.value=prev;
-}
-
-/* ---------------- Grille d'affectation du dispositif (onglet Génération) ----------------
+/* ---------------- Grille d'affectation du dispositif (onglet Affectation) ----------------
  * Reprend le même principe visuel que la grille de l'onglet Affectation :
  * lignes = horaires du dispositif, colonnes = jours, cases = initiales des
  * élèves rattachés aux classes liées au dispositif, avec une case à cocher.
@@ -1817,13 +1796,13 @@ function creneauxClasseChevauchantGend(classeId, c){
 function renderGenDispositifGrille(){
   const wrap = $("gend-wrap"), hint = $("gend-sans-dispositif");
   if(!wrap || !hint) return;
-  const dispId = $("generation-dispositif").value;
+  const dispId = $("affg-classe").value;
   wrap.innerHTML = "";
   gendEtatEnCours = {}; gendEtatOriginal = {}; gendClasseRefParEleve = {};
   const stEl = $("gend-save-status");
   if(stEl){ stEl.textContent=""; stEl.classList.remove("warn"); }
 
-  if(!dispId){ hint.style.display=""; hint.textContent="Créez et sélectionnez un dispositif ci-dessus."; return; }
+  if(!dispId || !estDispositifId(dispId)){ hint.style.display="none"; return; } // géré par renderAffgGrille
   if(!coffre || !coffre.ouvert){ hint.style.display=""; hint.textContent="Ouvrez le coffre pour afficher les élèves du dispositif."; return; }
 
   const classesLiees = (config.classes||[]).filter(cl=>(cl.dispositifs||[]).includes(dispId));
@@ -1966,11 +1945,9 @@ function renderGenDispositifGrille(){
   scroll.appendChild(table); wrap.appendChild(scroll);
 }
 
-$("generation-dispositif").addEventListener("change", renderGenDispositifGrille);
-
 $("btn-enregistrer-gend").addEventListener("click", ()=>{
   if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre d'abord."); return; }
-  const dispId=$("generation-dispositif").value;
+  const dispId=$("affg-classe").value;
   if(!dispId){ toast("Choisissez un dispositif."); return; }
   const disp=(config.dispositifs||[]).find(d=>d.id===dispId);
   const creneaux=(grilles[dispId]||[]);
