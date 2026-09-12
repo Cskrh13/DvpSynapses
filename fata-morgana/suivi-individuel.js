@@ -425,7 +425,7 @@
             class: 'si-btn si-btn-small',
             title: 'Modifier cette observation',
             onclick: () => { this._observationEnEdition = o.id; this._render(); }
-          }, ['✎']),
+          }, ['Éditer']),
           el('button', {
             class: 'si-btn si-btn-small',
             title: 'Supprimer cette observation',
@@ -440,6 +440,12 @@
       ]);
     }
 
+    /** Formulaire d'édition d'une observation : contrairement à l'ancienne
+     *  version (champs compressés horizontalement dans les cellules du
+     *  tableau), tous les champs sont affichés VERTICALEMENT, un par ligne,
+     *  dans une seule cellule pleine largeur — jusqu'à l'enregistrement ou
+     *  l'annulation. Le reste du tableau (autres lignes en lecture seule)
+     *  n'est pas affecté. */
     _renderLigneObservationEdition(eleve, o) {
       const inputSituation = el('input', { type: 'text', value: o.situation || '' });
       const inputDifficulte = el('input', { type: 'text', value: o.difficulte || '' });
@@ -462,21 +468,24 @@
       };
       const annuler = () => { this._observationEnEdition = null; this._render(); };
 
-      return el('tr', { class: 'si-ligne-edition' }, [
-        el('td', {}, [new Date(o.date).toLocaleDateString('fr-FR')]),
-        el('td', {}, [this._labelDomaine(o.domaine)]),
-        el('td', {}, [inputSituation]),
-        el('td', {}, [inputDifficulte]),
-        el('td', {}, [inputBesoin]),
-        el('td', {}, [
-          el('div', {}, [inputAdaptationProposee]),
-          el('div', { style: 'margin-top:4px;' }, [inputAdaptationUtilisee]),
-          el('div', { style: 'margin-top:4px;' }, [inputResultat])
-        ]),
-        el('td', { style: 'white-space:nowrap;' }, [
-          el('button', { class: 'si-btn si-btn-small si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
-          el('button', { class: 'si-btn si-btn-small', onclick: annuler }, ['Annuler'])
+      const form = el('div', { class: 'si-form-observation' }, [
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Date / domaine']), el('p', { class: 'si-hint', style: 'margin:0;' }, [
+          new Date(o.date).toLocaleDateString('fr-FR') + ' — ' + this._labelDomaine(o.domaine)
+        ])]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Situation observée']), inputSituation]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Difficulté']), inputDifficulte]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Besoin']), inputBesoin]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Adaptation proposée']), inputAdaptationProposee]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Adaptation utilisée']), inputAdaptationUtilisee]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Résultat']), inputResultat]),
+        el('div', { class: 'ga-toolbar', style: 'margin-top:4px;' }, [
+          el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
+          el('button', { class: 'si-btn', onclick: annuler }, ['Annuler'])
         ])
+      ]);
+
+      return el('tr', { class: 'si-ligne-edition' }, [
+        el('td', { colspan: '7' }, [form])
       ]);
     }
 
@@ -637,14 +646,18 @@
           this._editionId = null;
           this._render();
         };
-        return el('tr', { class: 'si-ligne-edition' }, [
-          el('td', {}, [inputLibelle]),
-          el('td', {}, [inputHypothese]),
-          el('td', {}, [selectPriorite]),
-          el('td', { style: 'white-space:nowrap;' }, [
-            el('button', { class: 'si-btn si-btn-small si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
-            el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = null; this._render(); } }, ['Annuler'])
+        const annuler = () => { this._editionId = null; this._render(); };
+        const form = el('div', { class: 'si-form-observation' }, [
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Libellé']), inputLibelle]),
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Hypothèse']), inputHypothese]),
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Priorité']), selectPriorite]),
+          el('div', { class: 'ga-toolbar', style: 'margin-top:4px;' }, [
+            el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
+            el('button', { class: 'si-btn', onclick: annuler }, ['Annuler'])
           ])
+        ]);
+        return el('tr', { class: 'si-ligne-edition' }, [
+          el('td', { colspan: '4' }, [form])
         ]);
       }
       return el('tr', {}, [
@@ -652,7 +665,7 @@
         el('td', {}, [b.hypothese || '']),
         el('td', {}, [b.priorite || '—']),
         el('td', { style: 'white-space:nowrap;' }, [
-          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = b.id; this._render(); } }, ['✎']),
+          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = b.id; this._render(); } }, ['Éditer']),
           el('button', {
             class: 'si-btn si-btn-small',
             onclick: () => {
@@ -726,14 +739,18 @@
           this._editionId = null;
           this._render();
         };
-        return el('tr', { class: 'si-ligne-edition' }, [
-          el('td', {}, [inputLibelle]),
-          el('td', {}, [toggleUtilisee]),
-          el('td', {}, [selectEfficacite]),
-          el('td', { style: 'white-space:nowrap;' }, [
-            el('button', { class: 'si-btn si-btn-small si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
-            el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = null; this._render(); } }, ['Annuler'])
+        const annuler = () => { this._editionId = null; this._render(); };
+        const form = el('div', { class: 'si-form-observation' }, [
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Libellé']), inputLibelle]),
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Utilisée']), toggleUtilisee]),
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Efficacité']), selectEfficacite]),
+          el('div', { class: 'ga-toolbar', style: 'margin-top:4px;' }, [
+            el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
+            el('button', { class: 'si-btn', onclick: annuler }, ['Annuler'])
           ])
+        ]);
+        return el('tr', { class: 'si-ligne-edition' }, [
+          el('td', { colspan: '4' }, [form])
         ]);
       }
       return el('tr', {}, [
@@ -741,7 +758,7 @@
         el('td', {}, [toggleUtilisee]),
         el('td', {}, [a.efficacite || '—']),
         el('td', { style: 'white-space:nowrap;' }, [
-          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = a.id; this._render(); } }, ['✎']),
+          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = a.id; this._render(); } }, ['Éditer']),
           el('button', {
             class: 'si-btn si-btn-small',
             onclick: () => {
@@ -808,20 +825,24 @@
           this._editionId = null;
           this._render();
         };
-        return el('tr', { class: 'si-ligne-edition' }, [
-          el('td', {}, [inputLibelle]),
-          el('td', {}, [selectStatut]),
-          el('td', { style: 'white-space:nowrap;' }, [
-            el('button', { class: 'si-btn si-btn-small si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
-            el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = null; this._render(); } }, ['Annuler'])
+        const annuler = () => { this._editionId = null; this._render(); };
+        const form = el('div', { class: 'si-form-observation' }, [
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Libellé']), inputLibelle]),
+          el('div', { class: 'si-form-row' }, [el('label', {}, ['Statut']), selectStatut]),
+          el('div', { class: 'ga-toolbar', style: 'margin-top:4px;' }, [
+            el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
+            el('button', { class: 'si-btn', onclick: annuler }, ['Annuler'])
           ])
+        ]);
+        return el('tr', { class: 'si-ligne-edition' }, [
+          el('td', { colspan: '3' }, [form])
         ]);
       }
       return el('tr', {}, [
         el('td', {}, [o.libelle || '']),
         el('td', {}, [o.statut || '—']),
         el('td', { style: 'white-space:nowrap;' }, [
-          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = o.id; this._render(); } }, ['✎']),
+          el('button', { class: 'si-btn si-btn-small', onclick: () => { this._editionId = o.id; this._render(); } }, ['Éditer']),
           el('button', {
             class: 'si-btn si-btn-small',
             onclick: () => {
@@ -1034,50 +1055,12 @@
       ]));
 
       const eq = eleve.equivalenceScolaire || {};
-      if (eq.dateMaj) {
-        wrap.appendChild(el('p', { class: 'si-hint' }, ['Dernière mise à jour : ' + new Date(eq.dateMaj).toLocaleDateString('fr-FR')]));
+
+      if (this._equivalenceEnEdition) {
+        wrap.appendChild(this._renderFormulaireEquivalence(eleve, eq));
+      } else {
+        wrap.appendChild(this._renderLectureEquivalence(eleve, eq));
       }
-
-      const inputNiveauFr = el('input', { type: 'text', class: 'si-input', placeholder: 'Ex. : milieu de CE1', value: (eq.francais && eq.francais.niveauEquivalent) || '' });
-      const taCompteRenduFr = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Compte rendu de quelques lignes pour le français…' }, [(eq.francais && eq.francais.compteRendu) || '']);
-
-      const inputNiveauMaths = el('input', { type: 'text', class: 'si-input', placeholder: 'Ex. : fin de CE2', value: (eq.mathematiques && eq.mathematiques.niveauEquivalent) || '' });
-      const taCompteRenduMaths = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Compte rendu de quelques lignes pour les mathématiques…' }, [(eq.mathematiques && eq.mathematiques.compteRendu) || '']);
-
-      const taTransversal = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Description transversale, tous domaines confondus (affectif, social, cognitif, sensorimoteur…)…' }, [(eq.transversal && eq.transversal.compteRendu) || '']);
-
-      const messageStatut = el('span', { class: 'si-hint' }, ['']);
-
-      const enregistrer = () => {
-        const francais = (inputNiveauFr.value.trim() || taCompteRenduFr.value.trim())
-          ? { niveauEquivalent: inputNiveauFr.value.trim(), compteRendu: taCompteRenduFr.value.trim() }
-          : null;
-        const mathematiques = (inputNiveauMaths.value.trim() || taCompteRenduMaths.value.trim())
-          ? { niveauEquivalent: inputNiveauMaths.value.trim(), compteRendu: taCompteRenduMaths.value.trim() }
-          : null;
-        const transversal = taTransversal.value.trim()
-          ? { compteRendu: taTransversal.value.trim() }
-          : null;
-
-        this.coffre.enregistrerEquivalenceScolaire(eleve.identifiantSynapses, { francais, mathematiques, transversal });
-        this._render();
-      };
-
-      const form = el('div', { class: 'si-form-observation' }, [
-        el('h3', {}, ['Français']),
-        el('div', { class: 'si-form-row' }, [el('label', {}, ['Niveau équivalent']), inputNiveauFr]),
-        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taCompteRenduFr]),
-        el('h3', { style: 'margin-top:18px;' }, ['Mathématiques']),
-        el('div', { class: 'si-form-row' }, [el('label', {}, ['Niveau équivalent']), inputNiveauMaths]),
-        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taCompteRenduMaths]),
-        el('h3', { style: 'margin-top:18px;' }, ['Description transversale']),
-        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taTransversal]),
-        el('div', { class: 'ga-toolbar', style: 'margin-top:14px;' }, [
-          el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
-          messageStatut
-        ])
-      ]);
-      wrap.appendChild(form);
 
       const historique = ((eleve.equivalenceScolaire || {}).historique || []).slice().reverse();
       wrap.appendChild(el('h3', { style: 'margin-top:28px;' }, ['Historique des versions précédentes']));
@@ -1103,6 +1086,87 @@
       ]));
 
       return wrap;
+    }
+
+    /** Vue en lecture seule de l'équivalence scolaire actuelle, avec un
+     *  bouton « Éditer » qui bascule vers le formulaire vertical complet
+     *  (voir _renderFormulaireEquivalence) — même principe que pour les
+     *  observations/besoins/adaptations/objectifs : on n'affiche des champs
+     *  de saisie qu'une fois l'édition explicitement demandée. */
+    _renderLectureEquivalence(eleve, eq) {
+      const rienEnregistre = !eq.francais && !eq.mathematiques && !eq.transversal;
+      const boite = el('div', { class: 'si-form-observation' });
+
+      if (eq.dateMaj) {
+        boite.appendChild(el('p', { class: 'si-hint', style: 'margin:0 0 4px;' }, ['Dernière mise à jour : ' + new Date(eq.dateMaj).toLocaleDateString('fr-FR')]));
+      }
+
+      if (rienEnregistre) {
+        boite.appendChild(el('p', { class: 'si-empty' }, ['Rien d\'enregistré pour l\'instant.']));
+      } else {
+        boite.appendChild(el('h3', {}, ['Français']));
+        boite.appendChild(el('p', {}, [(eq.francais && eq.francais.niveauEquivalent) || '—']));
+        boite.appendChild(el('p', { class: 'si-hint' }, [(eq.francais && eq.francais.compteRendu) || '']));
+
+        boite.appendChild(el('h3', { style: 'margin-top:14px;' }, ['Mathématiques']));
+        boite.appendChild(el('p', {}, [(eq.mathematiques && eq.mathematiques.niveauEquivalent) || '—']));
+        boite.appendChild(el('p', { class: 'si-hint' }, [(eq.mathematiques && eq.mathematiques.compteRendu) || '']));
+
+        boite.appendChild(el('h3', { style: 'margin-top:14px;' }, ['Description transversale']));
+        boite.appendChild(el('p', { class: 'si-hint' }, [(eq.transversal && eq.transversal.compteRendu) || '—']));
+      }
+
+      boite.appendChild(el('div', { class: 'ga-toolbar', style: 'margin-top:10px;' }, [
+        el('button', {
+          class: 'si-btn si-btn-primary',
+          onclick: () => { this._equivalenceEnEdition = true; this._render(); }
+        }, ['Éditer'])
+      ]));
+      return boite;
+    }
+
+    /** Formulaire vertical complet d'édition de l'équivalence scolaire :
+     *  un champ par ligne, jusqu'à l'enregistrement ou l'annulation. */
+    _renderFormulaireEquivalence(eleve, eq) {
+      const inputNiveauFr = el('input', { type: 'text', class: 'si-input', placeholder: 'Ex. : milieu de CE1', value: (eq.francais && eq.francais.niveauEquivalent) || '' });
+      const taCompteRenduFr = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Compte rendu de quelques lignes pour le français…' }, [(eq.francais && eq.francais.compteRendu) || '']);
+
+      const inputNiveauMaths = el('input', { type: 'text', class: 'si-input', placeholder: 'Ex. : fin de CE2', value: (eq.mathematiques && eq.mathematiques.niveauEquivalent) || '' });
+      const taCompteRenduMaths = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Compte rendu de quelques lignes pour les mathématiques…' }, [(eq.mathematiques && eq.mathematiques.compteRendu) || '']);
+
+      const taTransversal = el('textarea', { rows: 4, class: 'ga-textarea', placeholder: 'Description transversale, tous domaines confondus (affectif, social, cognitif, sensorimoteur…)…' }, [(eq.transversal && eq.transversal.compteRendu) || '']);
+
+      const enregistrer = () => {
+        const francais = (inputNiveauFr.value.trim() || taCompteRenduFr.value.trim())
+          ? { niveauEquivalent: inputNiveauFr.value.trim(), compteRendu: taCompteRenduFr.value.trim() }
+          : null;
+        const mathematiques = (inputNiveauMaths.value.trim() || taCompteRenduMaths.value.trim())
+          ? { niveauEquivalent: inputNiveauMaths.value.trim(), compteRendu: taCompteRenduMaths.value.trim() }
+          : null;
+        const transversal = taTransversal.value.trim()
+          ? { compteRendu: taTransversal.value.trim() }
+          : null;
+
+        this.coffre.enregistrerEquivalenceScolaire(eleve.identifiantSynapses, { francais, mathematiques, transversal });
+        this._equivalenceEnEdition = false;
+        this._render();
+      };
+      const annuler = () => { this._equivalenceEnEdition = false; this._render(); };
+
+      return el('div', { class: 'si-form-observation' }, [
+        el('h3', {}, ['Français']),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Niveau équivalent']), inputNiveauFr]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taCompteRenduFr]),
+        el('h3', { style: 'margin-top:18px;' }, ['Mathématiques']),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Niveau équivalent']), inputNiveauMaths]),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taCompteRenduMaths]),
+        el('h3', { style: 'margin-top:18px;' }, ['Description transversale']),
+        el('div', { class: 'si-form-row' }, [el('label', {}, ['Compte rendu']), taTransversal]),
+        el('div', { class: 'ga-toolbar', style: 'margin-top:14px;' }, [
+          el('button', { class: 'si-btn si-btn-primary', onclick: enregistrer }, ['Enregistrer']),
+          el('button', { class: 'si-btn', onclick: annuler }, ['Annuler'])
+        ])
+      ]);
     }
   }
 
