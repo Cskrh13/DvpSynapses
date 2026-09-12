@@ -188,6 +188,35 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <span class="hint" id="coffre-modif-txt" style="display:none;color:var(--danger);font-weight:600;">● Modifications non enregistrées</span>
   </div>
 
+  <!-- =============== IMPORT / EXPORT (juste sous l'ouverture du coffre) =============== -->
+  <section class="card">
+    <h2>Configuration (classes, jours, récréations, calendrier)</h2>
+    <p class="hint">Un fichier léger, facile à partager entre collègues ou à réutiliser d'une année sur l'autre : classes créées, jours travaillés, récréations/pauses et calendrier. Ne contient ni grilles horaires détaillées ni affectations.</p>
+    <div class="row" style="align-items:center;gap:14px;">
+      <button class="btn primary" id="btn-export-config">⬇ Exporter la configuration</button>
+      <button class="btn" id="btn-import-config-browse">📁 Importer une configuration…</button>
+      <input type="file" id="import-config-file" accept=".json,application/json" style="display:none;">
+      <span id="import-config-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Planning complet</h2>
+    <p class="hint">
+      Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
+      et cahier journal jour par jour) dans un fichier <code>.synapses</code>. Comme il peut
+      contenir des identifiants d'élèves, <strong>le fichier est toujours chiffré et protégé
+      par un mot de passe</strong>, exactement comme le coffre élèves. Le contenu est
+      illisible hors de Synapses.
+    </p>
+    <div class="row" style="align-items:center;gap:14px;">
+      <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
+      <button class="btn" id="btn-import-json-browse">📁 Ouvrir un planning .synapses…</button>
+      <input type="file" id="import-json-file" accept=".synapses" style="display:none;">
+      <span id="import-json-status" class="hint" style="margin:0;">Aucun planning importé.</span>
+    </div>
+  </section>
+
   <div class="coffre-modal-overlay" id="coffre-modal-overlay">
     <div class="coffre-modal">
       <h3>Ouvrir le coffre</h3>
@@ -227,7 +256,6 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <button data-tab="tab-grille">Grille horaire type</button>
     <button data-tab="tab-affectation">Affectation</button>
     <button data-tab="tab-generation">Génération</button>
-    <button data-tab="tab-import">Importer / exporter</button>
   </div>
 
   <!-- =============== ONGLET : CONFIGURATION GÉNÉRALE =============== -->
@@ -269,6 +297,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div class="row">
         <div class="field"><label>Nom de la classe</label><input type="text" id="classe-nom" placeholder="Ex. : CE2 A" style="width:180px;"></div>
         <div class="field"><label>Niveau</label><select id="classe-niveau"></select></div>
+        <div class="field"><label>Adulte de référence</label><input type="text" id="classe-enseignant" placeholder="Ex. : Mme Dupont" style="width:180px;"></div>
         <button class="btn primary" id="btn-add-classe">+ Créer la classe</button>
       </div>
       <div class="summary-grid" id="classes-list" style="margin-top:16px;"></div>
@@ -279,6 +308,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
         <div class="row">
           <div class="field"><label>Nom du dispositif</label><input type="text" id="dispositif-nom" placeholder="Ex. : ULIS 1" style="width:180px;"></div>
           <div class="field"><label>Type</label><select id="dispositif-type"><option value="ULIS">ULIS</option><option value="SEGPA">SEGPA</option><option value="RASED">RASED</option></select></div>
+          <div class="field"><label>Adulte de référence</label><input type="text" id="dispositif-enseignant" placeholder="Ex. : M. Bernard" style="width:180px;"></div>
           <button class="btn primary" id="btn-add-dispositif">+ Créer le dispositif</button>
         </div>
         <div class="summary-grid" id="dispositifs-list" style="margin-top:16px;"></div>
@@ -417,12 +447,10 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
           <span>Choisir un dispositif</span>
           <select id="generation-dispositif" style="min-width:190px;"></select>
         </label>
-        <button class="btn primary" id="btn-sync-affectations">Synchroniser les affectations</button>
         <span id="gen-status" style="color:var(--ink-soft);font-size:13.5px;"></span>
       </div>
       <p class="hint" style="margin-top:14px;">
-        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS. Les élèves affectés au dispositif sur chaque créneau se règlent ci-dessous.
-        <strong>Synchroniser les affectations :</strong> pour tous les créneaux du dispositif choisi, un élève qui n'est pas dans sa classe de référence à cet horaire est considéré présent sur le dispositif, et le cahier journal est mis à jour en conséquence.
+        <strong>Choisir un dispositif :</strong> la grille du dispositif est saisie comme celle d'une classe : chaque créneau définit directement un temps de l'emploi du temps ULIS. Les élèves affectés au dispositif sur chaque créneau se règlent ci-dessous, et l'enregistrement des affectations (bouton « Enregistrer ces affectations ») met directement à jour le planning individuel des élèves concernés — il n'y a pas d'étape de synchronisation séparée.
       </p>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
@@ -437,37 +465,6 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
         </div>
         <div id="gend-sans-dispositif" class="empty-hint" style="display:none;"></div>
         <div id="gend-wrap"></div>
-      </div>
-    </section>
-  </div>
-
-  <!-- =============== ONGLET : IMPORT / EXPORT =============== -->
-  <div class="tab-panel" id="tab-import">
-    <section class="card">
-      <h2>Configuration (classes, jours, récréations, calendrier)</h2>
-      <p class="hint">Un fichier léger, facile à partager entre collègues ou à réutiliser d'une année sur l'autre : classes créées, jours travaillés, récréations/pauses et calendrier. Ne contient ni grilles horaires détaillées ni affectations.</p>
-      <div class="row" style="align-items:center;gap:14px;">
-        <button class="btn primary" id="btn-export-config">⬇ Exporter la configuration</button>
-        <button class="btn" id="btn-import-config-browse">📁 Importer une configuration…</button>
-        <input type="file" id="import-config-file" accept=".json,application/json" style="display:none;">
-        <span id="import-config-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Planning complet</h2>
-      <p class="hint">
-        Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
-        et cahier journal jour par jour) dans un fichier <code>.synapses</code>. Comme il peut
-        contenir des identifiants d'élèves, <strong>le fichier est toujours chiffré et protégé
-        par un mot de passe</strong>, exactement comme le coffre élèves. Le contenu est
-        illisible hors de Synapses.
-      </p>
-      <div class="row" style="align-items:center;gap:14px;">
-        <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
-        <button class="btn" id="btn-import-json-browse">📁 Ouvrir un planning .synapses…</button>
-        <input type="file" id="import-json-file" accept=".synapses" style="display:none;">
-        <span id="import-json-status" class="hint" style="margin:0;">Aucun planning importé.</span>
       </div>
     </section>
   </div>
@@ -864,8 +861,15 @@ function renderDispositifs(){
     div.innerHTML = `
       <span class="swatch" style="background:${d.couleur || "#5B5F6B"};"></span>
       <div class="infos"><b>${escapeHTMLTexte(d.nom)}</b><span class="niveau">${escapeHTMLTexte(d.type)} · ${nbClasses} classe(s) rattachée(s)</span></div>
-      <button class="btn sm danger" data-del-dispositif="${d.id}">Supprimer</button>
+      <div class="row" style="gap:6px;align-items:center;">
+        <input type="text" data-enseignant-dispositif="${d.id}" value="${escapeHTMLTexte(d.enseignant||"")}" placeholder="Adulte de référence" style="width:150px;">
+        <button class="btn sm danger" data-del-dispositif="${d.id}">Supprimer</button>
+      </div>
     `;
+    div.querySelector("[data-enseignant-dispositif]").addEventListener("change", ev=>{
+      d.enseignant = ev.target.value.trim();
+      PC.sauverConfig(config);
+    });
     div.querySelector("[data-del-dispositif]").addEventListener("click", ()=>{
       if(!confirm(`Supprimer le dispositif « ${d.nom} » ? Sa grille horaire sera perdue.`)) return;
       config.dispositifs = (config.dispositifs||[]).filter(x=>x.id!==d.id);
@@ -882,15 +886,16 @@ function renderDispositifs(){
 $("btn-add-dispositif").addEventListener("click", ()=>{
   const nom = $("dispositif-nom").value.trim();
   const type = $("dispositif-type").value;
+  const enseignant = $("dispositif-enseignant").value.trim();
   if(!nom){ toast("Indiquez un nom de dispositif."); return; }
   config.dispositifs = config.dispositifs || [];
   if(config.dispositifs.some(d=>d.nom.toLowerCase()===nom.toLowerCase())){
     toast("Un dispositif portant ce nom existe déjà."); return;
   }
   const couleurs = ["#6B4E8E","#3F8C4B","#B5871E"];
-  config.dispositifs.push({id:PC.uid("disp"),nom,type,couleur:couleurs[config.dispositifs.length%couleurs.length]});
+  config.dispositifs.push({id:PC.uid("disp"),nom,type,enseignant,couleur:couleurs[config.dispositifs.length%couleurs.length]});
   PC.sauverConfig(config);
-  $("dispositif-nom").value="";
+  $("dispositif-nom").value=""; $("dispositif-enseignant").value="";
   renderDispositifs(); renderClasses(); renderGrilleTabs(); renderSummary();
   toast("Dispositif créé.");
 });
@@ -914,6 +919,7 @@ function renderClasses(){
         <select data-dispositifs="${cl.id}" multiple size="${Math.min(3,Math.max(1,(config.dispositifs||[]).length))}" style="min-width:150px;">
           ${(config.dispositifs||[]).map(d=>`<option value="${d.id}" ${(cl.dispositifs||[]).includes(d.id)?"selected":""}>${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type)})</option>`).join("")}
         </select>
+        <input type="text" data-enseignant-classe="${cl.id}" value="${escapeHTMLTexte(cl.enseignant||"")}" placeholder="Adulte de référence" style="width:150px;">
         <button class="btn sm danger" data-del-classe="${cl.id}">Supprimer</button>
       </div>
     `;
@@ -921,6 +927,10 @@ function renderClasses(){
       cl.dispositifs = Array.from(ev.target.selectedOptions).map(o=>o.value);
       PC.sauverConfig(config);
       renderClasses();
+    });
+    div.querySelector("[data-enseignant-classe]").addEventListener("change", ev=>{
+      cl.enseignant = ev.target.value.trim();
+      PC.sauverConfig(config);
     });
     div.querySelector("[data-del-classe]").addEventListener("click", ()=>{
       if(!confirm(`Supprimer la classe « ${cl.nom} » ? Sa grille horaire sera perdue.`)) return;
@@ -947,9 +957,10 @@ function renderClasses(){
 $("btn-add-classe").addEventListener("click", ()=>{
   const nom = $("classe-nom").value.trim();
   if(!nom){ toast("Indiquez un nom de classe."); return; }
-  PC.creerClasse(config, nom, $("classe-niveau").value);
+  const cl = PC.creerClasse(config, nom, $("classe-niveau").value);
+  cl.enseignant = $("classe-enseignant").value.trim();
   PC.sauverConfig(config);
-  $("classe-nom").value = "";
+  $("classe-nom").value = ""; $("classe-enseignant").value = "";
   renderClasses(); renderDispositifs(); renderRecreations(); renderPauses(); renderGrilleTabs(); renderSummary(); renderClasseElevesSelect();
   if(typeof renderAffectationTab === "function") renderAffectationTab();
 });
@@ -1525,23 +1536,29 @@ function enregistrerElevesClasse(classeId, etat){
       const coche = etat ? etat[cle] === true : true;
       if(!coche) return;
 
-      // Écriture uniquement dans e.planning, donc dans le .synapse.
-      // On recopie aussi type/titre/libelle (et pas seulement domaineCle) :
-      // sans eux, l'emploi du temps individuel (coffre.html) ne peut pas
-      // distinguer deux créneaux du même domaine (ex. "Orthographe 20'" vs
-      // "Écriture 25'" en français), ni les créneaux hors "séance"
-      // (rituels, récréation, pause) qui n'ont pas de domaineCle du tout.
-      e.planning.push({
+      // Une prise en charge extérieure (santé) active sur ce créneau est
+      // toujours prioritaire : l'élève n'est alors ni en classe ni au
+      // dispositif — on n'écrit surtout pas d'affectation classe ici.
+      const pec = coffre.priseEnChargeExterieureSurCreneau
+        ? coffre.priseEnChargeExterieureSurCreneau(ref.identifiantSynapses, c.jour, c.debut, c.fin)
+        : null;
+      if(pec) return;
+
+      // Forme v2 (cf. PLANNING-ELEVE-SCHEMA.md) : le nom de la séance vient
+      // de c.titre pour un créneau de type "seance", de c.libelle sinon
+      // (récréation, pause, autre) — jamais du domaineCle, qui reste une
+      // clé technique interne non affichée telle quelle.
+      const nomActivite = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
+      coffre.affecterCreneau(ref.identifiantSynapses, {
         classeId: cl.id,
         classeNom: cl.nom,
+        typeLieu: "classe",
         creneauId: c.id,
         jour: c.jour,
         debut: c.debut,
         fin: c.fin,
-        type: c.type || "seance",
-        titre: c.titre || "",
-        libelle: c.libelle || "",
-        domaineCle: c.domaineCle||""
+        activite: { nom: nomActivite, domaineCle: c.domaineCle||"" },
+        adulteReference: { nom: cl.enseignant||"", role: "Enseignante titulaire" }
       });
       enregistres++;
     });
@@ -1747,50 +1764,6 @@ function renderGenerationDispositifs(){
     : '<option value="">Aucun dispositif</option>';
   if(prev && dispositifs.some(d=>d.id===prev)) sel.value=prev;
 }
-
-/**
- * Synchronise l'emploi du temps du dispositif avec le cahier journal.
- * La grille du dispositif est désormais saisie manuellement, exactement
- * comme une grille de classe. La source de vérité est donc la grille, et non
- * une génération automatique à partir des créneaux libres des classes.
- */
-async function synchroniserDispositifDansJournal(dispositifId){
-  const disp=(config.dispositifs||[]).find(d=>d.id===dispositifId);
-  if(!disp) throw new Error("Dispositif introuvable.");
-  const grille=grilles[dispositifId]||[];
-  if(!grille.length) throw new Error("La grille du dispositif est vide. Saisissez d'abord ses créneaux dans l'onglet Planning.");
-  try{ if(!Object.keys(banque).length) banque=await PC.chargerBanque(); }catch(e){}
-  const journal=PC.chargerJournal();
-  const semaines=PC.calculerSemaines(config);
-  const joursTravail=new Set((config.joursTravailles||[1,2,3,4,5]).map(Number));
-  let jours=0;
-  semaines.forEach(sem=>{
-    PC.JOURS.forEach(j=>{
-      if(!joursTravail.has(j.n)) return;
-      const iso=PC.dateISO(PC.addDays(sem.lundi,j.n-1));
-      PC.genererJournalDepuisGrille(iso,config,grilles,affectations,banque,coffre);
-      jours++;
-    });
-  });
-  return {dispositif:disp.nom, jours, creneaux:grille.length};
-}
-
-$("btn-sync-affectations").addEventListener("click",async()=>{
-  const dispositifId=$("generation-dispositif").value;
-  if(!dispositifId){ toast("Choisissez un dispositif."); return; }
-  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre avant de synchroniser les affectations."); return; }
-  try{
-    $("gen-status").textContent="Synchronisation des affectations en cours…";
-    const stats=await synchroniserDispositifDansJournal(dispositifId);
-    $("gen-status").textContent=
-      `${stats.creneaux} créneau(x) de ${stats.dispositif} synchronisé(s) avec le cahier journal.`;
-    toast("Affectations synchronisées.");
-    renderGenDispositifGrille();
-  }catch(e){
-    $("gen-status").textContent="Erreur : "+(e.message||e);
-    toast("Synchronisation impossible.");
-  }
-});
 
 /* ---------------- Grille d'affectation du dispositif (onglet Génération) ----------------
  * Reprend le même principe visuel que la grille de l'onglet Affectation :
@@ -2027,6 +2000,15 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
       // redevenait éligible à être replacé dans un groupe de sa classe par
       // la répartition automatique alors qu'il est censé être à l'ULIS —
       // d'où des élèves affichés simultanément sur deux créneaux.
+      //
+      // Une prise en charge extérieure (santé) active sur ce créneau du
+      // dispositif reste toujours prioritaire : l'élève n'est alors ni en
+      // classe ni au dispositif, on ne crée donc aucune affectation.
+      const pecDisp = coffre.priseEnChargeExterieureSurCreneau
+        ? coffre.priseEnChargeExterieureSurCreneau(idEleve, c.jour, c.debut, c.fin)
+        : null;
+      if(pecDisp) return;
+
       e.planning = e.planning.filter(p=>{
         if(p.classeId!==cl.id) return true;
         if(Number(p.jour)!==Number(c.jour)) return true;
@@ -2036,42 +2018,44 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
         );
         return !chevauche;
       });
-      const dejaPresent = e.planning.some(p=>p.classeId===dispId && p.creneauId===c.id);
-      if(!dejaPresent){
-        e.planning.push({
-          classeId: dispId,
-          classeNom: disp ? disp.nom : "",
-          creneauId: c.id,
-          jour: c.jour,
-          debut: c.debut,
-          fin: c.fin,
-          type: c.type || "seance",
-          titre: c.titre || "",
-          libelle: c.libelle || "",
-          domaineCle: c.domaineCle||""
-        });
-      }
+      const nomActivite = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
+      coffre.affecterCreneau(idEleve, {
+        classeId: dispId,
+        classeNom: disp ? disp.nom : "",
+        typeLieu: "dispositif",
+        creneauId: c.id,
+        jour: c.jour,
+        debut: c.debut,
+        fin: c.fin,
+        activite: { nom: nomActivite, domaineCle: c.domaineCle||"" },
+        adulteReference: { nom: disp && disp.enseignant || "", role: "Enseignant " + (disp && disp.type || "ULIS") }
+      });
     } else {
       // Décoché = renvoyé dans sa classe de référence : on retire d'abord
       // l'affectation au dispositif pour CE créneau précis (sans quoi
       // l'élève resterait affecté aux deux à la fois), puis on réaffecte à
       // tous les créneaux de la grille de la classe qui chevauchent le
-      // créneau du dispositif.
+      // créneau du dispositif — sauf ceux où une prise en charge
+      // extérieure (santé) est active : l'élève n'est alors ni en classe
+      // ni au dispositif sur ce créneau-là (les deux cases restent
+      // décochées).
       e.planning = e.planning.filter(p => !(p.classeId===dispId && p.creneauId===c.id));
       creneauxClasseChevauchantGend(cl.id, c).forEach(cc=>{
-        const dejaPresent = e.planning.some(p=>p.classeId===cl.id && p.creneauId===cc.id);
-        if(dejaPresent) return;
-        e.planning.push({
+        const pecClasse = coffre.priseEnChargeExterieureSurCreneau
+          ? coffre.priseEnChargeExterieureSurCreneau(idEleve, cc.jour, cc.debut, cc.fin)
+          : null;
+        if(pecClasse) return;
+        const nomActiviteCc = cc.type==="seance" ? (cc.titre||"") : (cc.libelle||"");
+        coffre.affecterCreneau(idEleve, {
           classeId: cl.id,
           classeNom: cl.nom,
+          typeLieu: "classe",
           creneauId: cc.id,
           jour: cc.jour,
           debut: cc.debut,
           fin: cc.fin,
-          type: cc.type || "seance",
-          titre: cc.titre || "",
-          libelle: cc.libelle || "",
-          domaineCle: cc.domaineCle||""
+          activite: { nom: nomActiviteCc, domaineCle: cc.domaineCle||"" },
+          adulteReference: { nom: cl.enseignant||"", role: "Enseignante titulaire" }
         });
       });
     }
