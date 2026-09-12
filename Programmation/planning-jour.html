@@ -1120,9 +1120,18 @@ function renderJour(){
   $("date-picker").value = iso;
   $("day-title").textContent = PC.formatDateLong(PC.parseISO(iso));
 
-  const journal = PC.chargerJournal();
-  jour = PC.journalPourDate(iso, journal);
-  PC.sauverJournal(journal);
+  // Resynchronise le cahier journal du jour avec la grille horaire (classes
+  // + dispositifs) actuellement chargée AVANT de l'afficher. Sans cet appel,
+  // cette page se contentait de relire le journal tel quel (PC.journalPourDate)
+  // sans jamais le recalculer depuis les grilles : après un import de
+  // planning (nouvelles grilles), ou toute modification faite dans
+  // Planning — Gestion, les créneaux affichés ici restaient ceux de
+  // l'ancien état, jusqu'à ce que quelqu'un relance "Répartir la semaine".
+  // genererJournalDepuisGrille() est sans danger à chaque appel : elle
+  // respecte les groupes déjà personnalisés (modifie=true) et les créneaux
+  // volontairement supprimés (jour.exclusions), et ne touche qu'aux groupes
+  // encore synchronisés avec leur créneau de grille d'origine.
+  jour = PC.genererJournalDepuisGrille(iso, config, grilles, affectations, {}, coffre);
 
   $("j-remarque").value = jour.remarque || "";
   $("j-devoirs").value = jour.devoirs || "";
