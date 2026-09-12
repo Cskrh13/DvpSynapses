@@ -438,6 +438,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
         <div class="field"><label>Classe / dispositif</label><select id="affg-classe"></select></div>
         <button class="btn primary" id="btn-enregistrer-eleves">Enregistrer les élèves et leurs créneaux</button>
         <button class="btn primary" id="btn-enregistrer-gend" style="display:none;">Enregistrer ces affectations</button>
+        <button class="btn" id="btn-synchroniser-ulis" style="display:none;">↻ Synchroniser les affectations ULIS</button>
         <span id="affg-save-status" class="hint" style="margin:0;"></span>
         <span id="gend-save-status" class="hint" style="margin:0;"></span>
       </div>
@@ -1585,6 +1586,7 @@ function refreshAffectationTab(){
   $("affg-hint-dispositif").style.display=estDisp?"":"none";
   $("btn-enregistrer-eleves").style.display=estDisp?"none":"";
   $("btn-enregistrer-gend").style.display=estDisp?"":"none";
+  $("btn-synchroniser-ulis").style.display=estDisp?"":"none";
   $("affg-save-status").style.display=estDisp?"none":"";
   $("gend-save-status").style.display=estDisp?"":"none";
   renderAffgGrille();
@@ -1973,6 +1975,106 @@ function renderGenDispositifGrille(){
   const scroll=document.createElement("div");scroll.className="affg-scroll";
   scroll.appendChild(table);wrap.appendChild(scroll);
 }
+
+/*
+ * Synchronisation définitive du planning ULIS vers le coffre.
+ *
+ * Le principe est volontairement simple : la grille du dispositif est le
+ * planning TYPE ; le coffre reçoit ensuite une affectation nominative pour
+ * chaque élève et chaque créneau ULIS où l'élève n'est pas en classe de
+ * référence et n'est pas en PCE.
+ *
+ * Cette fonction ne demande pas à coffre.html de deviner les créneaux ULIS.
+ * Elle matérialise les affectations dans e.planning[] avec typeLieu=
+ * "dispositif". Le .synapses devient donc autonome pour l'emploi du temps
+ * individuel.
+ */
+function synchroniserAffectationsUlis(dispId){
+  if(!coffre || !coffre.ouvert) throw new Error("Ouvrez le coffre avant de synchroniser l'ULIS.");
+  const disp=(config.dispositifs||[]).find(d=>d.id===dispId);
+  if(!disp) throw new Error("Dispositif introuvable.");
+
+  const classesLiees=(config.classes||[]).filter(cl=>(cl.dispositifs||[]).includes(dispId));
+  if(!classesLiees.length) throw new Error("Ce dispositif n'est rattaché à aucune classe.");
+
+  const creneaux=(grilles[dispId]||[]).filter(c=>c && c.type!=="recreation" && c.type!=="pause");
+  if(!creneaux.length) throw new Error("Aucun créneau ULIS dans la grille horaire type.");
+
+  let creees=0, supprimees=0, ignoreesPec=0, elevesTraites=0;
+  const idsTraites=new Set();
+
+  classesLiees.forEach(cl=>{
+    const roster=elevesParClasse[cl.id]||[];
+    roster.forEach(ref=>{
+      const id=ref.identifiantSynapses;
+      if(!id || idsTraites.has(id)) return;
+      idsTraites.add(id);
+      const e=coffreEleveById(id);
+      if(!e) return;
+      elevesTraites++;
+      if(!Array.isArray(e.planning)) e.planning=[];
+
+      creneaux.forEach(c=>{
+        const pec=coffre.priseEnChargeExterieureSurCreneau
+          ? coffre.priseEnChargeExterieureSurCreneau(id,c.jour,c.debut,c.fin)
+          : null;
+        if(pec){
+          ignoreesPec++;
+          return;
+        }
+
+        const enClasse=e.planning.some(p=>
+          p.classeId===cl.id &&
+          Number(p.jour)===Number(c.jour) &&
+          PC.chevaucheMin(PC.heureVersMin(p.debut),PC.heureVersMin(p.fin),PC.heureVersMin(c.debut),PC.heureVersMin(c.fin))
+        );
+
+        const existante=e.planning.some(p=>p.classeId===dispId && p.creneauId===c.id);
+
+        if(enClasse){
+          if(existante){
+            e.planning=e.planning.filter(p=>!(p.classeId===dispId && p.creneauId===c.id));
+            supprimees++;
+          }
+          return;
+        }
+
+        if(!existante){
+          const nomActivite=PC.libelleCreneau(c);
+          coffre.affecterCreneau(id,{
+            classeId:dispId,
+            classeNom:disp.nom,
+            typeLieu:"dispositif",
+            creneauId:c.id,
+            jour:c.jour,
+            debut:c.debut,
+            fin:c.fin,
+            activite:{nom:nomActivite,domaineCle:c.domaineCle||""},
+            adulteReference:{nom:disp.enseignant||"",role:"Enseignant "+(disp.type||"ULIS")}
+          });
+          creees++;
+        }
+      });
+    });
+  });
+
+  if(creees || supprimees) marquerCoffreModifie();
+  return {creees,supprimees,sansPec:ignoreesPec,eleves:elevesTraites};
+}
+
+$("btn-synchroniser-ulis").addEventListener("click",()=>{
+  const dispId=$("affg-classe").value;
+  try{
+    const r=synchroniserAffectationsUlis(dispId);
+    renderGenDispositifGrille();
+    const st=$("gend-save-status");
+    if(st){
+      st.classList.remove("warn");
+      st.textContent=`ULIS synchronisée : ${r.creees} affectation(s) créée(s), ${r.supprimees} retirée(s), ${r.eleves} élève(s) traités${r.sansPec?`, ${r.sansPec} créneau(x) protégé(s) par une PCE`:""}. Pensez à « 💾 Enregistrer le coffre ».`;
+    }
+    toast(`ULIS synchronisée : ${r.creees} affectation(s) créée(s).`);
+  }catch(e){ toast(e.message||String(e)); }
+});
 
 $("btn-enregistrer-gend").addEventListener("click", ()=>{
   if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre d'abord."); return; }
