@@ -474,8 +474,6 @@ table.deroule td{padding:8px;border-top:1px solid var(--line);vertical-align:top
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
 
-<script src="../fata-morgana/synapses-crypto.js"></script>
-<script src="../fata-morgana/synapses-coffre.js"></script>
 <script src="planning-core.js"></script>
 <script>
 /* =========================================================
@@ -497,20 +495,6 @@ const SYNAPSES_BUILD = {
 
 "use strict";
 const PC = window.PlanningCore;
-
-/*
- * Coffre Synapses — lecture locale uniquement.
- * Le contenu réel provient exclusivement du fichier .synapses ouvert par
- * l'utilisateur. Aucun élève, besoin, objectif ou autre donnée individuelle
- * n'est créé ici et rien n'est placé dans localStorage.
- */
-let coffre = null;
-try { coffre = new SynapsesCoffre.Coffre(); } catch (e) { coffre = null; }
-function coffreDisponible(){ return !!coffre; }
-function coffreOuvert(){ return !!(coffre && coffre.ouvert); }
-function lireElevesDuCoffre(){
-  return coffreOuvert() ? coffre.listerEleves() : [];
-}
 
 const $ = id => document.getElementById(id);
 
