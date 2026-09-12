@@ -160,45 +160,49 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 /* ===== Emploi du temps (onglet "3. Emploi du temps") ===== */
 .edt-select-wrap{max-width:340px;margin-bottom:18px;}
 .edt-vide{color:var(--ink-soft);font-size:13.5px;font-style:italic;padding:14px 0;}
-.edt-table-wrap{overflow-x:auto;}
-.edt-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;}
-.edt-table th,.edt-table td{border:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top;}
-.edt-table thead th{background:#FAFAF7;color:var(--ink-soft);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;text-align:center;}
-.edt-table th.edt-heure{background:#FAFAF7;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;text-align:right;padding-right:10px;}
-.edt-case{min-width:110px;}
-.edt-case.edt-remplie{background:#EEF2FB;}
-.edt-bloc{padding:4px 0;}
-.edt-bloc + .edt-bloc{border-top:1px dashed var(--line);margin-top:4px;}
-.edt-case .edt-classe{font-weight:600;color:var(--navy);font-size:12.5px;}
-.edt-case .edt-nom{color:var(--ink);font-size:12px;margin-top:2px;}
-.edt-case .edt-titre{color:var(--ink-soft);font-size:11.5px;font-style:italic;margin-top:1px;}
-.edt-case .edt-type{display:inline-block;color:var(--ink-soft);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
-.edt-case .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:2px;}
-.edt-bloc-recreation .edt-classe,.edt-bloc-pause .edt-classe,.edt-bloc-autre .edt-classe{color:var(--ink-soft);font-weight:500;}
-.edt-bloc-externe{background:#FDF3E7;border-radius:5px;padding:4px 6px;margin:2px -6px;}
+.edt-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+/* Grille temporelle : 30 minutes = une unité de hauteur. Les créneaux sont
+   positionnés en absolu à partir de leur vraie minute de début/fin : un
+   créneau de 10 min occupe donc exactement 1/3 de la hauteur d'un créneau
+   de 30 min, et les blancs entre deux créneaux restent visibles. */
+.edt-planning{--edt-px-30:56px;min-width:720px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;}
+.edt-planning-head{display:grid;grid-template-columns:64px repeat(5,minmax(120px,1fr));background:var(--navy);color:#fff;}
+.edt-planning-head>div{padding:9px 7px;text-align:center;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-left:1px solid rgba(255,255,255,.14);}
+.edt-planning-head>div:first-child{border-left:0;}
+.edt-planning-body{display:grid;grid-template-columns:64px repeat(5,minmax(120px,1fr));}
+.edt-axe-temps,.edt-jour-col{position:relative;height:var(--edt-hauteur);}
+.edt-axe-temps{background:#FAFAF7;border-right:1px solid var(--line);}
+.edt-heure-repere{position:absolute;left:0;right:0;height:1px;border-top:1px solid var(--line);}
+.edt-heure-label{position:absolute;right:8px;top:-8px;background:#FAFAF7;padding-left:3px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:16px;white-space:nowrap;}
+.edt-jour-col{border-left:1px solid var(--line);background:repeating-linear-gradient(to bottom,#fff 0,#fff calc(var(--edt-px-30) - 1px),#E8E5DC calc(var(--edt-px-30) - 1px),#E8E5DC var(--edt-px-30));}
+.edt-jour-col .edt-ligne-demi{position:absolute;left:0;right:0;border-top:1px dashed #EEECE5;height:1px;}
+.edt-bloc{position:absolute;left:4px;right:4px;padding:4px 6px;border:1px solid #C9D2E7;border-radius:6px;background:#EEF2FB;overflow:hidden;z-index:2;box-shadow:0 1px 2px rgba(20,29,51,.06);}
+.edt-bloc + .edt-bloc{margin-top:0;}
+.edt-bloc-recreation{background:#F1EFE9;border-color:#D7D2C5;}
+.edt-bloc-pause{background:#F1EFE9;border-color:#D7D2C5;}
+.edt-bloc-externe{background:#FDF3E7;border-color:#E8CFA8;}
+.edt-bloc-dispositif{background:#EAF1FA;border-color:#BFD0E8;}
+.edt-bloc .edt-classe{font-weight:600;color:var(--navy);font-size:11.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.edt-bloc-recreation .edt-classe,.edt-bloc-pause .edt-classe{color:var(--ink-soft);font-weight:600;}
 .edt-bloc-externe .edt-classe{color:#8A5A16;}
-.edt-bloc-externe .edt-type{color:#8A5A16;}
-.edt-bloc-dispositif .edt-classe{color:var(--accent-sky, #2A6F97);}
-.edt-case .edt-nom-vide{color:var(--ink-soft);font-style:italic;}
-.edt-case .edt-adulte{color:var(--ink);font-size:11.5px;margin-top:2px;}
-.edt-bloc{position:relative;}
-.edt-btn-editer{position:absolute;top:2px;right:0;border:none;background:transparent;color:var(--ink-soft);cursor:pointer;font-size:12px;line-height:1;padding:2px 4px;opacity:.55;}
+.edt-bloc .edt-nom{color:var(--ink);font-size:11.2px;line-height:1.25;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.edt-bloc .edt-titre{color:var(--ink-soft);font-size:10.5px;line-height:1.2;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.edt-bloc .edt-adulte{color:var(--ink);font-size:10.5px;line-height:1.2;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.edt-bloc .edt-horaire{color:var(--accent-sky);font-family:'IBM Plex Mono',monospace;font-size:9.5px;line-height:1.15;margin-top:2px;white-space:nowrap;}
+.edt-bloc-recreation .edt-horaire,.edt-bloc-pause .edt-horaire{color:var(--ink-soft);}
+.edt-bloc.edt-duree-courte .edt-adulte,.edt-bloc.edt-duree-courte .edt-titre{display:none;}
+.edt-bloc.edt-duree-tres-courte .edt-horaire{font-size:8.5px;}
+.edt-btn-editer{position:absolute;top:2px;right:2px;border:none;background:rgba(255,255,255,.7);color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1;padding:2px 4px;opacity:.6;border-radius:4px;z-index:3;}
 .edt-btn-editer:hover{opacity:1;}
 .edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
 .edt-edition-boite input{width:100%;box-sizing:border-box;}
 .print-only{display:none;}
-/* En-tête d'impression : reprend la DA du site (bandeau navy, marque
-   Fraunces, eyebrow mono accent-sky) au lieu d'un simple <h2> nu, pour que
-   la feuille imprimée reste identifiable comme un document Synapses. */
-#edtEnteteImpression{display:flex;align-items:center;justify-content:space-between;gap:18px;
-  padding-bottom:12px;margin-bottom:14px;border-bottom:2px solid var(--navy);}
+/* En-tête d'impression : reprend la DA du site. */
+#edtEnteteImpression{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-bottom:12px;margin-bottom:14px;border-bottom:2px solid var(--navy);}
 #edtEnteteImpression .edt-imp-marque{display:flex;align-items:center;gap:12px;}
-#edtEnteteImpression .edt-imp-logo{width:34px;height:34px;border-radius:8px;flex-shrink:0;
-  background:linear-gradient(160deg,var(--accent-sky),#5486d6);color:#fff;
-  font-family:'Fraunces',serif;font-weight:700;font-size:15px;
-  display:flex;align-items:center;justify-content:center;}
-#edtEnteteImpression .edt-imp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:9.5px;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--accent-sky);font-weight:600;margin:0;}
+#edtEnteteImpression .edt-imp-logo{width:34px;height:34px;border-radius:8px;flex-shrink:0;background:linear-gradient(160deg,var(--accent-sky),#5486d6);color:#fff;font-family:'Fraunces',serif;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;}
+#edtEnteteImpression .edt-imp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-sky);font-weight:600;margin:0;}
 #edtEnteteImpression h2{margin:1px 0 0;font-size:19px;color:var(--navy);}
 #edtEnteteImpression .edt-imp-meta{text-align:right;font-size:11.5px;color:var(--ink-soft);}
 #edtEnteteImpression .edt-imp-meta div+div{margin-top:2px;}
@@ -215,21 +219,16 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
   #edtZoneImpression{position:absolute;left:0;top:0;width:100%;padding:0;margin:0;}
   .print-only{display:block;}
   #edtImpressionLegende{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--ink-soft);align-items:center;}
-  #edtImpressionPied{display:flex;margin-top:14px;padding-top:8px;border-top:1px solid var(--line);
-    font-size:10px;color:var(--ink-soft);justify-content:space-between;}
+  #edtImpressionPied{display:flex;margin-top:14px;padding-top:8px;border-top:1px solid var(--line);font-size:10px;color:var(--ink-soft);justify-content:space-between;}
   .edt-btn-editer{display:none !important;}
-  .edt-table{min-width:0;width:100%;table-layout:fixed;font-size:12px;}
-  .edt-table th.edt-heure{width:64px;}
-  .edt-case{min-width:0;}
-  /* Contrairement à l'écran, on CONSERVE les teintes du site sur le papier
-     (bleu dispositif, orange santé...) : c'est ce qui rend la grille
-     lisible d'un coup d'œil, et c'est la DA du site qu'on nous demande de
-     respecter — le rendu "tout blanc" précédent la neutralisait. */
-  .edt-case.edt-remplie{background:#EEF2FB;}
-  .edt-bloc-dispositif{background:#EAF1FA;border-radius:5px;padding:3px 5px;margin:2px -5px;}
-  .edt-bloc-externe{background:#FDF3E7;border-radius:5px;padding:3px 5px;margin:2px -5px;}
-  .edt-table th, .edt-table td{border-color:#B9C0D6;}
-  .edt-table thead th{background:var(--navy);color:#fff;}
+  .edt-planning{min-width:0;width:100%;--edt-px-30:42px;box-shadow:none;}
+  .edt-planning-head,.edt-planning-body{grid-template-columns:54px repeat(5,minmax(0,1fr));}
+  .edt-axe-temps,.edt-jour-col{height:var(--edt-hauteur);}
+  .edt-bloc{left:3px;right:3px;padding:3px 5px;box-shadow:none;}
+  .edt-bloc .edt-classe{font-size:10.5px;}
+  .edt-bloc .edt-nom{font-size:10px;}
+  .edt-bloc .edt-titre,.edt-bloc .edt-adulte{font-size:9px;}
+  .edt-bloc .edt-horaire{font-size:8.5px;}
 }
 
 /* ---- Gestion des prises en charge extérieures (santé) ---- */
@@ -966,6 +965,86 @@ const SYNAPSES_BUILD = {
    * secours : les créneaux "dispositif" déjà présents dans les plannings
    * d'autres élèves du même coffre.
    */
+  function normaliserClasseEdt(v){
+    return String(v ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toLowerCase();
+  }
+
+  function chargerConfigPlanningEdt(){
+    try {
+      return JSON.parse(localStorage.getItem('synapses_planning_config') || 'null') || {};
+    } catch(e) {
+      return {};
+    }
+  }
+
+  /** Ajoute les récréations fixes définies dans Planning — Gestion.
+   * Elles ne sont pas copiées dans e.planning[] (par choix d'architecture),
+   * mais elles font partie de l'emploi du temps de la classe de référence et
+   * doivent donc être visibles ici. */
+  function recreationsFixesPourEleve(eleve){
+    const config = chargerConfigPlanningEdt();
+    const classes = Array.isArray(config.classes) ? config.classes : [];
+    const recreations = Array.isArray(config.recreations) ? config.recreations : [];
+    if(!classes.length || !recreations.length) return [];
+
+    const valeurClasse = normaliserClasseEdt(eleve.classe || (eleve.identite && eleve.identite.classe));
+    if(!valeurClasse) return [];
+    const classe = classes.find(cl => {
+      const nom = normaliserClasseEdt(cl.nom);
+      const niveau = normaliserClasseEdt(cl.niveau);
+      return valeurClasse === nom || (niveau && valeurClasse === niveau);
+    });
+    if(!classe) return [];
+
+    const jours = (Array.isArray(config.joursTravailles) && config.joursTravailles.length)
+      ? config.joursTravailles.map(Number)
+      : [1,2,3,4,5];
+
+    const resultats = [];
+    jours.forEach(jour => {
+      recreations.forEach((r, index) => {
+        const concernees = Array.isArray(r.classes) ? r.classes : [];
+        if(concernees.length && !concernees.includes(classe.id)) return;
+        if(!r.debut || !r.fin) return;
+        resultats.push({
+          id: 'coffre_fixe_recreation_' + classe.id + '_' + jour + '_' + index,
+          jour,
+          debut: r.debut,
+          fin: r.fin,
+          type: 'recreation',
+          libelle: r.label || 'Récréation',
+          classeNom: classe.nom || eleve.classe || 'Récréation',
+          typeLieu: 'classe',
+          _origine: 'recreation-fixe',
+          _brut: {
+            jour, debut:r.debut, fin:r.fin, type:'recreation',
+            libelle:r.label || 'Récréation', classeNom:classe.nom || ''
+          }
+        });
+      });
+    });
+    return resultats;
+  }
+
+  function heureVersMinutesEdt(h){
+    const m = String(h || '').trim().match(/^(\d{1,2})[:h](\d{2})$/i);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+  }
+
+  function minutesVersHeureEdt(total){
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return String(h) + 'h' + String(m).padStart(2,'0');
+  }
+
+  function arrondirDebutGrilleEdt(min){
+    return Math.floor(min / 30) * 30;
+  }
+
+  function arrondirFinGrilleEdt(min){
+    return Math.ceil(min / 30) * 30;
+  }
+
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
@@ -973,26 +1052,25 @@ const SYNAPSES_BUILD = {
     $('edtBtnImprimer').disabled = !identifiantSynapses;
 
     if (!identifiantSynapses) {
-      wrap.appendChild(document.createElement('div')).className = 'edt-vide';
-      wrap.firstChild.textContent = 'Sélectionnez un élève ci-dessus pour afficher son emploi du temps.';
+      const vide = document.createElement('div');
+      vide.className = 'edt-vide';
+      vide.textContent = 'Sélectionnez un élève ci-dessus pour afficher son emploi du temps.';
+      wrap.appendChild(vide);
       return;
     }
 
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
-    // Les prises en charge extérieures ACTIVES sont fondues dans la même
-    // grille que les créneaux classe/dispositif, comme un 3ᵉ type de
-    // créneau ("externe"), pour donner une vision d'ensemble de la
-    // semaine de l'élève en un coup d'œil.
     const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
       .filter((p) => p.actif !== false)
       .map((p) => Object.assign({ _origine: 'externe', _brut: p }, p));
-    // Lecture stricte du planning individuel : les créneaux ULIS doivent
-    // avoir été matérialisés dans e.planning[] par Planning — Gestion avec
-    // typeLieu="dispositif". Le coffre ne reconstruit plus le planning à
-    // partir de localStorage ni par déduction.
+
+    // Les récréations fixes sont définies dans le planning générique, pas dans
+    // le coffre nominatif : on les ajoute ici pour rendre la grille individuelle
+    // complète sans jamais écrire de donnée nominative dans localStorage.
+    const recreations = eleve ? recreationsFixesPourEleve(eleve) : [];
     const casesPlanning = planning.map((c) => Object.assign({ _origine: 'planning', _brut: c }, c));
-    const toutesCases = casesPlanning.concat(pecActives);
+    const toutesCases = casesPlanning.concat(recreations, pecActives);
 
     if (!toutesCases.length) {
       const vide = document.createElement('div');
@@ -1003,119 +1081,145 @@ const SYNAPSES_BUILD = {
       return;
     }
 
-    // Lignes = heures de début distinctes présentes dans le planning de l'élève, triées.
-    const heures = Array.from(new Set(toutesCases.map((c) => c.debut || ''))).filter(Boolean).sort();
-
-    // Index rapide { "jour|heure" -> [créneaux] } pour gérer d'éventuels doublons sans rien perdre.
-    const index = new Map();
-    toutesCases.forEach((c) => {
-      const cle = String(c.jour) + '|' + (c.debut || '');
-      if (!index.has(cle)) index.set(cle, []);
-      index.get(cle).push(c);
+    // Dédoublonnage par jour/horaire/type/libellé : une récréation fixe ne doit
+    // pas être répétée si un ancien coffre la contient déjà dans e.planning[].
+    const vus = new Set();
+    const casesUniques = toutesCases.filter(c => {
+      const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+      const cle = [c.jour, f.debut, f.fin, f.typeLieu, f.lieuNom, f.activiteNom].join('|');
+      if(vus.has(cle)) return false;
+      vus.add(cle);
+      return true;
     });
 
-    const table = document.createElement('table');
-    table.className = 'edt-table';
+    const valides = casesUniques.map(c => {
+      const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+      return { c, f, debutMin:heureVersMinutesEdt(f.debut), finMin:heureVersMinutesEdt(f.fin) };
+    }).filter(x => Number.isFinite(x.debutMin) && Number.isFinite(x.finMin) && x.finMin > x.debutMin);
 
-    const thead = document.createElement('thead');
-    const trHead = document.createElement('tr');
-    trHead.appendChild(document.createElement('th'));
-    JOURS_SEMAINE.slice(0, 5).forEach((jour) => {
-      const th = document.createElement('th');
-      th.textContent = jour;
-      trHead.appendChild(th);
+    if(!valides.length){
+      const vide = document.createElement('div');
+      vide.className = 'edt-vide';
+      vide.textContent = 'Aucun horaire exploitable dans les créneaux enregistrés.';
+      wrap.appendChild(vide);
+      $('edtBtnImprimer').disabled = true;
+      return;
+    }
+
+    const minDebut = arrondirDebutGrilleEdt(Math.min(...valides.map(x => x.debutMin)));
+    const maxFin = arrondirFinGrilleEdt(Math.max(...valides.map(x => x.finMin)));
+    const hauteur = ((maxFin - minDebut) / 30) * 56;
+
+    const planningEl = document.createElement('div');
+    planningEl.className = 'edt-planning';
+    planningEl.style.setProperty('--edt-hauteur', hauteur + 'px');
+
+    const head = document.createElement('div');
+    head.className = 'edt-planning-head';
+    head.appendChild(document.createElement('div'));
+    JOURS_SEMAINE.slice(0,5).forEach(jour => {
+      const cell = document.createElement('div');
+      cell.textContent = jour;
+      head.appendChild(cell);
     });
-    thead.appendChild(trHead);
-    table.appendChild(thead);
+    planningEl.appendChild(head);
 
-    const tbody = document.createElement('tbody');
-    heures.forEach((heure) => {
-      const tr = document.createElement('tr');
-      const thHeure = document.createElement('th');
-      thHeure.className = 'edt-heure';
-      thHeure.textContent = heure;
-      tr.appendChild(thHeure);
+    const body = document.createElement('div');
+    body.className = 'edt-planning-body';
 
-      for (let jour = 1; jour <= 5; jour++) {
-        const td = document.createElement('td');
-        td.className = 'edt-case';
-        const creneaux = dedoublonnerCreneaux(index.get(String(jour) + '|' + heure) || []);
-        if (creneaux.length) {
-          td.classList.add('edt-remplie');
-          creneaux.forEach((c) => {
-            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
-            const bloc = document.createElement('div');
-            bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
+    const axe = document.createElement('div');
+    axe.className = 'edt-axe-temps';
+    axe.style.setProperty('--edt-hauteur', hauteur + 'px');
+    for(let m=minDebut; m<=maxFin; m+=30){
+      const repere = document.createElement('div');
+      repere.className = 'edt-heure-repere';
+      repere.style.top = (((m-minDebut)/30)*56) + 'px';
+      const label = document.createElement('span');
+      label.className = 'edt-heure-label';
+      label.textContent = minutesVersHeureEdt(m);
+      repere.appendChild(label);
+      axe.appendChild(repere);
+    }
+    body.appendChild(axe);
 
-            // Ordre d'affichage voulu, chaque ligne répondant à une question
-            // distincte : OÙ (lieu) / QUOI (activité) / AVEC QUI (adulte de
-            // référence) / horaire / remarque libre. Une ligne n'est
-            // affichée que si elle apporte une information non déjà
-            // présente ailleurs dans le bloc (pas de doublon).
-            const lieuEl = document.createElement('div');
-            lieuEl.className = 'edt-classe';
-            lieuEl.textContent = f.lieuNom;
-            bloc.appendChild(lieuEl);
+    for(let jour=1; jour<=5; jour++){
+      const col = document.createElement('div');
+      col.className = 'edt-jour-col';
+      col.style.setProperty('--edt-hauteur', hauteur + 'px');
 
-            const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
-            if (activiteAffichee) {
-              const nomEl = document.createElement('div');
-              nomEl.className = 'edt-nom';
-              nomEl.textContent = activiteAffichee;
-              bloc.appendChild(nomEl);
-            } else {
-              const nomEl = document.createElement('div');
-              nomEl.className = 'edt-nom edt-nom-vide';
-              nomEl.textContent = '(activité non renseignée)';
-              bloc.appendChild(nomEl);
-            }
-
-            if (f.adulteNom) {
-              const adulteEl = document.createElement('div');
-              adulteEl.className = 'edt-adulte';
-              adulteEl.textContent = '👤 ' + f.adulteNom + (f.adulteRole ? ' — ' + f.adulteRole : '');
-              bloc.appendChild(adulteEl);
-            }
-
-            if (f.remarque && f.remarque.toLowerCase() !== activiteAffichee.toLowerCase()) {
-              const remarqueEl = document.createElement('div');
-              remarqueEl.className = 'edt-titre';
-              remarqueEl.textContent = f.remarque;
-              bloc.appendChild(remarqueEl);
-            }
-
-            const horaire = document.createElement('div');
-            horaire.className = 'edt-horaire';
-            horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
-            bloc.appendChild(horaire);
-
-            // Édition inline : uniquement pour les affectations classe/
-            // dispositif (planning[]) et les prises en charge extérieures,
-            // pour permettre de préciser l'activité et l'adulte de
-            // référence directement depuis le coffre, sans attendre une
-            // mise à jour de Planning — Gestion.
-            const btnEditer = document.createElement('button');
-            btnEditer.type = 'button';
-            btnEditer.className = 'edt-btn-editer';
-            btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
-            btnEditer.textContent = '✎';
-            btnEditer.addEventListener('click', () => {
-              ouvrirEditionCase(identifiantSynapses, c._brut || c, c._origine, f);
-            });
-            bloc.appendChild(btnEditer);
-
-            td.appendChild(bloc);
-          });
-        }
-        tr.appendChild(td);
+      // Repère à mi-heure (15 min) très discret pour aider à lire les petits
+      // créneaux sans multiplier les horaires dans la colonne de gauche.
+      for(let m=minDebut+15; m<maxFin; m+=30){
+        const demi = document.createElement('div');
+        demi.className = 'edt-ligne-demi';
+        demi.style.top = (((m-minDebut)/30)*56) + 'px';
+        col.appendChild(demi);
       }
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
 
+      valides.filter(x => Number(x.f.jour) === jour).forEach(x => {
+        const f = x.f;
+        const bloc = document.createElement('div');
+        const duree = x.finMin - x.debutMin;
+        bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
+        if(duree < 20) bloc.classList.add('edt-duree-courte');
+        if(duree < 10) bloc.classList.add('edt-duree-tres-courte');
+        bloc.style.top = (((x.debutMin-minDebut)/30)*56) + 'px';
+        bloc.style.height = Math.max(12, (duree/30)*56 - 2) + 'px';
+        bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') + (f.activiteNom || typeSeanceCreneau(x.c)) + ' · ' + f.debut + '–' + f.fin;
+
+        const lieuEl = document.createElement('div');
+        lieuEl.className = 'edt-classe';
+        lieuEl.textContent = f.lieuNom;
+        bloc.appendChild(lieuEl);
+
+        const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
+        const nomEl = document.createElement('div');
+        nomEl.className = 'edt-nom';
+        nomEl.textContent = activiteAffichee || (f.typeLieu === 'externe' ? 'Prise en charge extérieure' : typeSeanceCreneau(x.c));
+        bloc.appendChild(nomEl);
+
+        if (f.adulteNom) {
+          const adulteEl = document.createElement('div');
+          adulteEl.className = 'edt-adulte';
+          adulteEl.textContent = f.adulteNom + (f.adulteRole ? ' — ' + f.adulteRole : '');
+          bloc.appendChild(adulteEl);
+        }
+
+        if (f.remarque && f.remarque.toLowerCase() !== (activiteAffichee || '').toLowerCase()) {
+          const remarqueEl = document.createElement('div');
+          remarqueEl.className = 'edt-titre';
+          remarqueEl.textContent = f.remarque;
+          bloc.appendChild(remarqueEl);
+        }
+
+        const horaire = document.createElement('div');
+        horaire.className = 'edt-horaire';
+        horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
+        bloc.appendChild(horaire);
+
+        // Les récréations fixes sont informatives et ne sont pas éditables dans
+        // le coffre : elles proviennent de la configuration générique du planning.
+        if(x.c._origine !== 'recreation-fixe'){
+          const btnEditer = document.createElement('button');
+          btnEditer.type = 'button';
+          btnEditer.className = 'edt-btn-editer';
+          btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
+          btnEditer.textContent = '✎';
+          btnEditer.addEventListener('click', () => {
+            ouvrirEditionCase(identifiantSynapses, x.c._brut || x.c, x.c._origine, f);
+          });
+          bloc.appendChild(btnEditer);
+        }
+
+        col.appendChild(bloc);
+      });
+      body.appendChild(col);
+    }
+
+    planningEl.appendChild(body);
     const tableWrap = document.createElement('div');
     tableWrap.className = 'edt-table-wrap';
-    tableWrap.appendChild(table);
+    tableWrap.appendChild(planningEl);
     wrap.appendChild(tableWrap);
   }
 
@@ -1184,6 +1288,7 @@ const SYNAPSES_BUILD = {
     [
       { couleur: '#EEF2FB', label: 'Classe' },
       { couleur: '#EAF1FA', label: 'Dispositif (ULIS)' },
+      { couleur: '#F1EFE9', label: 'Récréation' },
       { couleur: '#FDF3E7', label: 'Prise en charge extérieure (santé)' }
     ].forEach((item) => {
       const puce = document.createElement('span');
