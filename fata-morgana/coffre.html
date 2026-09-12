@@ -175,6 +175,14 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-bloc-externe{background:#FDF3E7;border-radius:5px;padding:4px 6px;margin:2px -6px;}
 .edt-bloc-externe .edt-classe{color:#8A5A16;}
 .edt-bloc-externe .edt-type{color:#8A5A16;}
+.edt-bloc-dispositif .edt-classe{color:var(--accent-sky, #2A6F97);}
+.edt-case .edt-nom-vide{color:var(--ink-soft);font-style:italic;}
+.edt-case .edt-adulte{color:var(--ink);font-size:11.5px;margin-top:2px;}
+.edt-bloc{position:relative;}
+.edt-btn-editer{position:absolute;top:2px;right:0;border:none;background:transparent;color:var(--ink-soft);cursor:pointer;font-size:12px;line-height:1;padding:2px 4px;opacity:.55;}
+.edt-btn-editer:hover{opacity:1;}
+.edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
+.edt-edition-boite input{width:100%;box-sizing:border-box;}
 
 /* ---- Gestion des prises en charge extérieures (santé) ---- */
 .pec-wrap{margin:0 0 20px;}
@@ -362,6 +370,7 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
     </div>
     <div id="edtPecWrap"></div>
     <div id="edtGrilleWrap"></div>
+    <div id="edtEditionWrap"></div>
   </section>
 
   <!-- ============ Export / purge ============ -->
@@ -465,6 +474,7 @@ const SYNAPSES_BUILD = {
     $('suiviIndividuelApp').innerHTML = '';
     $('edtSelectEleve').innerHTML = '<option value="">— sélectionner un élève —</option>';
     $('edtGrilleWrap').innerHTML = '';
+    $('edtEditionWrap').innerHTML = '';
   }
 
   /* -------- Emploi du temps (onglet "3. Emploi du temps") --------
@@ -523,7 +533,8 @@ const SYNAPSES_BUILD = {
    *  information supplémentaire l'un par rapport à l'autre — un seul
    *  bloc est affiché. */
   function cleAffichageCreneau(c){
-    return [c.classeId, c.classeNom, c.type, c.titre, c.libelle, c.domaineCle, c.debut, c.fin].join('|');
+    const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+    return [f.lieuNom, f.activiteNom, f.adulteNom, f.debut, f.fin].join('|');
   }
 
   function dedoublonnerCreneaux(liste){
@@ -634,7 +645,7 @@ const SYNAPSES_BUILD = {
       const table = document.createElement('table');
       table.className = 'pec-table';
       const thead = document.createElement('thead');
-      thead.innerHTML = '<tr><th>Intervenant</th><th>Jour</th><th>Horaire</th><th>Lieu</th><th>Remarque</th><th>Actif</th><th></th></tr>';
+      thead.innerHTML = '<tr><th>Intervenant</th><th>Jour</th><th>Horaire</th><th>Lieu</th><th>Activité</th><th>Remarque</th><th>Actif</th><th></th></tr>';
       table.appendChild(thead);
       const tbody = document.createElement('tbody');
       liste.forEach((p) => tbody.appendChild(ligneReadonlyPec(eleve, p)));
@@ -675,6 +686,11 @@ const SYNAPSES_BUILD = {
     inputLieu.placeholder = 'Ex. Cabinet, hôpital de jour…';
     inputLieu.value = pecExistante ? (pecExistante.lieu || '') : '';
 
+    const inputActivite = document.createElement('input');
+    inputActivite.type = 'text';
+    inputActivite.placeholder = 'Ex. Articulation, motricité fine… (optionnel)';
+    inputActivite.value = pecExistante ? (pecExistante.activite || '') : '';
+
     const inputRemarque = document.createElement('input');
     inputRemarque.type = 'text';
     inputRemarque.placeholder = 'Remarque (optionnel)';
@@ -685,6 +701,7 @@ const SYNAPSES_BUILD = {
     form.appendChild(ligneChampPec('Début', inputDebut));
     form.appendChild(ligneChampPec('Fin', inputFin));
     form.appendChild(ligneChampPec('Lieu', inputLieu));
+    form.appendChild(ligneChampPec('Activité travaillée', inputActivite));
     form.appendChild(ligneChampPec('Remarque', inputRemarque));
 
     const actions = document.createElement('div');
@@ -702,6 +719,7 @@ const SYNAPSES_BUILD = {
         debut: inputDebut.value,
         fin: inputFin.value,
         lieu: inputLieu.value.trim(),
+        activite: inputActivite.value.trim(),
         remarque: inputRemarque.value.trim()
       };
       if (pecExistante) {
@@ -734,7 +752,7 @@ const SYNAPSES_BUILD = {
       const tr = document.createElement('tr');
       tr.className = 'pec-ligne-edition';
       const td = document.createElement('td');
-      td.colSpan = 7;
+      td.colSpan = 8;
       td.appendChild(formulairePec(eleve, p));
       tr.appendChild(td);
       return tr;
@@ -745,6 +763,7 @@ const SYNAPSES_BUILD = {
     const tdJour = document.createElement('td'); tdJour.textContent = JOURS_SEMAINE[(Number(p.jour) || 1) - 1] || '';
     const tdHoraire = document.createElement('td'); tdHoraire.textContent = (p.debut || '') + ' – ' + (p.fin || '');
     const tdLieu = document.createElement('td'); tdLieu.textContent = p.lieu || '';
+    const tdActivite = document.createElement('td'); tdActivite.textContent = p.activite || '';
     const tdRemarque = document.createElement('td'); tdRemarque.textContent = p.remarque || '';
     const tdActif = document.createElement('td');
     const btnActif = document.createElement('button');
@@ -781,6 +800,7 @@ const SYNAPSES_BUILD = {
     tr.appendChild(tdJour);
     tr.appendChild(tdHoraire);
     tr.appendChild(tdLieu);
+    tr.appendChild(tdActivite);
     tr.appendChild(tdRemarque);
     tr.appendChild(tdActif);
     tr.appendChild(tdActions);
@@ -794,9 +814,85 @@ const SYNAPSES_BUILD = {
     if (typeof marquerCoffreModifie === 'function') marquerCoffreModifie();
   }
 
+  /** Ouvre un petit formulaire modal-like (dans #edtEditionWrap) pour
+   *  préciser/corriger l'activité et l'adulte de référence d'une case de
+   *  l'emploi du temps, qu'elle vienne du planning (classe/dispositif) ou
+   *  d'une prise en charge extérieure. Ne modifie jamais l'horaire ni le
+   *  lieu : ces informations restent de la responsabilité de Planning —
+   *  Gestion (planning[]) ou du formulaire dédié ci-dessus (PEC). */
+  function ouvrirEditionCase(identifiantSynapses, brut, origine, formatte){
+    const zone = $('edtEditionWrap');
+    zone.innerHTML = '';
+
+    const boite = document.createElement('div');
+    boite.className = 'edt-edition-boite';
+
+    const titre = document.createElement('h4');
+    titre.style.cssText = 'margin:0 0 8px;font-size:14px;';
+    titre.textContent = formatte.lieuNom + ' — ' + (formatte.debut || '') + (formatte.fin ? ' – ' + formatte.fin : '');
+    boite.appendChild(titre);
+
+    const inputActivite = document.createElement('input');
+    inputActivite.type = 'text';
+    inputActivite.placeholder = 'Ex. Lecture, Numération, Motricité…';
+    inputActivite.value = formatte.activiteNom || '';
+
+    const inputAdulteNom = document.createElement('input');
+    inputAdulteNom.type = 'text';
+    inputAdulteNom.placeholder = 'Ex. Mme Dupont';
+    inputAdulteNom.value = formatte.adulteNom || '';
+
+    const inputAdulteRole = document.createElement('input');
+    inputAdulteRole.type = 'text';
+    inputAdulteRole.placeholder = 'Ex. Enseignante titulaire, AESH, ULIS…';
+    inputAdulteRole.value = formatte.adulteRole || (origine === 'externe' ? 'Intervenant extérieur' : '');
+    if (origine === 'externe') { inputAdulteRole.disabled = true; } // fixé par le type "externe"
+
+    boite.appendChild(ligneChampPec('Activité travaillée', inputActivite));
+    boite.appendChild(ligneChampPec('Adulte de référence', inputAdulteNom));
+    boite.appendChild(ligneChampPec('Rôle de l\'adulte', inputAdulteRole));
+
+    const actions = document.createElement('div');
+    actions.className = 'pec-form-actions';
+    const btnEnregistrer = document.createElement('button');
+    btnEnregistrer.className = 'btn primary';
+    btnEnregistrer.textContent = 'Enregistrer';
+    btnEnregistrer.addEventListener('click', () => {
+      if (origine === 'externe') {
+        coffre.modifierPriseEnChargeExterieure(identifiantSynapses, brut.id, {
+          activite: inputActivite.value.trim(),
+          intervenant: inputAdulteNom.value.trim()
+        });
+      } else {
+        coffre.modifierAffectationCreneau(
+          identifiantSynapses,
+          brut.id || { classeId: brut.classeId, creneauId: brut.creneauId },
+          {
+            activite: { nom: inputActivite.value.trim() },
+            adulteReference: { nom: inputAdulteNom.value.trim(), role: inputAdulteRole.value.trim() }
+          }
+        );
+      }
+      zone.innerHTML = '';
+      afficherEmploiDuTemps(identifiantSynapses);
+      marquerCoffreModifieSiDisponible();
+    });
+    const btnAnnuler = document.createElement('button');
+    btnAnnuler.className = 'btn';
+    btnAnnuler.textContent = 'Annuler';
+    btnAnnuler.addEventListener('click', () => { zone.innerHTML = ''; });
+    actions.appendChild(btnEnregistrer);
+    actions.appendChild(btnAnnuler);
+    boite.appendChild(actions);
+
+    zone.appendChild(boite);
+    boite.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
+    $('edtEditionWrap').innerHTML = '';
 
     if (!identifiantSynapses) {
       wrap.appendChild(document.createElement('div')).className = 'edt-vide';
@@ -812,17 +908,9 @@ const SYNAPSES_BUILD = {
     // semaine de l'élève en un coup d'œil.
     const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
       .filter((p) => p.actif !== false)
-      .map((p) => ({
-        classeNom: (p.intervenant || '').trim() || 'Prise en charge extérieure',
-        libelle: (p.lieu || '').trim(),
-        titre: (p.remarque || '').trim(),
-        type: 'externe',
-        jour: p.jour,
-        debut: p.debut || '',
-        fin: p.fin || '',
-        domaineCle: ''
-      }));
-    const toutesCases = planning.concat(pecActives);
+      .map((p) => Object.assign({ _origine: 'externe', _brut: p }, p));
+    const casesPlanning = planning.map((c) => Object.assign({ _origine: 'planning', _brut: c }, c));
+    const toutesCases = casesPlanning.concat(pecActives);
 
     if (!toutesCases.length) {
       const vide = document.createElement('div');
@@ -872,51 +960,67 @@ const SYNAPSES_BUILD = {
         if (creneaux.length) {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
+            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
             const bloc = document.createElement('div');
-            bloc.className = 'edt-bloc edt-bloc-' + (c.type || 'seance');
-            const typeLabel = typeSeanceCreneau(c);
-            const nom = (c.libelle || '').trim() || domaineLisible(c.domaineCle);
-            const titre = (c.titre || '').trim();
+            bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
 
-            // Ordre d'affichage voulu : classe du créneau, nom (libellé),
-            // titre, type. Chaque ligne n'est affichée que si elle apporte
-            // une information (pas de doublon avec la ligne précédente).
-            // domaineCle n'est volontairement jamais affiché (clé technique
-            // interne, non destinée à être lue).
-            const classeNom = document.createElement('div');
-            classeNom.className = 'edt-classe';
-            classeNom.textContent = c.classeNom || '(classe sans nom)';
-            bloc.appendChild(classeNom);
+            // Ordre d'affichage voulu, chaque ligne répondant à une question
+            // distincte : OÙ (lieu) / QUOI (activité) / AVEC QUI (adulte de
+            // référence) / horaire / remarque libre. Une ligne n'est
+            // affichée que si elle apporte une information non déjà
+            // présente ailleurs dans le bloc (pas de doublon).
+            const lieuEl = document.createElement('div');
+            lieuEl.className = 'edt-classe';
+            lieuEl.textContent = f.lieuNom;
+            bloc.appendChild(lieuEl);
 
-            if (nom) {
+            const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
+            if (activiteAffichee) {
               const nomEl = document.createElement('div');
               nomEl.className = 'edt-nom';
-              nomEl.textContent = nom;
+              nomEl.textContent = activiteAffichee;
+              bloc.appendChild(nomEl);
+            } else {
+              const nomEl = document.createElement('div');
+              nomEl.className = 'edt-nom edt-nom-vide';
+              nomEl.textContent = '(activité non renseignée)';
               bloc.appendChild(nomEl);
             }
 
-            if (titre && titre.toLowerCase() !== nom.toLowerCase()) {
-              const titreEl = document.createElement('div');
-              titreEl.className = 'edt-titre';
-              titreEl.textContent = titre;
-              bloc.appendChild(titreEl);
+            if (f.adulteNom) {
+              const adulteEl = document.createElement('div');
+              adulteEl.className = 'edt-adulte';
+              adulteEl.textContent = '👤 ' + f.adulteNom + (f.adulteRole ? ' — ' + f.adulteRole : '');
+              bloc.appendChild(adulteEl);
             }
 
-            // Type de créneau, sauf quand il redit exactement le nom déjà
-            // affiché (créneau sans aucune information saisie : évite
-            // "Séance" / "SÉANCE" en double).
-            const dejaAffiche = (nom || titre).toLowerCase();
-            if (typeLabel.toLowerCase() !== dejaAffiche) {
-              const type = document.createElement('div');
-              type.className = 'edt-type';
-              type.textContent = typeLabel;
-              bloc.appendChild(type);
+            if (f.remarque && f.remarque.toLowerCase() !== activiteAffichee.toLowerCase()) {
+              const remarqueEl = document.createElement('div');
+              remarqueEl.className = 'edt-titre';
+              remarqueEl.textContent = f.remarque;
+              bloc.appendChild(remarqueEl);
             }
 
             const horaire = document.createElement('div');
             horaire.className = 'edt-horaire';
-            horaire.textContent = (c.debut || '') + (c.fin ? ' – ' + c.fin : '');
+            horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
             bloc.appendChild(horaire);
+
+            // Édition inline : uniquement pour les affectations classe/
+            // dispositif (planning[]) et les prises en charge extérieures,
+            // pour permettre de préciser l'activité et l'adulte de
+            // référence directement depuis le coffre, sans attendre une
+            // mise à jour de Planning — Gestion.
+            const btnEditer = document.createElement('button');
+            btnEditer.type = 'button';
+            btnEditer.className = 'edt-btn-editer';
+            btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
+            btnEditer.textContent = '✎';
+            btnEditer.addEventListener('click', () => {
+              ouvrirEditionCase(identifiantSynapses, c._brut || c, c._origine, f);
+            });
+            bloc.appendChild(btnEditer);
+
             td.appendChild(bloc);
           });
         }
