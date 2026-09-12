@@ -139,8 +139,10 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .si-form-row-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .si-form-row-pair select,.si-form-row-pair input{width:100%;margin-bottom:6px;}
 @media(max-width:640px){.si-form-row-pair{grid-template-columns:1fr;} .si-layout{grid-template-columns:1fr;}}
-.si-table{width:100%;border-collapse:collapse;font-size:13px;}
+.si-table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.si-table{width:100%;min-width:560px;border-collapse:collapse;font-size:13px;}
 .si-table th,.si-table td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);}
+.si-td-actions{white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
 .si-table th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
 .si-ligne-edition{background:#EEF2FB;}
 .si-ligne-edition input,.si-ligne-edition select{width:100%;min-width:0;font-size:13px;padding:5px 7px;}
