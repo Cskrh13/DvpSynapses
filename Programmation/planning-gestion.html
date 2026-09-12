@@ -1085,25 +1085,7 @@ function domainesDisponibles(classeId){
   return Object.entries(parNiveau).map(([cle,b])=>({cle,label:b.label,count:b.items.length}));
 }
 
-// Titres des séances déjà existantes dans la banque pour un domaine donné
-// (proposées en suggestion dans le champ "Titre de la séance", mais un
-// titre libre — non présent dans cette liste — reste toujours accepté).
-function titresPourDomaine(classeId, domaineCle){
-  const cl = PC.classeById(config, classeId);
-  const bucket = cl && banque[cl.niveau] && banque[cl.niveau][domaineCle];
-  if(!bucket) return [];
-  const vus = new Set();
-  const titres = [];
-  bucket.items.forEach(it=>{
-    const t = (it.titre || "").trim();
-    if(t && !vus.has(t)){ vus.add(t); titres.push(t); }
-  });
-  return titres;
-}
 function escapeAttr(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
-function datalistOptionsHTML(titres){
-  return titres.map(t=>`<option value="${escapeAttr(t)}"></option>`).join("");
-}
 
 function renderGrilleBody(){
   const wrap = $("grille-body");
@@ -1511,12 +1493,6 @@ $("btn-ia-remplir").addEventListener("click", ()=>{
 });
 
 /* ---------------- Affectation élève ↔ créneau ---------------- */
-function elevePlanning(e){
-  return Array.isArray(e && e.planning) ? e.planning : [];
-}
-function eleveEstAffecteAuCreneau(e, classeId, creneauId){
-  return elevePlanning(e).some(p=>p.classeId===classeId && p.creneauId===creneauId);
-}
 function coffreEleveById(id){
   if(!coffre || !coffre.ouvert) return null;
   return (coffre.donnees.eleves||[]).find(e=>e.identifiantSynapses===id) || null;
