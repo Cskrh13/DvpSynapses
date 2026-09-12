@@ -2282,20 +2282,27 @@ function normaliserJourDisp(v){
   const j=PC.JOURS.find(x=>normaliserTexte(x.nom)===t || normaliserTexte(x.nom).startsWith(t) || t.startsWith(normaliserTexte(x.nom)));
   return j ? j.n : (Number.isFinite(Number(v)) ? Number(v) : null);
 }
-function elevesSurDispositif(dispId){
+function elevesSurDispositif(dispId, jour=null, creneauId=null){
   if(!coffre || !coffre.ouvert) return [];
   const ids=new Set();
   (coffre.listerEleves ? coffre.listerEleves() : []).forEach(e=>{
-    if((e.planning||[]).some(p=>p.classeId===dispId && p.typeLieu==="dispositif")) ids.add(e.identifiantSynapses);
+    const plan=Array.isArray(e.planning)?e.planning:[];
+    if(plan.some(p=>{
+      if(p.classeId!==dispId || p.typeLieu!=="dispositif") return false;
+      if(jour!==null && Number(p.jour)!==Number(jour)) return false;
+      if(creneauId!==null && p.creneauId!==creneauId) return false;
+      return true;
+    }) && e.identifiantSynapses) ids.add(e.identifiantSynapses);
   });
   return [...ids].map(id=>coffreEleveById(id)).filter(Boolean);
 }
+
 function niveauEleve(e){
   const v=e.niveau || (e.identite&&e.identite.niveau) || e.classe || (e.identite&&e.identite.classe) || "";
   return String(v).trim();
 }
-function anonElevesDisp(dispId){
-  return elevesSurDispositif(dispId).map((e,i)=>({
+function anonElevesDisp(dispId, jour=null){
+  return elevesSurDispositif(dispId, jour).map((e,i)=>({
     id:e.identifiantSynapses, anon:`E${String(i+1).padStart(2,"0")}`,
     niveau:niveauEleve(e), objectifs:Array.isArray(e.objectifs)?e.objectifs.filter(o=>o&&o.statut!=="clos").map(o=>o.libelle||o.objectif||"").filter(Boolean):[],
     besoins:Array.isArray(e.besoins)?e.besoins.map(b=>b.hypothese||b.libelle||b.besoin||"").filter(Boolean):[],
@@ -2310,21 +2317,35 @@ function creneauxDispJour(dispId, jour){
 }
 function cleGroupeDisp(dispId, jour, creneauId){ return `${dispId}::${jour}::${creneauId}`; }
 function groupesParDefautDisp(dispId, jour, c){
-  const eleves=elevesSurDispositif(dispId);
+  // Le roster est STRICTEMENT celui des élèves actuellement affectés au
+  // dispositif dans le coffre. Un élève seulement rattaché à la classe ou
+  // au dispositif n'est pas pris en compte.
+  const eleves=elevesSurDispositif(dispId, jour, c.id);
   const groupes={enseignant:[],aesh:[],autonomie:[]};
-  // Défaut : niveaux scolaires homogènes. Les niveaux sont ordonnés puis
-  // distribués en priorité vers l'enseignant, puis AESH, puis autonomie.
-  // Cette règle est volontairement déterministe et reste modifiable.
-  const niveaux=[...new Set(eleves.map(niveauEleve))].sort((a,b)=>a.localeCompare(b,"fr",{numeric:true}));
-  eleves.sort((a,b)=>{
-    const na=niveaux.indexOf(niveauEleve(a)), nb=niveaux.indexOf(niveauEleve(b));
-    return na-nb || String(a.identifiantSynapses).localeCompare(String(b.identifiantSynapses));
-  }).forEach((e,i)=>{
-    const r=i%3;
-    (r===0?groupes.enseignant:r===1?groupes.aesh:groupes.autonomie).push(e.identifiantSynapses);
+  if(!eleves.length) return groupes;
+
+  // Répartition initiale par niveaux : on garde les élèves d'un même niveau
+  // ensemble autant que possible, puis on affecte les niveaux aux trois
+  // modalités. Cette répartition reste une proposition modifiable.
+  const niveaux=[...new Set(eleves.map(niveauEleve).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,"fr",{numeric:true}));
+  const buckets=new Map(niveaux.map(n=>[n,[]]));
+  const sansNiveau=[];
+  eleves.forEach(e=>{
+    const n=niveauEleve(e);
+    if(n && buckets.has(n)) buckets.get(n).push(e);
+    else sansNiveau.push(e);
+  });
+
+  const groupesNiveaux=[[],[],[]];
+  [...buckets.values()].forEach((liste,i)=>groupesNiveaux[i%3].push(...liste));
+  groupesNiveaux[2].push(...sansNiveau);
+  ["enseignant","aesh","autonomie"].forEach((g,i)=>{
+    groupes[g]=groupesNiveaux[i].map(e=>e.identifiantSynapses);
   });
   return groupes;
 }
+
 function groupesExistantsDisp(dispId, jour, c){
   const key=cleGroupeDisp(dispId,jour,c.id);
   const g=config.dispositifGroupes[key];
@@ -2364,8 +2385,9 @@ function renderDispositif(){
   if(!creneaux.length){ body.innerHTML='<div class="empty-hint">Aucun créneau pédagogique ce jour dans la grille du dispositif.</div>'; return; }
   creneaux.forEach(c=>{
     const slot=document.createElement("div"); slot.className="disp-slot";
+    const roster=elevesSurDispositif(id,dispositifJourCourant,c.id);
     const groupes=groupesExistantsDisp(id,dispositifJourCourant,c);
-    slot.innerHTML=`<div class="disp-slot-head"><span class="horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</span><span>${escapeHTMLTexte(PC.libelleCreneau(c)||"Créneau")}</span></div><div class="disp-groups"></div><div style="padding:0 10px 10px;"><span class="hint">Cliquer sur un élève pour l'ajouter au groupe choisi.</span></div>`;
+    slot.innerHTML=`<div class="disp-slot-head"><span class="horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</span><span>${escapeHTMLTexte(PC.libelleCreneau(c)||"Créneau")}</span><span class="hint">${roster.length} élève(s)</span></div><div class="disp-groups"></div><div style="padding:0 10px 10px;"><span class="hint">Seuls les élèves affectés à ce créneau du dispositif sont proposés.</span></div>`;
     const gs=slot.querySelector(".disp-groups");
     [["enseignant","Enseignant"],["aesh","AESH"],["autonomie","Autonomie"]].forEach(([key,label])=>{
       const box=document.createElement("div"); box.className="disp-group";
@@ -2397,7 +2419,18 @@ function renderDispositif(){
   });
 }
 function sauvegarderGroupesDisp(dispId,jour,c,g,toastOui=true){
-  config.dispositifGroupes[cleGroupeDisp(dispId,jour,c.id)]={enseignant:[...(g.enseignant||[])],aesh:[...(g.aesh||[])],autonomie:[...(g.autonomie||[])]};
+  const rosterIds=new Set(elevesSurDispositif(dispId).map(e=>e.identifiantSynapses));
+  const deja=new Set();
+  const nettoye={enseignant:[],aesh:[],autonomie:[]};
+  ["enseignant","aesh","autonomie"].forEach(k=>{
+    (Array.isArray(g[k])?g[k]:[]).forEach(id=>{
+      // On n'enregistre que les élèves réellement présents sur le dispositif
+      // et jamais deux fois sur le même créneau.
+      if(!rosterIds.has(id) || deja.has(id)) return;
+      deja.add(id); nettoye[k].push(id);
+    });
+  });
+  config.dispositifGroupes[cleGroupeDisp(dispId,jour,c.id)]=nettoye;
   PC.sauverConfig(config);
   const st=$("disp-save-status"); if(st) st.textContent="Répartition enregistrée dans le planning.";
   if(toastOui) toast("Répartition enregistrée.");
@@ -2412,17 +2445,42 @@ function repartirDefautDisp(){
 function genererPromptDispositif(){
   const id=$("disp-repartition-select")?.value; const d=(config.dispositifs||[]).find(x=>x.id===id);
   if(!d || !coffre || !coffre.ouvert){return "Ouvrez le coffre et sélectionnez un dispositif pour générer le prompt.";}
-  const roster=anonElevesDisp(id), jour=dispositifJourCourant, creneaux=creneauxDispJour(id,jour);
+  const jour=dispositifJourCourant, creneaux=creneauxDispJour(id,jour);
   if(!jour || !creneaux.length) return "Aucun créneau pédagogique pour ce jour.";
-  const payload=creneaux.map(c=>({jour:PC.JOURS.find(j=>j.n===jour)?.nom,debut:c.debut,fin:c.fin,nom:PC.libelleCreneau(c)||"Créneau"}));
-  return `Tu es un enseignant spécialisé chargé de constituer des groupes de besoins sur un dispositif scolaire.\n\nDispositif : ${d.nom} (${d.type||"dispositif"})\nJour : ${PC.JOURS.find(j=>j.n===jour)?.nom}\n\nLes élèves sont anonymisés. Tu dois créer, uniquement si cela est pertinent, jusqu'à trois groupes par créneau : "enseignant", "aesh", "autonomie". Ne cherche jamais à identifier les élèves. Utilise leurs objectifs, capacités, difficultés, besoins et adaptations pour proposer des groupes pédagogiquement cohérents. La répartition doit rester réalisable et respecter les objectifs du créneau.\n\nÉlèves :\n${JSON.stringify(roster.map(x=>({id:x.anon,niveau:x.niveau,objectifs:x.objectifs,capacites:x.capacites,difficultes:x.difficultes,besoins:x.besoins,adaptations:x.adaptations})),null,2)}\n\nCréneaux du jour :\n${JSON.stringify(payload,null,2)}\n\nRéponds UNIQUEMENT avec un tableau JSON. Un objet par créneau nécessitant une répartition :\n[{
+  const rosterJour=anonElevesDisp(id,jour);
+  const payload=creneaux.map(c=>{
+    const idsSlot=new Set(elevesSurDispositif(id,jour,c.id).map(e=>e.identifiantSynapses));
+    return {jour:PC.JOURS.find(j=>j.n===jour)?.nom,debut:c.debut,fin:c.fin,nom:PC.libelleCreneau(c)||"Créneau",eleves:rosterJour.filter(x=>idsSlot.has(x.id)).map(x=>x.anon)};
+  });
+  return `Tu es un enseignant spécialisé chargé de constituer des groupes de besoins sur un dispositif scolaire.
+
+Dispositif : ${d.nom} (${d.type||"dispositif"})
+Jour : ${PC.JOURS.find(j=>j.n===jour)?.nom}
+
+Les élèves sont anonymisés. Tu dois créer, uniquement si cela est pertinent, jusqu'à trois groupes par créneau : "enseignant", "aesh", "autonomie". Ne cherche jamais à identifier les élèves. Utilise leurs objectifs, capacités, difficultés, besoins et adaptations pour proposer des groupes pédagogiquement cohérents.
+
+Élèves du jour :
+${JSON.stringify(rosterJour.map(x=>({id:x.anon,niveau:x.niveau,objectifs:x.objectifs,capacites:x.capacites,difficultes:x.difficultes,besoins:x.besoins,adaptations:x.adaptations})),null,2)}
+
+Créneaux du jour et élèves réellement affectés à chacun :
+${JSON.stringify(payload,null,2)}
+
+Réponds UNIQUEMENT avec un tableau JSON. Un objet par créneau nécessitant une répartition :
+[{
   "jour":"Lundi",
   "debut":"09:00",
   "fin":"09:30",
   "enseignant":["E01"],
   "aesh":["E02"],
   "autonomie":["E03"]
-}]\n\nRègles :\n- Utilise exclusivement les identifiants anonymes fournis (E01, E02...).\n- Un élève ne peut apparaître que dans un seul des trois groupes pour un même créneau.\n- Tu peux laisser un groupe vide si ce groupe n'est pas nécessaire.\n- Tu peux omettre un créneau si aucune répartition particulière n'est nécessaire.\n- N'invente aucun élève, objectif, difficulté ou créneau.`;
+}]
+
+Règles :
+- Utilise exclusivement les identifiants anonymes fournis.
+- Utilise uniquement les élèves listés pour le créneau concerné.
+- Un élève ne peut apparaître que dans un seul des trois groupes pour un même créneau.
+- Tu peux laisser un groupe vide ou omettre un créneau si aucune répartition particulière n'est nécessaire.
+- N'invente aucun élève, objectif, difficulté ou créneau.`;
 }
 function refreshDispositifIa(){ const p=$("disp-ia-prompt"); if(p) p.value=genererPromptDispositif(); }
 function parserGroupesDispositif(txt){
@@ -2443,7 +2501,27 @@ function appliquerResultatIaDispositif(){
   renderDispositif(); refreshDispositifIa(); toast(nb+" répartition(s) générée(s) depuis le résultat de l'IA.");
 }
 $("btn-disp-repartir")?.addEventListener("click",repartirDefautDisp);
-$("btn-disp-enregistrer")?.addEventListener("click",()=>{PC.sauverConfig(config);toast("Répartition du dispositif enregistrée.");});
+$("btn-disp-enregistrer")?.addEventListener("click",()=>{
+  const id=$("disp-repartition-select")?.value;
+  if(!id){ toast("Sélectionnez un dispositif."); return; }
+  // Les boutons de déplacement enregistrent déjà l'état du créneau courant,
+  // mais ce bouton force une sauvegarde complète et donne un retour explicite.
+  // On purge au passage les identifiants qui ne sont plus affectés au dispositif.
+  const rosterIds=new Set(elevesSurDispositif(id).map(e=>e.identifiantSynapses));
+  Object.keys(config.dispositifGroupes||{}).forEach(key=>{
+    if(!key.startsWith(id+"::")) return;
+    const g=config.dispositifGroupes[key]||{};
+    const deja=new Set();
+    ["enseignant","aesh","autonomie"].forEach(k=>{
+      g[k]=(Array.isArray(g[k])?g[k]:[]).filter(e=>rosterIds.has(e) && !deja.has(e) && (deja.add(e),true));
+    });
+  });
+  PC.sauverConfig(config);
+  renderDispositif();
+  refreshDispositifIa();
+  const st=$("disp-save-status"); if(st) st.textContent="Répartition enregistrée dans le planning.";
+  toast("Répartition du dispositif enregistrée dans le planning.");
+});
 $("btn-disp-ia-regenerer")?.addEventListener("click",()=>{$("disp-ia-prompt").value=genererPromptDispositif();});
 $("btn-disp-ia-copier")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("disp-ia-prompt").value);$("disp-ia-status").textContent="Prompt copié.";}catch(e){$("disp-ia-prompt").select();document.execCommand("copy");$("disp-ia-status").textContent="Prompt copié.";}});
 $("btn-disp-ia-appliquer")?.addEventListener("click",appliquerResultatIaDispositif);
