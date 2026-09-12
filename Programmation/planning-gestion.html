@@ -120,6 +120,27 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .service-classes button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:3px 10px;font-size:11.5px;font-weight:600;color:var(--ink-soft);}
 .service-classes button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
 
+/* ---- Dispositif : répartition des élèves ---- */
+.disp-day-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;}
+.disp-day-tabs button{border:1px solid var(--line);background:var(--panel-raised);border-radius:8px;padding:8px 16px;font-weight:700;font-size:13px;color:var(--ink-soft);}
+.disp-day-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.disp-slot{border:1px solid var(--line);border-radius:10px;background:var(--panel);margin-bottom:12px;overflow:hidden;}
+.disp-slot-head{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px;background:var(--panel-raised);border-bottom:1px solid var(--line);}
+.disp-slot-head .horaire{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:12px;}
+.disp-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:10px;}
+.disp-group{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;min-height:80px;}
+.disp-group h4{font-size:12px;margin:0 0 7px;}
+.disp-student{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 6px;margin:3px 0;border-radius:5px;background:var(--panel-raised);font-size:11.5px;}
+.disp-student button{border:0;background:transparent;color:var(--danger);cursor:pointer;font-size:12px;}
+.disp-empty{font-size:11px;color:var(--ink-soft);font-style:italic;}
+.disp-roster{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.disp-roster button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer;}
+.disp-roster button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.disp-ai textarea{width:100%;min-height:220px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.45;}
+.disp-ai .ia-resultat{min-height:170px;}
+.disp-status{font-size:12px;color:var(--ink-soft);margin-left:8px;}
+@media(max-width:900px){.disp-groups{grid-template-columns:1fr;}}
+
 .synapses-footer {
     margin-top: 40px;
     padding: 18px 24px;
@@ -262,6 +283,7 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <button data-tab="tab-horaires">Jours travaillés &amp; horaires fixes</button>
     <button data-tab="tab-grille">Grille horaire type</button>
     <button data-tab="tab-affectation">Affectation</button>
+    <button data-tab="tab-dispositif">Dispositif</button>
   </div>
 
   <!-- =============== ONGLET : CONFIGURATION GÉNÉRALE =============== -->
@@ -448,6 +470,47 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
       <div id="gend-wrap"></div>
     </section>
   </div>
+<!-- =============== ONGLET : DISPOSITIF =============== -->
+  <div class="tab-panel" id="tab-dispositif">
+    <section class="card">
+      <h2>Dispositif — répartition des élèves</h2>
+      <p class="hint">Sélectionnez un dispositif. Les élèves affichés sont ceux qui lui sont actuellement affectés. Les groupes sont enregistrés dans la configuration du planning : ils ne modifient ni les données pédagogiques du coffre ni la grille horaire type.</p>
+      <div class="row" style="margin-bottom:14px;align-items:end;">
+        <div class="field" style="min-width:260px;"><label>Dispositif</label><select id="disp-repartition-select"></select></div>
+        <button class="btn primary" id="btn-disp-repartir">Répartir les élèves</button>
+        <button class="btn" id="btn-disp-enregistrer">Enregistrer la répartition</button>
+        <span class="disp-status" id="disp-save-status"></span>
+      </div>
+      <div id="disp-sans-coffre" class="empty-hint" style="display:none;"></div>
+      <div id="disp-sans-eleves" class="empty-hint" style="display:none;"></div>
+      <div class="disp-day-tabs" id="disp-day-tabs"></div>
+      <div id="disp-jour-body"></div>
+    </section>
+
+    <section class="card disp-ai">
+      <h2>Atelier IA — création de groupes de besoins</h2>
+      <p class="hint">Le prompt est généré pour le jour sélectionné et anonymise les élèves. Il transmet uniquement des identifiants neutres, le niveau, les objectifs, capacités, difficultés et adaptations utiles à la constitution des groupes.</p>
+      <div class="row" style="margin-bottom:10px;">
+        <button class="btn" id="btn-disp-ia-regenerer">Régénérer le prompt</button>
+        <button class="btn" id="btn-disp-ia-copier">Copier le prompt</button>
+        <span class="disp-status" id="disp-ia-status"></span>
+      </div>
+      <textarea id="disp-ia-prompt" readonly></textarea>
+      <h3 style="font-size:14px;margin:16px 0 6px;">Résultat du prompt</h3>
+      <p class="hint">Collez ici la réponse JSON de l'IA. Le bouton ci-dessous crée, pour chaque créneau concerné, jusqu'à trois groupes : Enseignant, AESH et Autonomie.</p>
+      <textarea id="disp-ia-resultat" class="ia-resultat" placeholder='[{
+  "jour":"Lundi",
+  "debut":"09:00",
+  "fin":"09:30",
+  "enseignant":["E01"],
+  "aesh":["E02"],
+  "autonomie":["E03"]
+}]'></textarea>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn primary" id="btn-disp-ia-appliquer">Générer les groupes</button>
+      </div>
+    </section>
+  </div>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -524,6 +587,9 @@ const $ = id => document.getElementById(id);
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
 
 let config = PC.chargerConfig();
+config.dispositifGroupes = config.dispositifGroupes || {};
+let dispositifJourCourant = null;
+let dispositifIdCourant = null;
 let grilles = PC.chargerGrilles();
 // Restaure immédiatement les anciennes grilles indexées par niveau (CP,
 // CE1, …) vers les nouveaux identifiants de classes. Cette étape est
@@ -550,6 +616,7 @@ document.querySelectorAll("#page-tabs button").forEach(b=>{
     $(b.dataset.tab).classList.add("active");
     if (b.dataset.tab === "tab-grille") renderGrilleTabs();
     if (b.dataset.tab === "tab-affectation") { renderAffgClasseSelect(); refreshAffectationTab(); }
+    if (b.dataset.tab === "tab-dispositif") { renderDispositifSelect(); renderDispositif(); refreshDispositifIa(); }
   });
 });
 
@@ -2204,6 +2271,183 @@ $("import-config-file").addEventListener("change", async ()=>{
   }
 });
 
+/* ---------------- Dispositif : répartition par jour et groupes ---------------- */
+function joursActifsDispositif(){
+  const actifs = (config.joursTravailles||[]).map(Number);
+  return PC.JOURS.filter(j=>actifs.includes(Number(j.n)));
+}
+function normaliserJourDisp(v){
+  if(v==null) return null;
+  const t=normaliserTexte(v);
+  const j=PC.JOURS.find(x=>normaliserTexte(x.nom)===t || normaliserTexte(x.nom).startsWith(t) || t.startsWith(normaliserTexte(x.nom)));
+  return j ? j.n : (Number.isFinite(Number(v)) ? Number(v) : null);
+}
+function elevesSurDispositif(dispId){
+  if(!coffre || !coffre.ouvert) return [];
+  const ids=new Set();
+  (coffre.listerEleves ? coffre.listerEleves() : []).forEach(e=>{
+    if((e.planning||[]).some(p=>p.classeId===dispId && p.typeLieu==="dispositif")) ids.add(e.identifiantSynapses);
+  });
+  return [...ids].map(id=>coffreEleveById(id)).filter(Boolean);
+}
+function niveauEleve(e){
+  const v=e.niveau || (e.identite&&e.identite.niveau) || e.classe || (e.identite&&e.identite.classe) || "";
+  return String(v).trim();
+}
+function anonElevesDisp(dispId){
+  return elevesSurDispositif(dispId).map((e,i)=>({
+    id:e.identifiantSynapses, anon:`E${String(i+1).padStart(2,"0")}`,
+    niveau:niveauEleve(e), objectifs:Array.isArray(e.objectifs)?e.objectifs.filter(o=>o&&o.statut!=="clos").map(o=>o.libelle||o.objectif||"").filter(Boolean):[],
+    besoins:Array.isArray(e.besoins)?e.besoins.map(b=>b.hypothese||b.libelle||b.besoin||"").filter(Boolean):[],
+    adaptations:Array.isArray(e.adaptations)?e.adaptations.filter(a=>a && (a.utilisee!==false)).map(a=>a.libelle||a.nom||"").filter(Boolean):[],
+    capacites:e.capacites || (e.identite&&e.identite.capacites) || [],
+    difficultes:e.difficultes || (e.identite&&e.identite.difficultes) || []
+  }));
+}
+function creneauxDispJour(dispId, jour){
+  return (grilles[dispId]||[]).filter(c=>Number(c.jour)===Number(jour) && c.type!=="recreation" && c.type!=="pause")
+    .sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+}
+function cleGroupeDisp(dispId, jour, creneauId){ return `${dispId}::${jour}::${creneauId}`; }
+function groupesParDefautDisp(dispId, jour, c){
+  const eleves=elevesSurDispositif(dispId);
+  const groupes={enseignant:[],aesh:[],autonomie:[]};
+  // Défaut : niveaux scolaires homogènes. Les niveaux sont ordonnés puis
+  // distribués en priorité vers l'enseignant, puis AESH, puis autonomie.
+  // Cette règle est volontairement déterministe et reste modifiable.
+  const niveaux=[...new Set(eleves.map(niveauEleve))].sort((a,b)=>a.localeCompare(b,"fr",{numeric:true}));
+  eleves.sort((a,b)=>{
+    const na=niveaux.indexOf(niveauEleve(a)), nb=niveaux.indexOf(niveauEleve(b));
+    return na-nb || String(a.identifiantSynapses).localeCompare(String(b.identifiantSynapses));
+  }).forEach((e,i)=>{
+    const r=i%3;
+    (r===0?groupes.enseignant:r===1?groupes.aesh:groupes.autonomie).push(e.identifiantSynapses);
+  });
+  return groupes;
+}
+function groupesExistantsDisp(dispId, jour, c){
+  const key=cleGroupeDisp(dispId,jour,c.id);
+  const g=config.dispositifGroupes[key];
+  if(g && typeof g==="object") return {enseignant:g.enseignant||[],aesh:g.aesh||[],autonomie:g.autonomie||[]};
+  return groupesParDefautDisp(dispId,jour,c);
+}
+function nomsAnonPourGroupe(g, roster){
+  const map=new Map(roster.map((x,i)=>[x.id,`E${String(i+1).padStart(2,"0")}`]));
+  return (g||[]).map(id=>map.get(id)).filter(Boolean);
+}
+function renderDispositifSelect(){
+  const sel=$("disp-repartition-select"); if(!sel) return;
+  const ds=config.dispositifs||[];
+  sel.innerHTML=ds.map(d=>`<option value="${escapeAttr(d.id)}">${escapeHTMLTexte(d.nom)} (${escapeHTMLTexte(d.type||"dispositif")})</option>`).join("") || '<option value="">Aucun dispositif</option>';
+  if(dispositifIdCourant && ds.some(d=>d.id===dispositifIdCourant)) sel.value=dispositifIdCourant;
+  else dispositifIdCourant=sel.value||null;
+  sel.onchange=()=>{ dispositifIdCourant=sel.value||null; dispositifJourCourant=null; renderDispositif(); refreshDispositifIa(); };
+}
+function renderDispositif(){
+  const id=$("disp-repartition-select")?.value || dispositifIdCourant;
+  dispositifIdCourant=id||null;
+  const tabs=$("disp-day-tabs"), body=$("disp-jour-body"), noC=$("disp-sans-coffre"), noE=$("disp-sans-eleves");
+  if(!tabs||!body) return;
+  tabs.innerHTML=""; body.innerHTML=""; noC.style.display="none"; noE.style.display="none";
+  if(!id){ noE.style.display=""; noE.textContent="Créez d'abord un dispositif dans « Configuration générale »."; return; }
+  if(!coffre || !coffre.ouvert){ noC.style.display=""; noC.textContent="Ouvrez le coffre pour afficher les élèves actuellement affectés au dispositif."; return; }
+  const roster=elevesSurDispositif(id);
+  if(!roster.length){ noE.style.display=""; noE.textContent="Aucun élève n'est actuellement affecté à ce dispositif."; return; }
+  const jours=joursActifsDispositif();
+  if(!jours.length){ noE.style.display=""; noE.textContent="Aucun jour travaillé n'est configuré."; return; }
+  if(!jours.some(j=>j.n===dispositifJourCourant)) dispositifJourCourant=jours[0].n;
+  jours.forEach(j=>{
+    const b=document.createElement("button"); b.textContent=j.nom; b.className=j.n===dispositifJourCourant?"active":"";
+    b.onclick=()=>{dispositifJourCourant=j.n; renderDispositif(); refreshDispositifIa();}; tabs.appendChild(b);
+  });
+  const creneaux=creneauxDispJour(id,dispositifJourCourant);
+  if(!creneaux.length){ body.innerHTML='<div class="empty-hint">Aucun créneau pédagogique ce jour dans la grille du dispositif.</div>'; return; }
+  creneaux.forEach(c=>{
+    const slot=document.createElement("div"); slot.className="disp-slot";
+    const groupes=groupesExistantsDisp(id,dispositifJourCourant,c);
+    slot.innerHTML=`<div class="disp-slot-head"><span class="horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</span><span>${escapeHTMLTexte(PC.libelleCreneau(c)||"Créneau")}</span></div><div class="disp-groups"></div><div style="padding:0 10px 10px;"><span class="hint">Cliquer sur un élève pour l'ajouter au groupe choisi.</span></div>`;
+    const gs=slot.querySelector(".disp-groups");
+    [["enseignant","Enseignant"],["aesh","AESH"],["autonomie","Autonomie"]].forEach(([key,label])=>{
+      const box=document.createElement("div"); box.className="disp-group";
+      box.innerHTML=`<h4>${label}</h4><div class="disp-students"></div><div class="disp-roster"></div>`;
+      const list=box.querySelector(".disp-students"), chooser=box.querySelector(".disp-roster");
+      const renderBox=()=>{
+        list.innerHTML="";
+        const ids=groupes[key]||[];
+        if(!ids.length) list.innerHTML='<div class="disp-empty">Aucun élève.</div>';
+        ids.forEach(idE=>{
+          const e=coffreEleveById(idE); if(!e) return;
+          const n=(e.identite&&e.identite.prenom)||e.identifiantSynapses;
+          const d=document.createElement("div"); d.className="disp-student"; d.innerHTML=`<span>${escapeHTMLTexte(n)}</span><button title="Retirer">×</button>`;
+          d.querySelector("button").onclick=()=>{ groupes[key]=ids.filter(x=>x!==idE); sauvegarderGroupesDisp(id,dispositifJourCourant,c,groupes,false); renderDispositif(); };
+          list.appendChild(d);
+        });
+        chooser.innerHTML="";
+        roster.forEach(e=>{
+          const inAny=Object.values(groupes).some(arr=>arr.includes(e.identifiantSynapses));
+          const b=document.createElement("button"); b.textContent=(e.identite&&e.identite.prenom)||e.identifiantSynapses; b.className=inAny?"active":"";
+          b.title=`Ajouter ${b.textContent} au groupe ${label}`;
+          b.onclick=()=>{ Object.keys(groupes).forEach(k=>groupes[k]=groupes[k].filter(x=>x!==e.identifiantSynapses)); groupes[key].push(e.identifiantSynapses); sauvegarderGroupesDisp(id,dispositifJourCourant,c,groupes,false); renderDispositif(); };
+          chooser.appendChild(b);
+        });
+      };
+      renderBox(); gs.appendChild(box);
+    });
+    body.appendChild(slot);
+  });
+}
+function sauvegarderGroupesDisp(dispId,jour,c,g,toastOui=true){
+  config.dispositifGroupes[cleGroupeDisp(dispId,jour,c.id)]={enseignant:[...(g.enseignant||[])],aesh:[...(g.aesh||[])],autonomie:[...(g.autonomie||[])]};
+  PC.sauverConfig(config);
+  const st=$("disp-save-status"); if(st) st.textContent="Répartition enregistrée dans le planning.";
+  if(toastOui) toast("Répartition enregistrée.");
+}
+function repartirDefautDisp(){
+  const id=$("disp-repartition-select")?.value; if(!id) return;
+  const roster=elevesSurDispositif(id); if(!roster.length){toast("Aucun élève actuellement sur le dispositif.");return;}
+  const jours=joursActifsDispositif(); let nb=0;
+  jours.forEach(j=>creneauxDispJour(id,j.n).forEach(c=>{ sauvegarderGroupesDisp(id,j.n,c,groupesParDefautDisp(id,j.n,c),false); nb++; }));
+  renderDispositif(); refreshDispositifIa(); toast(nb+" créneau(x) réparti(s) par défaut selon les niveaux scolaires.");
+}
+function genererPromptDispositif(){
+  const id=$("disp-repartition-select")?.value; const d=(config.dispositifs||[]).find(x=>x.id===id);
+  if(!d || !coffre || !coffre.ouvert){return "Ouvrez le coffre et sélectionnez un dispositif pour générer le prompt.";}
+  const roster=anonElevesDisp(id), jour=dispositifJourCourant, creneaux=creneauxDispJour(id,jour);
+  if(!jour || !creneaux.length) return "Aucun créneau pédagogique pour ce jour.";
+  const payload=creneaux.map(c=>({jour:PC.JOURS.find(j=>j.n===jour)?.nom,debut:c.debut,fin:c.fin,nom:PC.libelleCreneau(c)||"Créneau"}));
+  return `Tu es un enseignant spécialisé chargé de constituer des groupes de besoins sur un dispositif scolaire.\n\nDispositif : ${d.nom} (${d.type||"dispositif"})\nJour : ${PC.JOURS.find(j=>j.n===jour)?.nom}\n\nLes élèves sont anonymisés. Tu dois créer, uniquement si cela est pertinent, jusqu'à trois groupes par créneau : "enseignant", "aesh", "autonomie". Ne cherche jamais à identifier les élèves. Utilise leurs objectifs, capacités, difficultés, besoins et adaptations pour proposer des groupes pédagogiquement cohérents. La répartition doit rester réalisable et respecter les objectifs du créneau.\n\nÉlèves :\n${JSON.stringify(roster.map(x=>({id:x.anon,niveau:x.niveau,objectifs:x.objectifs,capacites:x.capacites,difficultes:x.difficultes,besoins:x.besoins,adaptations:x.adaptations})),null,2)}\n\nCréneaux du jour :\n${JSON.stringify(payload,null,2)}\n\nRéponds UNIQUEMENT avec un tableau JSON. Un objet par créneau nécessitant une répartition :\n[{
+  "jour":"Lundi",
+  "debut":"09:00",
+  "fin":"09:30",
+  "enseignant":["E01"],
+  "aesh":["E02"],
+  "autonomie":["E03"]
+}]\n\nRègles :\n- Utilise exclusivement les identifiants anonymes fournis (E01, E02...).\n- Un élève ne peut apparaître que dans un seul des trois groupes pour un même créneau.\n- Tu peux laisser un groupe vide si ce groupe n'est pas nécessaire.\n- Tu peux omettre un créneau si aucune répartition particulière n'est nécessaire.\n- N'invente aucun élève, objectif, difficulté ou créneau.`;
+}
+function refreshDispositifIa(){ const p=$("disp-ia-prompt"); if(p) p.value=genererPromptDispositif(); }
+function parserGroupesDispositif(txt){
+  try{ const d=JSON.parse(String(txt||"").replace(/^```(?:json)?/i,"").replace(/```$/i,"").trim()); return Array.isArray(d)?d:[]; }catch(e){ return []; }
+}
+function appliquerResultatIaDispositif(){
+  const id=$("disp-repartition-select")?.value; if(!id) return;
+  const rows=parserGroupesDispositif($("disp-ia-resultat").value); if(!rows.length){toast("Aucun résultat JSON exploitable.");return;}
+  const roster=anonElevesDisp(id), map=new Map(roster.map(x=>[x.anon,x.id])); let nb=0;
+  rows.forEach(r=>{
+    const jour=normaliserJourDisp(r.jour); const debut=normaliserHeure(r.debut), fin=normaliserHeure(r.fin); if(jour===null||!debut||!fin)return;
+    const c=creneauxDispJour(id,jour).find(x=>x.debut===debut && x.fin===fin); if(!c)return;
+    const g={enseignant:[],aesh:[],autonomie:[]};
+    ["enseignant","aesh","autonomie"].forEach(k=>{g[k]=(Array.isArray(r[k])?r[k]:[]).map(a=>map.get(a)).filter(Boolean);});
+    const seen=new Set(); Object.keys(g).forEach(k=>{g[k]=g[k].filter(x=>{if(seen.has(x))return false;seen.add(x);return true;});});
+    sauvegarderGroupesDisp(id,jour,c,g,false); nb++;
+  });
+  renderDispositif(); refreshDispositifIa(); toast(nb+" répartition(s) générée(s) depuis le résultat de l'IA.");
+}
+$("btn-disp-repartir")?.addEventListener("click",repartirDefautDisp);
+$("btn-disp-enregistrer")?.addEventListener("click",()=>{PC.sauverConfig(config);toast("Répartition du dispositif enregistrée.");});
+$("btn-disp-ia-regenerer")?.addEventListener("click",()=>{$("disp-ia-prompt").value=genererPromptDispositif();});
+$("btn-disp-ia-copier")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("disp-ia-prompt").value);$("disp-ia-status").textContent="Prompt copié.";}catch(e){$("disp-ia-prompt").select();document.execCommand("copy");$("disp-ia-status").textContent="Prompt copié.";}});
+$("btn-disp-ia-appliquer")?.addEventListener("click",appliquerResultatIaDispositif);
+
 /* ---------------- Import / export du planning complet (chiffré) ---------------- */
 let planningCryptoMode = null;
 
@@ -2293,6 +2537,9 @@ renderClasses();
 renderDispositifs();
 renderGrilleTabs();
 renderSummary();
+renderDispositifSelect();
+renderDispositif();
+refreshDispositifIa();
 majEtatCoffre();
 
 }
