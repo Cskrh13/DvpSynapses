@@ -358,7 +358,18 @@
         adaptations: e.adaptations || [],
         objectifs: e.objectifs || [],
         equivalenceScolaire: e.equivalenceScolaire || { francais: null, mathematiques: null, transversal: null },
-        planning: e.planning || [] // compat. coffres antérieurs à ce champ
+        planning: e.planning || [], // compat. coffres antérieurs à ce champ
+        // BUG CORRIGÉ : priseEnChargeExterieure manquait ici, si bien que
+        // listerEleves() renvoyait toujours un élève SANS ses prises en
+        // charge extérieures (coffre.html les lit exclusivement via cette
+        // méthode) : la section "3. Emploi du temps" les affichait comme
+        // inexistantes en permanence, et il était donc impossible de les
+        // supprimer depuis l'interface (rien à cliquer), alors qu'elles
+        // restaient bien présentes dans this._data et dans le fichier
+        // .synapses exporté. Même classe de bug que pour `planning` :
+        // toujours vérifier ici quand un nouveau champ est ajouté à
+        // eleveVide()/e.
+        priseEnChargeExterieure: e.priseEnChargeExterieure || []
       }));
     }
 
