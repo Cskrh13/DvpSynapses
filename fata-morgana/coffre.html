@@ -92,8 +92,9 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .intro-hero{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 28px;margin-bottom:22px;}
 .intro-hero h1{font-size:23px;color:var(--navy);}
 .intro-hero p.intro-lead{color:var(--ink-soft);font-size:14.5px;margin:10px 0 0;max-width:720px;}
-.how-it-works{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px;}
-@media(max-width:760px){.how-it-works{grid-template-columns:1fr;}}
+.how-it-works{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;}
+@media(max-width:900px){.how-it-works{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:520px){.how-it-works{grid-template-columns:1fr;}}
 .how-step{background:#FAF9F5;border:1px solid var(--line);border-radius:8px;padding:14px 16px;}
 .how-step .how-num{
   display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;
@@ -304,6 +305,11 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
       </div>
       <div class="how-step">
         <span class="how-num">3</span>
+        <h4>Je consulte l'emploi du temps</h4>
+        <p>Pour chaque élève, je retrouve où il doit être, avec qui et sur quelle activité — et je peux l'imprimer.</p>
+      </div>
+      <div class="how-step">
+        <span class="how-num">4</span>
         <h4>Je sauvegarde avant de fermer</h4>
         <p>Je télécharge un fichier protégé par mot de passe, à conserver sur un support que je maîtrise (clé USB, disque local).</p>
       </div>
