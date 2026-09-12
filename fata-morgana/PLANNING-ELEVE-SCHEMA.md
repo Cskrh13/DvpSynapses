@@ -23,7 +23,7 @@ charge extérieure :
 | Question    | Champ                                    |
 |-------------|-------------------------------------------|
 | Quand ?     | `jour`, `debut`, `fin`                     |
-| Où ?        | `classeNom` + `typeLieu` |
+| Où ?        | `classeNom` + `typeLieu` (ou `lieu` pour le type externe) |
 | Quoi ?      | `activite.nom` (+ `activite.domaineCle` optionnel) |
 | Avec qui ?  | `adulteReference.nom` + `adulteReference.role` |
 
@@ -150,46 +150,16 @@ d'affichage unique :
 
 ---
 
-## 4. Prises en charge extérieures : même architecture
+## 4. Ce qui NE change PAS
 
-`eleve.priseEnChargeExterieure[]` reste le tableau dédié à la gestion des
-PCE, mais chaque entrée est désormais normalisée avec la même architecture
-que `planning[]` :
-
-```jsonc
-{
-  "id": "PEC-...",
-  "classeId": "PEC-...",
-  "classeNom": "Cabinet",
-  "typeLieu": "externe",
-  "creneauId": "PEC-...",
-  "jour": 2,
-  "debut": "14:00",
-  "fin": "15:00",
-  "activite": {
-    "nom": "Orthophonie",
-    "domaineCle": ""
-  },
-  "adulteReference": {
-    "nom": "Mme Martin",
-    "role": "Intervenant extérieur"
-  },
-  "remarque": "",
-  "actif": true
-}
-```
-
-Les anciens champs `intervenant`, `lieu` et `activite` sous forme de chaîne
-sont conservés comme alias de compatibilité avec les anciens coffres et le
-formulaire de saisie. À l'ouverture d'un ancien coffre, les PCE sont
-normalisées automatiquement en mémoire.
-
-Ainsi les trois types de lieu sont identifiés uniquement par `typeLieu` :
-`classe`, `dispositif` (dont ULIS) et `externe`.
-
-Les PCE restent gérées exclusivement dans `coffre.html`. Planning — Gestion
-continue simplement de les exclure des affectations automatiques via
-`coffre.priseEnChargeExterieureSurCreneau`.
+- `eleve.priseEnChargeExterieure[]` garde sa structure actuelle
+  (`id`, `jour`, `debut`, `fin`, `intervenant`, `lieu`, `remarque`,
+  `actif`), avec un seul ajout : un champ `activite` (string, optionnel)
+  pour préciser ce qui est travaillé pendant la prise en charge. Ce
+  tableau reste saisi exclusivement dans `coffre.html` — Planning —
+  Gestion n'a rien à en faire, sinon exclure ces créneaux des
+  affectations automatiques (comportement déjà existant via
+  `coffre.priseEnChargeExterieureSurCreneau`).
 - Les règles de confidentialité ne changent pas : `planning[]` reste
   écrit **uniquement** dans le coffre de l'élève (jamais dans le
   localStorage du planning, qui ne doit contenir que des données non

@@ -845,7 +845,21 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
 <div class="toast" id="toast"></div>
 
-<script src="../fata-morgana/synapses-crypto.js"></script>
+<script src="../fata-morgana/synapses-crypto.js">
+/* Nettoyage du localStorage à la fermeture de la page.
+ * Ces pages sont des outils de travail temporaires : aucune donnée ne doit
+ * rester persistée côté navigateur après leur fermeture. */
+(function(){
+  let nettoye = false;
+  function nettoyerLocalStorage(){
+    if(nettoye) return;
+    nettoye = true;
+    try { localStorage.clear(); } catch(e) {}
+  }
+  window.addEventListener("pagehide", nettoyerLocalStorage);
+  window.addEventListener("beforeunload", nettoyerLocalStorage);
+})();
+</script>
 <script src="../fata-morgana/synapses-coffre.js"></script>
 <script src="planning-core.js"></script>
 

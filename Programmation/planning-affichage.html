@@ -474,7 +474,21 @@ table.deroule td{padding:8px;border-top:1px solid var(--line);vertical-align:top
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
 
-<script src="planning-core.js"></script>
+<script src="planning-core.js">
+/* Nettoyage du localStorage à la fermeture de la page.
+ * Ces pages sont des outils de travail temporaires : aucune donnée ne doit
+ * rester persistée côté navigateur après leur fermeture. */
+(function(){
+  let nettoye = false;
+  function nettoyerLocalStorage(){
+    if(nettoye) return;
+    nettoye = true;
+    try { localStorage.clear(); } catch(e) {}
+  }
+  window.addEventListener("pagehide", nettoyerLocalStorage);
+  window.addEventListener("beforeunload", nettoyerLocalStorage);
+})();
+</script>
 <script>
 /* =========================================================
    SYNAPSES — AUTHOR MARKER
