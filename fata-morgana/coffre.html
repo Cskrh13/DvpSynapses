@@ -594,8 +594,8 @@ const SYNAPSES_BUILD = {
    *  information supplémentaire l'un par rapport à l'autre — un seul
    *  bloc est affiché. */
   function cleAffichageCreneau(c){
-    const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c);
-    return [f.typeLieu, f.lieuNom, f.activiteNom, f.adulteNom, f.debut, f.fin].join('|');
+    const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
+    return [f.lieuNom, f.activiteNom, f.adulteNom, f.debut, f.fin].join('|');
   }
 
   function dedoublonnerCreneaux(liste){
@@ -950,6 +950,144 @@ const SYNAPSES_BUILD = {
     boite.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
+  /**
+   * Récupère les créneaux de la grille du dispositif associé à l'élève.
+   *
+   * Point important : l'affectation individuelle n'enregistre que les
+   * décisions nominatives dans le coffre. Or, dans Planning — Gestion,
+   * l'état ULIS peut être déduit : lorsqu'un élève n'est ni affecté à sa
+   * classe de référence ni en prise en charge extérieure, il est au
+   * dispositif sur le créneau ULIS correspondant.
+   *
+   * La grille générique du dispositif est déjà enregistrée par Planning —
+   * Gestion dans localStorage. coffre.html est servi sur la même origine,
+   * donc il peut la lire sans accéder à aucune donnée nominative extérieure.
+   * Si ce stockage n'est pas disponible, on tente une seconde source de
+   * secours : les créneaux "dispositif" déjà présents dans les plannings
+   * d'autres élèves du même coffre.
+   */
+  function recupererGrilleDispositifPourEleve(eleve){
+    const result = [];
+    const deja = new Set();
+    const ajouter = (c, disp) => {
+      if (!c || !c.id || !c.debut || !c.fin || c.jour == null) return;
+      const cle = String(c.jour) + '|' + c.debut + '|' + c.fin + '|' + (disp && disp.id || '') + '|' + c.id;
+      if (deja.has(cle)) return;
+      deja.add(cle);
+      result.push({
+        id: 'ULIS-INFER-' + cle.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        classeId: disp && disp.id || c.classeId || '',
+        classeNom: disp && disp.nom || c.classeNom || 'ULIS',
+        typeLieu: 'dispositif',
+        creneauId: c.id,
+        jour: c.jour,
+        debut: c.debut,
+        fin: c.fin,
+        activite: {
+          nom: c.libelle || c.label || c.titre || '',
+          domaineCle: c.domaineCle || ''
+        },
+        adulteReference: {
+          nom: disp && disp.enseignant || '',
+          role: disp ? ('Enseignant ' + (disp.type || 'ULIS')) : ''
+        },
+        remarque: 'Présence ULIS déduite : élève ni en classe ni en prise en charge extérieure.'
+      });
+    };
+
+    // 1) Source prioritaire : configuration + grilles de Planning — Gestion.
+    try {
+      const config = JSON.parse(localStorage.getItem('synapses_planning_config') || 'null');
+      const grilles = JSON.parse(localStorage.getItem('synapses_planning_grilles') || '{}');
+      if (config && Array.isArray(config.dispositifs)) {
+        const classes = Array.isArray(config.classes) ? config.classes : [];
+        const identite = eleve && eleve.identite || {};
+        const nomClasse = String(identite.classe || '').trim();
+
+        // Classe de référence : nom de classe dans le coffre, puis classeId
+        // retrouvé dans une affectation nominative de type classe.
+        let classe = classes.find(cl => String(cl.nom || '').trim() === nomClasse);
+        if (!classe && Array.isArray(eleve.planning)) {
+          const affClasse = eleve.planning.find(p =>
+            (p.typeLieu || (p.type === 'dispositif' ? 'dispositif' : 'classe')) === 'classe' && p.classeId
+          );
+          if (affClasse) classe = classes.find(cl => cl.id === affClasse.classeId);
+        }
+
+        let dispositifs = [];
+        if (classe && Array.isArray(classe.dispositifs)) {
+          dispositifs = config.dispositifs.filter(d => classe.dispositifs.includes(d.id));
+        }
+        // Si aucune classe n'est retrouvée, les affectations ULIS existantes
+        // permettent quand même d'identifier le dispositif concerné.
+        if (!dispositifs.length && Array.isArray(eleve.planning)) {
+          const ids = new Set(eleve.planning.filter(p =>
+            (p.typeLieu || (p.type === 'dispositif' ? 'dispositif' : 'classe')) === 'dispositif' && p.classeId
+          ).map(p => p.classeId));
+          dispositifs = config.dispositifs.filter(d => ids.has(d.id));
+        }
+
+        dispositifs.forEach(disp => {
+          (Array.isArray(grilles[disp.id]) ? grilles[disp.id] : []).forEach(c => ajouter(c, disp));
+        });
+      }
+    } catch(e) {
+      // La grille générique reste facultative : on utilise le secours ci-dessous.
+    }
+
+    // 2) Secours : si la grille générique n'est pas lisible, récupérer les
+    // créneaux dispositif déjà enregistrés pour d'autres élèves du coffre.
+    if (!result.length) {
+      coffre.listerEleves().forEach(other => {
+        (Array.isArray(other.planning) ? other.planning : []).forEach(c => {
+          const typeLieu = c.typeLieu || (c.type === 'dispositif' ? 'dispositif' : 'classe');
+          if (typeLieu === 'dispositif') {
+            ajouter(c, { id: c.classeId, nom: c.classeNom, type: 'ULIS', enseignant: c.adulteReference && c.adulteReference.nom || '' });
+          }
+        });
+      });
+    }
+
+    return result.sort((a,b) => {
+      const aj = Number(a.jour) || 0, bj = Number(b.jour) || 0;
+      if (aj !== bj) return aj - bj;
+      return String(a.debut).localeCompare(String(b.debut));
+    });
+  }
+
+  /** Ajoute les créneaux ULIS déduits, uniquement lorsqu'aucun créneau
+   * nominatif de classe/dispositif et aucune PCE active ne couvre le même
+   * intervalle. Une affectation ULIS explicitement enregistrée reste
+   * naturellement prioritaire et n'est jamais doublée. */
+  function ajouterCreneauxUlisDeduits(eleve, casesPlanning, pecActives){
+    const grilleUlis = recupererGrilleDispositifPourEleve(eleve);
+    if (!grilleUlis.length) return casesPlanning;
+
+    const chevauche = (aDebut, aFin, bDebut, bFin) => {
+      const min = h => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(String(h || '').trim());
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const ad = min(aDebut), af = min(aFin), bd = min(bDebut), bf = min(bFin);
+      return ad != null && af != null && bd != null && bf != null && ad < bf && bd < af;
+    };
+
+    const result = casesPlanning.slice();
+    grilleUlis.forEach(c => {
+      const dejaPlanning = result.some(p => Number(p.jour) === Number(c.jour) &&
+        chevauche(pDebut(p), pFin(p), c.debut, c.fin));
+      if (dejaPlanning) return;
+      const dejaPec = pecActives.some(p => Number(p.jour) === Number(c.jour) &&
+        chevauche(p.debut, p.fin, c.debut, c.fin));
+      if (dejaPec) return;
+      result.push(Object.assign({ _origine: 'planning', _brut: c }, c));
+    });
+    return result;
+  }
+
+  function pDebut(c){ return c && (c.debut || (c._brut && c._brut.debut) || ''); }
+  function pFin(c){ return c && (c.fin || (c._brut && c._brut.fin) || ''); }
+
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
@@ -964,20 +1102,18 @@ const SYNAPSES_BUILD = {
 
     const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
     const planning = (eleve && Array.isArray(eleve.planning)) ? eleve.planning : [];
-    // Les prises en charge extérieures ACTIVES utilisent la même
-    // architecture de créneau et sont distinguées par `typeLieu: "externe"`, pour donner une vision d'ensemble de la
+    // Les prises en charge extérieures ACTIVES sont fondues dans la même
+    // grille que les créneaux classe/dispositif, comme un 3ᵉ type de
+    // créneau ("externe"), pour donner une vision d'ensemble de la
     // semaine de l'élève en un coup d'œil.
-    // Classe, dispositif ULIS et PEC utilisent la même architecture de
-    // créneau. `typeLieu` est la source de vérité pour l'affichage.
     const pecActives = (eleve && Array.isArray(eleve.priseEnChargeExterieure) ? eleve.priseEnChargeExterieure : [])
       .filter((p) => p.actif !== false)
-      .map((p) => {
-        const brut = (coffre.normaliserPriseEnChargeExterieure
-          ? coffre.normaliserPriseEnChargeExterieure(p)
-          : p);
-        return Object.assign({ _brut: brut }, brut);
-      });
-    const casesPlanning = planning.map((c) => Object.assign({ _brut: c }, c));
+      .map((p) => Object.assign({ _origine: 'externe', _brut: p }, p));
+    let casesPlanning = planning.map((c) => Object.assign({ _origine: 'planning', _brut: c }, c));
+    // Un élève qui n'est ni dans sa classe ni en PCE est, sur les créneaux
+    // correspondants de la grille du dispositif, à l'ULIS. Cette déduction
+    // complète les affectations ULIS déjà présentes dans e.planning[].
+    casesPlanning = ajouterCreneauxUlisDeduits(eleve, casesPlanning, pecActives);
     const toutesCases = casesPlanning.concat(pecActives);
 
     if (!toutesCases.length) {
@@ -1029,7 +1165,7 @@ const SYNAPSES_BUILD = {
         if (creneaux.length) {
           td.classList.add('edt-remplie');
           creneaux.forEach((c) => {
-            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c);
+            const f = SynapsesCoffre.formatCasePourAffichage(c._brut || c, c._origine);
             const bloc = document.createElement('div');
             bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
 
@@ -1086,7 +1222,7 @@ const SYNAPSES_BUILD = {
             btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
             btnEditer.textContent = '✎';
             btnEditer.addEventListener('click', () => {
-              ouvrirEditionCase(identifiantSynapses, c._brut || c, f.typeLieu, f);
+              ouvrirEditionCase(identifiantSynapses, c._brut || c, c._origine, f);
             });
             bloc.appendChild(btnEditer);
 
