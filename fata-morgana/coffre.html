@@ -183,6 +183,19 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-btn-editer:hover{opacity:1;}
 .edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
 .edt-edition-boite input{width:100%;box-sizing:border-box;}
+.print-only{display:none;}
+#edtEnteteImpression h2{margin:0 0 4px;font-size:18px;}
+#edtEnteteImpression p{margin:0 0 14px;color:var(--ink-soft);font-size:12.5px;}
+@media print {
+  body *{visibility:hidden;}
+  #edtZoneImpression, #edtZoneImpression *{visibility:visible;}
+  #edtZoneImpression{position:absolute;left:0;top:0;width:100%;padding:0;margin:0;}
+  .print-only{display:block;}
+  .edt-btn-editer{display:none !important;}
+  .edt-table{min-width:0;}
+  .edt-case.edt-remplie{background:#fff;}
+  .edt-bloc-externe{background:#fff;border:1px solid #ccc;}
+}
 
 /* ---- Gestion des prises en charge extérieures (santé) ---- */
 .pec-wrap{margin:0 0 20px;}
@@ -367,9 +380,13 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
       <select id="edtSelectEleve">
         <option value="">— sélectionner un élève —</option>
       </select>
+      <button type="button" id="edtBtnImprimer" class="btn" disabled>🖨️ Imprimer l'emploi du temps</button>
     </div>
     <div id="edtPecWrap"></div>
-    <div id="edtGrilleWrap"></div>
+    <div id="edtZoneImpression">
+      <div id="edtEnteteImpression" class="print-only"></div>
+      <div id="edtGrilleWrap"></div>
+    </div>
     <div id="edtEditionWrap"></div>
   </section>
 
@@ -475,6 +492,8 @@ const SYNAPSES_BUILD = {
     $('edtSelectEleve').innerHTML = '<option value="">— sélectionner un élève —</option>';
     $('edtGrilleWrap').innerHTML = '';
     $('edtEditionWrap').innerHTML = '';
+    $('edtEnteteImpression').innerHTML = '';
+    $('edtBtnImprimer').disabled = true;
   }
 
   /* -------- Emploi du temps (onglet "3. Emploi du temps") --------
@@ -893,6 +912,7 @@ const SYNAPSES_BUILD = {
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
     $('edtEditionWrap').innerHTML = '';
+    $('edtBtnImprimer').disabled = !identifiantSynapses;
 
     if (!identifiantSynapses) {
       wrap.appendChild(document.createElement('div')).className = 'edt-vide';
@@ -917,6 +937,7 @@ const SYNAPSES_BUILD = {
       vide.className = 'edt-vide';
       vide.textContent = 'Aucun créneau enregistré pour cet élève (voir Planning — Gestion, onglet « Affectation », et/ou prise en charge extérieure ci-dessus).';
       wrap.appendChild(vide);
+      $('edtBtnImprimer').disabled = true;
       return;
     }
 
@@ -1039,6 +1060,31 @@ const SYNAPSES_BUILD = {
   $('edtSelectEleve').addEventListener('change', (e) => {
     afficherPriseEnChargeExterieure(e.target.value);
     afficherEmploiDuTemps(e.target.value);
+  });
+
+  /** Prépare l'en-tête d'impression (nom de l'élève + date d'édition,
+   *  visible uniquement sur le papier grâce à la classe .print-only) puis
+   *  déclenche l'impression native du navigateur. Le CSS @media print
+   *  masque tout le reste de la page (autres sections, sélecteur, boutons
+   *  d'édition) pour ne conserver que la grille de l'emploi du temps —
+   *  aucune donnée n'est écrite ni transmise nulle part, c'est purement une
+   *  mise en forme papier de ce qui est déjà affiché à l'écran. */
+  $('edtBtnImprimer').addEventListener('click', () => {
+    const identifiantSynapses = $('edtSelectEleve').value;
+    if (!identifiantSynapses) return;
+    const eleve = coffre.listerEleves().find((e) => e.identifiantSynapses === identifiantSynapses);
+    if (!eleve) return;
+
+    const entete = $('edtEnteteImpression');
+    entete.innerHTML = '';
+    const titre = document.createElement('h2');
+    titre.textContent = 'Emploi du temps — ' + nomAffichageEleve(eleve);
+    const sousTitre = document.createElement('p');
+    sousTitre.textContent = 'Édité le ' + new Date().toLocaleDateString('fr-FR');
+    entete.appendChild(titre);
+    entete.appendChild(sousTitre);
+
+    window.print();
   });
 
   /* -------- Force du mot de passe du coffre -------- */
