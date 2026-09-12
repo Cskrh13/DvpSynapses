@@ -886,9 +886,18 @@ let vueJournal = localStorage.getItem(VUE_JOURNAL_KEY) === "cj" ? "cj" : "cartes
    ou le cahier journal est affiché. Un import réel remplace de toute
    façon entièrement config/grilles/affectations/journal (voir
    PC.appliquerPaquetPlanning), ce qui règle aussi la pollution des
-   données elles-mêmes, pas seulement leur affichage. */
+   données elles-mêmes, pas seulement leur affichage.
+   BUG CORRIGÉ : ce drapeau était stocké dans localStorage, qui ne
+   s'efface JAMAIS tout seul (contrairement à ce que son nom "session"
+   laisse penser) — une fois importé une seule fois, la page rouvrait
+   directement le cahier journal à chaque visite ultérieure, y compris
+   après un redémarrage du navigateur des jours plus tard, sans jamais
+   repasser par le portail d'import. sessionStorage est effacé à la
+   fermeture de l'onglet/du navigateur : c'est le seul moyen de tenir la
+   promesse "reste vide tant qu'aucun planning n'a été importé [dans
+   cette page, pour cette session]" énoncée ci-dessus et à l'écran. */
 const SESSION_KEY = "synapses_planning_jour_session_active";
-function sessionActive(){ return localStorage.getItem(SESSION_KEY) === "1"; }
+function sessionActive(){ return sessionStorage.getItem(SESSION_KEY) === "1"; }
 function afficherEtatSelonSession(){
   const actif = sessionActive();
   $("import-gate").style.display = actif ? "none" : "";
@@ -1001,7 +1010,7 @@ $("btn-planning-import-confirm").addEventListener("click", async ()=>{
     }
     const paquet = await PC.dechiffrerPlanningJSON(enveloppe, pwd);
     const applique = PC.appliquerPaquetPlanning(paquet);
-    localStorage.setItem(SESSION_KEY, "1");
+    sessionStorage.setItem(SESSION_KEY, "1");
     closeModal('modal-planning-import');
     $("planning-import-password").value = "";
     $("planning-import-file").value = "";
@@ -1023,7 +1032,7 @@ if($("btn-ouvrir-coffre-depuis-gate")){
 }
 $("btn-changer-planning").addEventListener("click", ()=>{
   if(!confirm("Revenir à l'écran d'import ? Rien n'est supprimé : le planning actuellement enregistré reste intact, vous pourrez le réimporter à tout moment.")) return;
-  localStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
   afficherEtatSelonSession();
 });
 
