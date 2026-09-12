@@ -153,22 +153,12 @@ table.affg .affg-eleve-line.affg-eleve-pec{background:#FDF3E7;opacity:1;cursor:d
 table.affg .affg-badge-pec{font-size:12px;line-height:1;}
 table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opacity:.7;}
 
-/* ---- Affectation dispositif (ULIS/SEGPA/RASED) : colonnes par jour ----
- * Contrairement à la grille d'une classe, l'emploi du temps d'un dispositif
- * varie fortement d'un jour à l'autre (créneaux à des horaires différents
- * selon les groupes de besoin). Aligner les jours sur une trame horaire
- * commune (comme table.affg) fait apparaître des colonnes vides à tort dès
- * qu'un jour n'a pas de créneau démarrant exactement à la même minute
- * qu'un autre. On affiche donc chaque jour dans sa propre colonne,
- * indépendamment des horaires des autres jours. */
-.gend-jours{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);padding:12px;background:var(--panel-raised);}
-.gend-jour-col{flex:1 1 0;min-width:180px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:8px;padding:8px;}
-.gend-jour-col h5{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);text-align:center;position:sticky;top:0;background:var(--panel,#fff);padding-bottom:4px;border-bottom:1px solid var(--line);}
-.gend-creneau-bloc{margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--line);}
-.gend-creneau-bloc:last-child{border-bottom:none;margin-bottom:0;}
-.gend-creneau-horaire{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);}
-.gend-creneau-libelle{font-size:11px;color:var(--ink-soft);margin:1px 0 4px;}
-.gend-jour-vide{color:var(--ink-soft);font-size:11px;text-align:center;opacity:.7;padding:10px 0;}
+/* ---- Affectation dispositif (ULIS/SEGPA/RASED) ----
+ * Rendue avec la même identité visuelle que la grille des classes
+ * (table.affg juste au-dessus) : lignes = horaires, colonnes = jours.
+ * Les horaires sont regroupés par heure de DÉBUT sur l'ensemble des jours ;
+ * un jour sans créneau à cette heure affiche simplement "—" dans sa
+ * cellule, comme pour une classe. Voir renderGenDispositifGrille(). */
 </style>
 </head>
 <body>
@@ -1840,12 +1830,13 @@ function renderGenDispositifGrille(){
     gendClasseRefParEleve[e.identifiantSynapses] = cl;
     const identite = e.identite || {};
     const prenom = String(identite.prenom || "").trim();
-    const nom = String(identite.nom || "").trim();
+    const nomFamille = String(identite.nom || "").trim();
+    const libelle = [nomFamille, prenom].filter(Boolean).join(" ") || e.identifiantSynapses;
     roster.push({
       identifiantSynapses: e.identifiantSynapses,
-      prenom,
-      nom,
-      libelle: [nom, prenom].filter(Boolean).join(" ") || e.identifiantSynapses
+      nom: libelle,   // même convention que le roster des classes (affg) :
+                       // "nom" est le libellé complet utilisé par initialesEleve().
+      libelle
     });
   });
   if(!roster.length){
@@ -1855,109 +1846,114 @@ function renderGenDispositifGrille(){
   }
   hint.style.display="none";
 
-  // Affichage jour par jour, INDÉPENDANT d'un jour à l'autre (contrairement
-  // à la grille d'une classe, l'emploi du temps d'un dispositif type ULIS
-  // varie fortement d'un jour à l'autre : regrouper les jours sur une même
-  // ligne par heure de début identique faisait apparaître des colonnes
-  // vides à tort dès qu'un jour n'avait pas de créneau démarrant exactement
-  // à la même minute qu'un autre — alors que le créneau existait bien,
-  // juste décalé de quelques minutes. Chaque jour liste donc ses propres
-  // créneaux, triés par heure, sans tentative d'alignement horizontal.)
-  const parJour={};
-  PC.JOURS.forEach(j=>{ parJour[j.n]=[]; });
-  creneaux.forEach(c=>{ if(parJour[c.jour]) parJour[c.jour].push(c); });
-  PC.JOURS.forEach(j=>{ parJour[j.n].sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut)); });
+  // Même identité visuelle que la grille des classes (table.affg) :
+  // lignes = horaires (regroupés par heure de DÉBUT, tous jours confondus),
+  // colonnes = jours. Un dispositif ULIS peut avoir des horaires différents
+  // d'un jour à l'autre : quand un jour n'a aucun créneau démarrant à
+  // l'heure de la ligne, la cellule affiche simplement "—", exactement
+  // comme pour un jour sans créneau dans la grille d'une classe.
+  const horaires=[],map=new Map();
+  creneaux.forEach(c=>{
+    const cle=c.debut;
+    if(!map.has(cle)){const h={cle,debut:c.debut,fins:new Set(),parJour:{}};map.set(cle,h);horaires.push(h);}
+    map.get(cle).fins.add(c.fin);
+    if(!map.get(cle).parJour[c.jour]) map.get(cle).parJour[c.jour]=[];
+    map.get(cle).parJour[c.jour].push(c);
+  });
+  horaires.sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
 
-  const board=document.createElement("div"); board.className="gend-jours";
+  const table=document.createElement("table");table.className="affg";
+  const thead=document.createElement("thead"),hr=document.createElement("tr");
+  hr.innerHTML='<th class="affg-horaire-head">Horaire</th>'+PC.JOURS.map(j=>`<th>${escapeHTMLTexte(j.nom)}</th>`).join("");
+  thead.appendChild(hr);table.appendChild(thead);
 
-  PC.JOURS.forEach(j=>{
-    const col=document.createElement("div"); col.className="gend-jour-col";
-    const titre=document.createElement("h5"); titre.textContent=j.nom; col.appendChild(titre);
+  horaires.forEach(h=>{
+    const tr=document.createElement("tr");
+    const th=document.createElement("th");th.className="affg-horaire-head";
+    const finsTriees=[...h.fins].sort((a,b)=>PC.heureVersMin(a)-PC.heureVersMin(b));
+    const finLabel=finsTriees.length===1?finsTriees[0]:finsTriees[0]+"…";
+    th.innerHTML=`<span class="affg-horaire">${escapeHTMLTexte(h.debut)}–${escapeHTMLTexte(finLabel)}</span>`;
+    tr.appendChild(th);
 
-    const liste=parJour[j.n];
-    if(!liste.length){
-      const vide=document.createElement("div"); vide.className="gend-jour-vide"; vide.textContent="—";
-      col.appendChild(vide); board.appendChild(col); return;
-    }
+    PC.JOURS.forEach(j=>{
+      const td=document.createElement("td");td.className="affg-creneau-cell";
+      const liste=h.parJour[j.n]||[];
 
-    liste.forEach(c=>{
-      const bloc=document.createElement("div"); bloc.className="gend-creneau-bloc";
-      const horaire=document.createElement("div"); horaire.className="gend-creneau-horaire";
-      horaire.textContent=`${c.debut}–${c.fin}`;
-      bloc.appendChild(horaire);
+      if(!liste.length){td.innerHTML='<div class="affg-vide">—</div>';tr.appendChild(td);return;}
 
-      const nom = c.libelle || "";
-      if(nom){
-        const lib=document.createElement("div"); lib.className="gend-creneau-libelle"; lib.textContent=nom; bloc.appendChild(lib);
-      }
-
-      roster.forEach(ref=>{
-        const e=coffreEleveById(ref.identifiantSynapses);
-        if(!e) return;
-        const cl=gendClasseRefParEleve[ref.identifiantSynapses];
-        if(!cl) return;
-
-        const cle=ref.identifiantSynapses+"::"+c.id;
-
-        // 3ᵉ possibilité : prise en charge extérieure (santé) active sur
-        // ce créneau — prioritaire sur classe ET dispositif. On ne
-        // propose pas de case à cocher : l'entrée n'est jamais ajoutée à
-        // gendEtatEnCours/gendEtatOriginal, donc jamais affectée au
-        // dispositif lors de l'enregistrement.
-        const pec = coffre.priseEnChargeExterieureSurCreneau
-          ? coffre.priseEnChargeExterieureSurCreneau(ref.identifiantSynapses, c.jour, c.debut, c.fin)
-          : null;
-        if(pec){
-          const lignePec=document.createElement("div");
-          lignePec.className="affg-eleve-line affg-eleve-pec";
-          lignePec.title=`${ref.nom} — ${pec.intervenant||"prise en charge extérieure"} (santé), à l'extérieur sur ce créneau`;
-          const badgePec=document.createElement("span");
-          badgePec.className="affg-badge-pec";
-          badgePec.textContent="🏥";
-          const nomPec=document.createElement("span");
-          nomPec.className="affg-eleve-name";
-          nomPec.textContent=ref.libelle;
-          lignePec.appendChild(nomPec);lignePec.appendChild(badgePec);
-          bloc.appendChild(lignePec);
-          return;
+      liste.forEach(c=>{
+        const nomCreneau=PC.libelleCreneau(c);
+        if(nomCreneau){
+          const lib=document.createElement("div");lib.className="affg-creneau-libelle";lib.textContent=nomCreneau;td.appendChild(lib);
         }
 
-        const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
-        // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
-        // classe de référence sur ce créneau (complémentaire des
-        // "non-affectations" de la classe de référence).
-        const coche=!enClasse;
-        gendEtatOriginal[cle]=coche;
-        gendEtatEnCours[cle]=coche;
+        roster.forEach(ref=>{
+          const e=coffreEleveById(ref.identifiantSynapses);
+          if(!e) return;
+          const cl=gendClasseRefParEleve[ref.identifiantSynapses];
+          if(!cl) return;
 
-        const line=document.createElement("label");
-        line.className="affg-eleve-line"+(coche?"":" exclu");
+          const cle=ref.identifiantSynapses+"::"+c.id;
 
-        const cb=document.createElement("input");
-        cb.type="checkbox"; cb.checked=coche;
-        cb.setAttribute("aria-label", `${ref.nom} — ${j.nom} ${c.debut}–${c.fin}`);
-        cb.addEventListener("change", ()=>{
-          gendEtatEnCours[cle]=cb.checked;
-          line.classList.toggle("exclu", !cb.checked);
-          const st=$("gend-save-status");
-          if(st){ st.textContent="Modifications en attente d'enregistrement."; st.classList.add("warn"); }
+          // 3ᵉ possibilité : prise en charge extérieure (santé) active sur
+          // ce créneau — prioritaire sur classe ET dispositif. On ne
+          // propose pas de case à cocher : l'entrée n'est jamais ajoutée à
+          // gendEtatEnCours/gendEtatOriginal, donc jamais affectée au
+          // dispositif lors de l'enregistrement.
+          const pec = coffre.priseEnChargeExterieureSurCreneau
+            ? coffre.priseEnChargeExterieureSurCreneau(ref.identifiantSynapses, c.jour, c.debut, c.fin)
+            : null;
+          if(pec){
+            const lignePec=document.createElement("div");
+            lignePec.className="affg-eleve-line affg-eleve-pec";
+            lignePec.title=`${ref.libelle} — ${pec.intervenant||"prise en charge extérieure"} (santé), à l'extérieur sur ce créneau`;
+            const initialePec=document.createElement("span");
+            initialePec.className="affg-eleve-initial";
+            initialePec.textContent=initialesEleve(ref);
+            const badgePec=document.createElement("span");
+            badgePec.className="affg-badge-pec";
+            badgePec.textContent="🏥";
+            lignePec.appendChild(initialePec);lignePec.appendChild(badgePec);
+            td.appendChild(lignePec);
+            return;
+          }
+
+          const enClasse=eleveEnClasseSurCreneauGend(e, cl.id, c);
+          // Coché par défaut = présent au dispositif = PAS déjà affecté à sa
+          // classe de référence sur ce créneau (complémentaire des
+          // "non-affectations" de la classe de référence).
+          const coche=!enClasse;
+          gendEtatOriginal[cle]=coche;
+          gendEtatEnCours[cle]=coche;
+
+          const line=document.createElement("label");
+          line.className="affg-eleve-line"+(coche?"":" exclu");
+          line.title=ref.libelle;
+
+          const initiale=document.createElement("span");
+          initiale.className="affg-eleve-initial";
+          initiale.textContent=initialesEleve(ref);
+
+          const cb=document.createElement("input");
+          cb.type="checkbox"; cb.checked=coche;
+          cb.setAttribute("aria-label", `${ref.libelle} — ${j.nom} ${c.debut}–${c.fin}`);
+          cb.addEventListener("change", ()=>{
+            gendEtatEnCours[cle]=cb.checked;
+            line.classList.toggle("exclu", !cb.checked);
+            const st=$("gend-save-status");
+            if(st){ st.textContent="Modifications en attente d'enregistrement."; st.classList.add("warn"); }
+          });
+
+          line.appendChild(initiale);line.appendChild(cb);td.appendChild(line);
         });
-
-        const identiteLabel=document.createElement("span");
-        identiteLabel.className="affg-eleve-name";
-        identiteLabel.textContent=ref.libelle;
-        line.appendChild(identiteLabel);
-        line.appendChild(cb);
-        bloc.appendChild(line);
       });
-
-      col.appendChild(bloc);
+      tr.appendChild(td);
     });
-
-    board.appendChild(col);
+    table.appendChild(tr);
   });
 
-  wrap.appendChild(board);
+  const scroll=document.createElement("div");scroll.className="affg-scroll";
+  scroll.appendChild(table);wrap.appendChild(scroll);
 }
 
 $("btn-enregistrer-gend").addEventListener("click", ()=>{
