@@ -2815,11 +2815,7 @@ function renderPlanningAdulteComplet(role, containerId){
       ev.title=`${nom} — ${e.lieu} (${e.debut}–${e.fin})`;
       const trait=document.createElement("div");
       trait.className="pl-trait";
-      const label=document.createElement("span");
-      label.className="pl-lieu-txt";
-      label.textContent=e.lieu;
       ev.appendChild(trait);
-      ev.appendChild(label);
       track.appendChild(ev);
     });
 
@@ -2837,6 +2833,14 @@ function renderPlanningAdulteComplet(role, containerId){
   body.appendChild(legende);
 }
 
+/* Impression du planning enseignant/AESH : reprend la même logique de
+ * "traits" que la vue à l'écran (renderPlanningAdulteComplet) — une
+ * colonne par élève, un trait par créneau — mais pour TOUS les jours
+ * travaillés à la fois (et pas seulement celui sélectionné à l'écran),
+ * disposés en colonnes côte à côte sur une seule page A4 paysage. Les
+ * jours partagent un même axe des temps (calé sur les bornes de la
+ * semaine entière) afin que les traits restent comparables d'un jour à
+ * l'autre. */
 function imprimerPlanningAdulte(role){
   if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre pour imprimer ce planning."); return; }
   const lignes=construirePlanningAdulte(role); // tous les jours, pas seulement celui affiché à l'écran
@@ -2848,22 +2852,57 @@ function imprimerPlanningAdulte(role){
     parJour.get(l.jourN).lignes.push(l);
   });
   const jours=joursActifsDispositif();
+
+  // Un évènement par (créneau × élève) pour chaque jour, avec un axe des
+  // temps COMMUN à toute la semaine (bornes min/max sur l'ensemble des
+  // jours), calé sur des demi-heures pleines comme à l'écran.
+  const evenementsParJour=new Map();
+  let minBrut=Infinity, maxBrut=-Infinity;
+  jours.forEach(j=>{
+    const grp=parJour.get(j.n);
+    const evs=[];
+    (grp?grp.lignes:[]).forEach(l=>{
+      const debutMin=PC.heureVersMin(l.debut), finMin=PC.heureVersMin(l.fin);
+      if(!(finMin>debutMin)) return;
+      l.eleves.forEach(nom=>evs.push({nom,debutMin,finMin,debut:l.debut,fin:l.fin,lieu:l.lieu}));
+      minBrut=Math.min(minBrut,debutMin); maxBrut=Math.max(maxBrut,finMin);
+    });
+    evenementsParJour.set(j.n,evs);
+  });
+  if(!isFinite(minBrut)){ minBrut=8*60; maxBrut=17*60; }
+  const axeDebut=Math.floor(minBrut/30)*30, axeFin=Math.max(axeDebut+30,Math.ceil(maxBrut/30)*30);
+  const etendue=axeFin-axeDebut;
+
   const colonnes = jours.map(j=>{
-    const grp = parJour.get(j.n);
-    const lignesHtml = (grp && grp.lignes.length)
-      ? grp.lignes.map(l=>`
-        <tr>
-          <td class="h">${escapeHTMLTexte(l.debut)}–${escapeHTMLTexte(l.fin)}</td>
-          <td>${escapeHTMLTexte(l.lieu)}</td>
-          <td>${l.eleves.map(escapeHTMLTexte).join(", ")}</td>
-        </tr>`).join("")
-      : `<tr><td colspan="3" class="vide">—</td></tr>`;
+    const evs=evenementsParJour.get(j.n)||[];
+    if(!evs.length){
+      return `<div class="jour-col"><h2>${escapeHTMLTexte(j.nom)}</h2><div class="tl-vide">Aucun créneau avec élève accompagné.</div></div>`;
+    }
+    const eleves=[];
+    evs.forEach(e=>{ if(!eleves.includes(e.nom)) eleves.push(e.nom); });
+
+    const ticks=[];
+    for(let m=axeDebut; m<=axeFin; m+=60){
+      ticks.push(`<div class="tl-tick" style="top:${(((m-axeDebut)/etendue)*100).toFixed(3)}%;">${escapeHTMLTexte(plMinVersHeure(m))}</div>`);
+    }
+
+    const cols = eleves.map(nom=>{
+      const evHtml = evs.filter(e=>e.nom===nom).map(e=>{
+        const top=((e.debutMin-axeDebut)/etendue)*100;
+        const h=Math.max(((e.finMin-e.debutMin)/etendue)*100, 2);
+        return `<div class="tl-event" style="top:${top.toFixed(3)}%;height:${h.toFixed(3)}%;">
+          <div class="tl-trait"></div><span class="tl-txt">${escapeHTMLTexte(e.lieu)}</span>
+        </div>`;
+      }).join("");
+      return `<div class="tl-col"><div class="tl-label"><span>${escapeHTMLTexte(nom)}</span></div><div class="tl-track">${evHtml}</div></div>`;
+    }).join("");
+
     return `<div class="jour-col">
       <h2>${escapeHTMLTexte(j.nom)}</h2>
-      <table>
-        <thead><tr><th>Heure</th><th>Lieu</th><th>Élève(s)</th></tr></thead>
-        <tbody>${lignesHtml}</tbody>
-      </table>
+      <div class="tl-wrap">
+        <div class="tl-axis">${ticks.join("")}</div>
+        <div class="tl-cols">${cols}</div>
+      </div>
     </div>`;
   }).join("");
 
@@ -2873,19 +2912,26 @@ function imprimerPlanningAdulte(role){
   *{box-sizing:border-box;}
   body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}
   h1{font-size:15px;margin:0 0 2px;}
-  .sous{color:#555;font-size:8.5px;margin-bottom:8px;}
-  .grille-jours{display:flex;gap:5px;align-items:flex-start;}
-  .jour-col{flex:1 1 0;min-width:0;}
-  .jour-col h2{font-size:10.5px;margin:0 0 3px;border-bottom:1.5px solid #111;padding-bottom:2px;white-space:nowrap;}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  th,td{border:1px solid #999;padding:2px 3px;font-size:7.3px;line-height:1.25;text-align:left;vertical-align:top;overflow-wrap:break-word;}
-  th{background:#eee;font-size:7px;text-transform:uppercase;}
-  td.h{white-space:nowrap;font-weight:700;}
-  td.vide{color:#999;text-align:center;font-style:italic;}
-  @media print{ .grille-jours{page-break-inside:avoid;} tr{page-break-inside:avoid;} }
+  .sous{color:#555;font-size:8.5px;margin-bottom:6px;}
+  .grille-jours{display:flex;gap:4px;align-items:stretch;height:178mm;}
+  .jour-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;}
+  .jour-col h2{font-size:9.5px;margin:0 0 2px;border-bottom:1.5px solid #111;padding-bottom:1px;white-space:nowrap;flex:0 0 auto;}
+  .tl-vide{color:#999;font-size:7.5px;font-style:italic;text-align:center;padding-top:10mm;}
+  .tl-wrap{position:relative;flex:1 1 auto;display:flex;min-height:0;}
+  .tl-axis{position:relative;flex:0 0 14px;}
+  .tl-tick{position:absolute;left:0;right:2px;font-size:5px;color:#666;transform:translateY(-4px);text-align:right;border-top:1px dotted #bbb;}
+  .tl-cols{display:flex;flex:1 1 auto;gap:0.5px;position:relative;padding-top:11px;}
+  .tl-col{position:relative;flex:1 1 0;min-width:0;border-left:1px solid #eee;}
+  .tl-label{height:11px;margin-top:-11px;font-size:4.6px;line-height:1;white-space:nowrap;overflow:hidden;text-align:center;}
+  .tl-label span{display:inline-block;}
+  .tl-track{position:relative;height:100%;background:repeating-linear-gradient(180deg,#f4f4f4 0,#f4f4f4 1px,transparent 1px,transparent 8.33%);}
+  .tl-event{position:absolute;left:0.5px;right:0.5px;display:flex;align-items:center;gap:1px;overflow:hidden;}
+  .tl-trait{width:2px;align-self:stretch;background:#2f6fed;border-radius:1px;flex:0 0 auto;}
+  .tl-txt{font-size:4.4px;line-height:1;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;overflow:hidden;max-height:100%;font-weight:600;}
+  @media print{ .grille-jours{page-break-inside:avoid;} .jour-col{page-break-inside:avoid;} }
 </style></head><body>
 <h1>${escapeHTMLTexte(titre)}</h1>
-<div class="sous">Généré depuis Synapses le ${new Date().toLocaleDateString("fr-FR")} — document confidentiel (identité d'élèves), à ne pas laisser accessible.</div>
+<div class="sous">Généré depuis Synapses le ${new Date().toLocaleDateString("fr-FR")} — document confidentiel (identité d'élèves), à ne pas laisser accessible. Chaque colonne est un élève ; chaque trait, un créneau accompagné (lieu indiqué à côté).</div>
 <div class="grille-jours">${colonnes || "<p>Aucun créneau avec élève accompagné pour le moment.</p>"}</div>
 </body></html>`;
 
