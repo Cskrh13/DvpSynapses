@@ -39,6 +39,8 @@ nav.main-nav a.nav-programmation:hover{background:rgba(255,255,255,.18);}
 nav.main-nav a.nav-programmation.active{background:var(--accent-sky);border-color:var(--accent-sky);}
 main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.btn-purger{border:1px solid #E3C9BE;background:#fff;color:var(--danger);border-radius:20px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-purger:hover{background:#FBEEE9;}
 .toolbar .chip-toggle{display:flex;gap:6px;flex-wrap:wrap;}
 .toolbar .chip-toggle button{border:1px solid var(--line);background:var(--panel);border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;}
 .toolbar .chip-toggle button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
@@ -527,6 +529,7 @@ table.deroule td{padding:8px;border-top:1px solid var(--line);vertical-align:top
       <span class="label" id="week-label">—</span>
       <button id="next-week">▶</button>
     </div>
+    <button class="btn-purger" id="btn-purger-memoire" title="Effacer immédiatement la configuration/grilles/affectations de la mémoire de cet onglet" style="margin-left:auto;">🗑 Purger</button>
   </div>
 
   <div id="content"></div>
@@ -1376,6 +1379,26 @@ window.addEventListener("storage", (e)=>{
     renderClassesToggle();
     renderSemaine();
   }
+});
+
+/* ---------------- Purge explicite ----------------
+   Cette page ne contient pas de coffre élèves (aucune donnée nominative
+   n'y transite), mais elle lit/persiste config/grilles/affectations dans
+   localStorage. Ce bouton permet de les effacer immédiatement de cet
+   onglet sans attendre la fermeture (pagehide/beforeunload le font déjà
+   automatiquement) — utile par exemple avant de laisser l'ordinateur sans
+   surveillance. Après purge, on recharge les valeurs par défaut de
+   PlanningCore et on réaffiche, sans recharger la page. */
+$("btn-purger-memoire").addEventListener("click", ()=>{
+  if(!confirm("Effacer immédiatement la configuration, les grilles horaires et les affectations de la mémoire de cet onglet ?")) return;
+  try{ localStorage.clear(); }catch(e){}
+  config = PC.chargerConfig();
+  grilles = PC.chargerGrilles();
+  affectations = PC.chargerAffectations();
+  semaines = PC.calculerSemaines(config);
+  semaineIdx = 0;
+  renderClassesToggle();
+  renderSemaine();
 });
 
 /* ---------------- Initialisation ---------------- */
