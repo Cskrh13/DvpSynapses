@@ -1601,10 +1601,26 @@ function renderJour(){
 
       addBtn.addEventListener("click",()=>{
         if(bloc.groupes.length >= 3){ toast("Maximum de 3 groupes pour ce créneau."); return; }
+
+        /* Le nouveau groupe doit apparaître à droite du/des groupe(s)
+           existant(s) sur cette brique, en gardant le même créneau
+           horaire. Pour cela il doit rejoindre la MÊME brique : la
+           fonction contenuKey() (plus haut) regroupe les groupes par
+           début + fin + contenu (titre/domaineCle/seanceRef/fixe).
+           On reprend donc ces champs du groupe de référence de la
+           brique, sinon le nouveau groupe (contenu différent) se
+           retrouverait dans une brique séparée, avec son propre
+           en-tête et ses propres champs horaires indépendants. */
+        const ref = bloc.groupes[0];
+
         jour.groupes.push({
           id:PC.uid("grp"), debut:bloc.debut, fin:bloc.fin, origine:null, modifie:true,
-          adulte:{type:"enseignant",nom:""}, titre:"Nouveau groupe", domaineCle:"", niveau:"", classeId:"",
-          seanceRef:null, eleves:[], remarque:"", fixe:false
+          adulte:{type:"enseignant",nom:""},
+          titre:ref.titre || "Nouveau groupe",
+          domaineCle:ref.domaineCle || "",
+          niveau:"", classeId:"",
+          seanceRef:ref.seanceRef || null,
+          eleves:[], remarque:"", fixe:ref.fixe || false
         });
         sauver(); renderJour();
       });
