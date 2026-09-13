@@ -195,6 +195,12 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
 .edt-bloc.edt-duree-tres-courte .edt-horaire{font-size:8.5px;}
 .edt-bloc:hover,.edt-bloc:focus-within{z-index:6;box-shadow:0 4px 14px rgba(20,29,51,.22);}
 .edt-btn-editer{position:absolute;top:2px;right:2px;border:none;background:rgba(255,255,255,.7);color:var(--ink-soft);cursor:pointer;font-size:11px;line-height:1;padding:2px 4px;opacity:.6;border-radius:4px;z-index:3;}
+/* Créneau ULIS déduit d'un trou d'emploi du temps (aucune affectation
+   réellement enregistrée à cet horaire) : même teinte que les créneaux
+   dispositif, mais bordure en pointillés + petite étiquette, pour ne
+   jamais le confondre avec un créneau réellement saisi dans le coffre. */
+.edt-bloc-deduit{border-style:dashed;opacity:.82;}
+.edt-badge-deduit{position:absolute;bottom:2px;right:4px;font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);opacity:.75;}
 .edt-btn-editer:hover{opacity:1;}
 .edt-edition-boite{border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;background:#FAFAF7;}
 .edt-edition-boite input{width:100%;box-sizing:border-box;}
@@ -1076,36 +1082,125 @@ const SYNAPSES_BUILD = {
     return Math.ceil(min / 30) * 30;
   }
 
-  /** Calcule, pour une liste de créneaux d'un même jour (avec debutMin/finMin),
-   *  une disposition en colonnes côte à côte pour les créneaux qui se
-   *  chevauchent dans le temps (ex. une classe ET une prise en charge
-   *  extérieure positionnées par erreur sur le même horaire). Sans cela,
-   *  deux créneaux simultanés se superposent exactement l'un sur l'autre
-   *  (même position, même largeur) : le second masque entièrement le
-   *  premier, qui semble alors avoir disparu de l'emploi du temps. */
-  function disposerColonnesChevauchement(items){
-    const tries = items.slice().sort((a,b)=> a.debutMin - b.debutMin || a.finMin - b.finMin);
-    const actifs = []; // { finMin, col }
-    tries.forEach(it => {
-      for(let i = actifs.length - 1; i >= 0; i--){
-        if(actifs[i].finMin <= it.debutMin) actifs.splice(i,1);
-      }
-      const utilises = new Set(actifs.map(a => a.col));
-      let col = 0;
-      while(utilises.has(col)) col++;
-      it._col = col;
-      actifs.push({ finMin: it.finMin, col });
+  /** Priorité entre types de créneau quand deux créneaux enregistrés se
+   *  chevauchent dans le temps (ex. une prise en charge extérieure ajoutée
+   *  a posteriori sur un horaire déjà couvert par le planning) : le plus
+   *  prioritaire (nombre le plus petit) l'emporte et le(s) autre(s)
+   *  disparaissent de l'affichage pour ce moment précis — ils restent
+   *  cependant intacts dans le coffre, seul l'affichage est concerné.
+   *  Ordre demandé : prise en charge extérieure > classe (et récréations/
+   *  pauses, qui font partie de la journée de classe) > dispositif ULIS. */
+  const PRIORITE_TYPE_LIEU = { externe: 0, classe: 1, recreation: 1, pause: 1, dispositif: 2 };
+  function prioriteTypeLieu(typeLieu){
+    return Object.prototype.hasOwnProperty.call(PRIORITE_TYPE_LIEU, typeLieu) ? PRIORITE_TYPE_LIEU[typeLieu] : 1;
+  }
+
+  /** Créneaux hebdomadaires où l'enseignant est lui-même en service de
+   *  surveillance (récréation…) et ne peut donc pas accueillir l'élève en
+   *  ULIS : un "trou" de l'emploi du temps qui tombe dans une de ces
+   *  fenêtres n'est PAS comblé automatiquement par un créneau ULIS déduit
+   *  — mieux vaut un trou visible qu'une déduction fausse. À ajuster ici
+   *  si l'emploi du temps de service change. jours : 1=lundi … 5=vendredi. */
+  const CRENEAUX_SERVICE_ENSEIGNANT = [
+    { jours: [1, 4], debut: '15:35', fin: '15:50' }, // Lundi & Jeudi, après-midi
+    { jours: [2, 4], debut: '10:10', fin: '10:25' }  // Mardi & Jeudi, matin
+  ];
+  function dansCreneauServiceEnseignant(jour, debutMin, finMin){
+    return CRENEAUX_SERVICE_ENSEIGNANT.some((s) => {
+      if (!s.jours.includes(jour)) return false;
+      const sd = heureVersMinutesEdt(s.debut);
+      const sf = heureVersMinutesEdt(s.fin);
+      // Chevauchement, même partiel, avec la fenêtre de service.
+      return sd < finMin && debutMin < sf;
     });
-    tries.forEach(it => {
-      let maxCol = it._col;
-      tries.forEach(autre => {
-        if(autre === it) return;
-        const seChevauchent = autre.debutMin < it.finMin && it.debutMin < autre.finMin;
-        if(seChevauchent) maxCol = Math.max(maxCol, autre._col);
+  }
+
+  /** Reconstruit, pour un jour donné, une suite CONTINUE et SANS
+   *  chevauchement de créneaux à partir de tout ce qui est enregistré
+   *  (classe, dispositif ULIS, prise en charge extérieure, récréations
+   *  fixes) :
+   *  1. Aux instants couverts par plusieurs créneaux à la fois, seul le
+   *     plus prioritaire est conservé (voir PRIORITE_TYPE_LIEU) — ceci
+   *     résout au passage les "doublons" visuels (ex. une récréation
+   *     générique ET la même récréation déjà présente dans le planning de
+   *     la classe) sans devoir deviner une similarité de texte.
+   *  2. Les segments consécutifs qui aboutissent au même contenu affiché
+   *     sont fusionnés en un seul bloc, pour obtenir une suite continue
+   *     par jour plutôt qu'un bloc par créneau technique sous-jacent.
+   *  3. Les instants non couverts par aucun créneau, mais compris entre
+   *     le premier et le dernier créneau connu de CE jour (donc un vrai
+   *     "trou" dans une journée où l'élève est bien présent), sont
+   *     comblés par un créneau ULIS déduit — sauf pendant les fenêtres de
+   *     service de l'enseignant. Un jour sans aucun créneau enregistré
+   *     (ex. mercredi) n'est jamais rempli : rien n'indique que l'élève
+   *     est même présent ce jour-là. */
+  function resoudreJourneeContinue(itemsJour, jour, nomDispositif){
+    if (!itemsJour.length) return [];
+
+    const journeeDebut = Math.min(...itemsJour.map((x) => x.debutMin));
+    const journeeFin = Math.max(...itemsJour.map((x) => x.finMin));
+
+    const bornes = new Set([journeeDebut, journeeFin]);
+    itemsJour.forEach((x) => {
+      if (x.debutMin > journeeDebut && x.debutMin < journeeFin) bornes.add(x.debutMin);
+      if (x.finMin > journeeDebut && x.finMin < journeeFin) bornes.add(x.finMin);
+    });
+    const points = Array.from(bornes).sort((a, b) => a - b);
+
+    const segments = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const debutSeg = points[i];
+      const finSeg = points[i + 1];
+      if (finSeg <= debutSeg) continue;
+      const milieu = (debutSeg + finSeg) / 2;
+      const couvrants = itemsJour.filter((x) => x.debutMin <= milieu && milieu < x.finMin);
+
+      let gagnant = null;
+      couvrants.forEach((x) => {
+        if (!gagnant) { gagnant = x; return; }
+        const pMeilleur = prioriteTypeLieu(gagnant.f.typeLieu);
+        const pX = prioriteTypeLieu(x.f.typeLieu);
+        if (pX < pMeilleur) { gagnant = x; return; }
+        if (pX > pMeilleur) return;
+        // Même priorité : préférer l'entrée la plus informative (activité
+        // ou remarque renseignée) ; à égalité, garder la première
+        // rencontrée (stable, donc déterministe d'un affichage à l'autre).
+        const infoGagnant = !!(gagnant.f.activiteNom || gagnant.f.remarque);
+        const infoX = !!(x.f.activiteNom || x.f.remarque);
+        if (infoX && !infoGagnant) gagnant = x;
       });
-      it._colCount = maxCol + 1;
-    });
-    return tries;
+
+      let seg;
+      if (gagnant) {
+        seg = { debutMin: debutSeg, finMin: finSeg, f: gagnant.f, c: gagnant.c, synthese: false };
+      } else if (dansCreneauServiceEnseignant(jour, debutSeg, finSeg)) {
+        continue; // trou volontairement laissé vide (service de l'enseignant)
+      } else {
+        seg = {
+          debutMin: debutSeg, finMin: finSeg,
+          f: {
+            lieuNom: nomDispositif, typeLieu: 'dispositif',
+            activiteNom: '', domaineCle: '', adulteNom: '', adulteRole: '', remarque: '',
+            jour, debut: minutesVersHeureEdt(debutSeg), fin: minutesVersHeureEdt(finSeg)
+          },
+          c: null, synthese: true
+        };
+      }
+
+      const precedent = segments[segments.length - 1];
+      const memeContenu = precedent && !precedent.synthese && !seg.synthese &&
+        precedent.f.typeLieu === seg.f.typeLieu && precedent.f.lieuNom === seg.f.lieuNom &&
+        precedent.f.activiteNom === seg.f.activiteNom && precedent.f.adulteNom === seg.f.adulteNom &&
+        precedent.f.remarque === seg.f.remarque;
+      const memeVide = precedent && precedent.synthese && seg.synthese;
+      if (precedent && precedent.finMin === seg.debutMin && (memeContenu || memeVide)) {
+        precedent.finMin = seg.finMin;
+        precedent.f = Object.assign({}, precedent.f, { fin: minutesVersHeureEdt(seg.finMin) });
+      } else {
+        segments.push(seg);
+      }
+    }
+    return segments;
   }
 
   function afficherEmploiDuTemps(identifiantSynapses){
@@ -1243,6 +1338,11 @@ const SYNAPSES_BUILD = {
     }
     body.appendChild(axe);
 
+    // Nom du dispositif ULIS de cet établissement (renseigné à la création
+    // du coffre) : utilisé pour libeller les créneaux ULIS déduits d'un
+    // trou d'emploi du temps, à défaut de nom générique "Ulis".
+    const nomDispositif = (coffre.donnees && coffre.donnees.dispositif) || 'Ulis';
+
     for(let jour=1; jour<=5; jour++){
       const col = document.createElement('div');
       col.className = 'edt-jour-col';
@@ -1257,27 +1357,29 @@ const SYNAPSES_BUILD = {
         col.appendChild(demi);
       }
 
-      // Créneaux qui se chevauchent réellement dans le temps (ex. une
-      // affectation de classe non exclue et une prise en charge extérieure
-      // au même horaire) : disposés côte à côte plutôt que superposés, pour
-      // qu'aucun des deux ne masque l'autre.
-      const casesDuJour = disposerColonnesChevauchement(valides.filter(x => Number(x.f.jour) === jour));
+      // Résolution par priorité (PEC > classe/récréation > ULIS) + fusion
+      // continue + comblement des trous (voir resoudreJourneeContinue) :
+      // un seul bloc, pleine largeur, par intervalle de temps final.
+      const itemsJour = valides.filter(x => Number(x.f.jour) === jour);
+      const segments = resoudreJourneeContinue(itemsJour, jour, nomDispositif);
 
-      casesDuJour.forEach(x => {
-        const f = x.f;
+      segments.forEach(seg => {
+        const f = seg.f;
         const bloc = document.createElement('div');
-        const duree = x.finMin - x.debutMin;
+        const duree = seg.finMin - seg.debutMin;
         const hauteurBlocPx = Math.max(12, (duree/30)*px30 - 2);
-        bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu;
+        bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu + (seg.synthese ? ' edt-bloc-deduit' : '');
         if(hauteurBlocPx < 46) bloc.classList.add('edt-duree-courte');
         if(hauteurBlocPx < 26) bloc.classList.add('edt-duree-tres-courte');
-        bloc.style.top = (((x.debutMin-minDebut)/30)*px30) + 'px';
+        bloc.style.top = (((seg.debutMin-minDebut)/30)*px30) + 'px';
         bloc.style.height = hauteurBlocPx + 'px';
-        const largeurPct = 100 / x._colCount;
-        bloc.style.left = 'calc(' + (largeurPct * x._col) + '% + 3px)';
-        bloc.style.width = 'calc(' + largeurPct + '% - 6px)';
+        bloc.style.left = '4px';
+        bloc.style.width = 'calc(100% - 8px)';
         bloc.style.right = 'auto';
-        bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') + (f.activiteNom || typeSeanceCreneau(x.c)) + ' · ' + f.debut + '–' + f.fin;
+        const libelleDeduit = 'Créneau ULIS déduit (aucune affectation enregistrée à cet horaire)';
+        bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') +
+          (f.activiteNom || (seg.synthese ? libelleDeduit : typeSeanceCreneau(seg.c || {}))) +
+          ' · ' + f.debut + '–' + f.fin;
 
         const lieuEl = document.createElement('div');
         lieuEl.className = 'edt-classe';
@@ -1287,7 +1389,7 @@ const SYNAPSES_BUILD = {
         const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
         const nomEl = document.createElement('div');
         nomEl.className = 'edt-nom';
-        nomEl.textContent = activiteAffichee || (f.typeLieu === 'externe' ? 'Prise en charge extérieure' : typeSeanceCreneau(x.c));
+        nomEl.textContent = activiteAffichee || (seg.synthese ? 'Créneau déduit' : (f.typeLieu === 'externe' ? 'Prise en charge extérieure' : typeSeanceCreneau(seg.c || {})));
         bloc.appendChild(nomEl);
 
         if (f.adulteNom) {
@@ -1309,16 +1411,23 @@ const SYNAPSES_BUILD = {
         horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
         bloc.appendChild(horaire);
 
-        // Les récréations fixes sont informatives et ne sont pas éditables dans
-        // le coffre : elles proviennent de la configuration générique du planning.
-        if(x.c._origine !== 'recreation-fixe'){
+        if (seg.synthese) {
+          // Un créneau déduit n'existe pas réellement dans le coffre : rien
+          // à éditer ici, seulement un repère visuel discret pour le
+          // distinguer d'un créneau réellement enregistré (voir aussi le
+          // style .edt-bloc-deduit, en pointillés).
+          const badge = document.createElement('div');
+          badge.className = 'edt-badge-deduit';
+          badge.textContent = 'déduit';
+          bloc.appendChild(badge);
+        } else if (seg.c && seg.c._origine !== 'recreation-fixe') {
           const btnEditer = document.createElement('button');
           btnEditer.type = 'button';
           btnEditer.className = 'edt-btn-editer';
           btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
           btnEditer.textContent = '✎';
           btnEditer.addEventListener('click', () => {
-            ouvrirEditionCase(identifiantSynapses, x.c._brut || x.c, x.c._origine, f);
+            ouvrirEditionCase(identifiantSynapses, seg.c._brut || seg.c, seg.c._origine, f);
           });
           bloc.appendChild(btnEditer);
         }
