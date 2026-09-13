@@ -105,28 +105,20 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .view-toggle button{border:1px solid var(--line);background:var(--panel-raised);color:var(--ink-soft);padding:7px 14px;border-radius:20px;font-weight:700;font-size:12.5px;}
 .view-toggle button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
 
-/* -------- Vue "CJ" (grille façon cahier journal papier) -------- */
-.cj-table{width:100%;border-collapse:collapse;background:#fff;border:1.5px solid var(--ink);font-size:12px;table-layout:fixed;}
-.cj-table th,.cj-table td{border:1px solid var(--ink);vertical-align:top;padding:6px 8px;}
-.cj-table th{background:var(--panel-raised);font-family:'Fraunces',serif;font-weight:600;font-size:12.5px;text-align:left;}
-.cj-table td.cj-col-creneau{width:13%;background:var(--panel-raised);font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);white-space:pre-line;}
-.cj-table td.cj-col-creneau .cj-creneau-label{display:block;font-family:'Fraunces',serif;font-weight:600;font-size:13px;color:var(--ink);margin-bottom:3px;}
-.cj-table td.cj-empty{color:var(--line);text-align:center;}
-.cj-entry{margin:0 0 8px;}
-.cj-entry:last-child{margin-bottom:0;}
-.cj-entry-time{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent-sky);font-weight:600;}
-.cj-entry-titre{font-weight:600;font-size:12px;margin:1px 0 2px;}
-.cj-entry-eleves{font-size:11.5px;color:var(--ink-soft);}
-.cj-entry-remarque{font-size:11px;color:var(--danger);font-style:italic;margin-top:2px;}
-.cj-entry-domaine{font-size:10.5px;color:var(--ink-soft);font-style:italic;}
-.cj-banner-row td{background:#F2F0E8;font-style:italic;color:var(--ink-soft);font-size:11.5px;padding:5px 8px;}
-.cj-banner-row td.cj-col-creneau{font-style:normal;}
-.cj-lock{opacity:.55;font-size:10px;margin-left:4px;}
-.cj-notes{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;}
-.cj-notes h4{font-size:13px;margin:0 0 6px;}
-.cj-notes ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-soft);}
-.cj-notes li{margin-bottom:3px;}
-@media(max-width:900px){.cj-table{font-size:11px;}.cj-table td.cj-col-creneau{width:auto;}}
+/* -------- Vue "Calendrier" (grille horaire 30mn, groupes en colonnes s'ils se chevauchent) -------- */
+.cal-wrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow-x:auto;}
+.cal-body{display:flex;min-width:640px;}
+.cal-axis{position:relative;width:56px;flex-shrink:0;border-right:1px solid var(--line);background:var(--panel-raised);}
+.cal-axis-label{position:absolute;left:0;right:6px;transform:translateY(-50%);font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);text-align:right;}
+.cal-track{position:relative;flex:1;}
+.cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--line);}
+.cal-event{position:absolute;box-sizing:border-box;padding:3px;overflow:auto;}
+.cal-event .groupe-card{height:calc(100% - 24px);margin:0;overflow:auto;}
+.cal-event-time{display:flex;align-items:center;gap:4px;margin-bottom:3px;}
+.cal-event-time input[type=time]{font-family:'IBM Plex Mono',monospace;font-size:10px;border:1px solid var(--line);border-radius:5px;padding:1px 3px;width:56px;}
+.cal-event-fixe{position:absolute;box-sizing:border-box;background:#F2F0E8;border:1px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--ink-soft);padding:2px 4px;}
+.cal-event-fixe-heure{font-family:'IBM Plex Mono',monospace;font-size:10px;display:block;}
+@media(max-width:900px){.cal-axis{width:46px;}}
 
 .journal-table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
 .journal-table > tbody > tr > td{border-top:1px solid var(--line);vertical-align:top;padding:0;}
@@ -807,7 +799,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     <div class="classe-filter-bar" id="classe-filter-bar"></div>
     <div class="view-toggle" id="view-toggle">
       <button type="button" data-vue="cartes">🗂 Vue cartes</button>
-      <button type="button" data-vue="cj">📋 Vue CJ</button>
+      <button type="button" data-vue="calendrier">🗓 Vue Calendrier</button>
     </div>
     <div class="day-summary" id="day-summary"></div>
     <div id="content"></div>
@@ -888,7 +880,7 @@ let jour = null;
 // n'est jamais tronqué par ce filtre.
 let classeFiltreCourante = null;
 const VUE_JOURNAL_KEY = "synapses_planning_vue_journal";
-let vueJournal = localStorage.getItem(VUE_JOURNAL_KEY) === "cj" ? "cj" : "cartes";
+let vueJournal = localStorage.getItem(VUE_JOURNAL_KEY) === "calendrier" ? "calendrier" : "cartes";
 // Préférence d'affichage uniquement (aucune donnée élève) : peut vivre en localStorage.
 
 /* ---------------- Portail d'import ----------------
@@ -1326,13 +1318,13 @@ function renderJour(){
     lignes.push(ligneCourante);
   }
 
-  if(vueJournal === "cj"){
-    content.appendChild(construireTableCJ(lignes, hm));
+  if(vueJournal === "calendrier"){
+    content.appendChild(construireVueCalendrier(groupesVisibles, hm));
 
-    const addBlocRowCJ = document.createElement("div");
-    addBlocRowCJ.className = "add-bloc-row";
-    addBlocRowCJ.innerHTML = `<button class="btn" id="btn-add-bloc">+ Ajouter un créneau</button>`;
-    content.appendChild(addBlocRowCJ);
+    const addBlocRowCal = document.createElement("div");
+    addBlocRowCal.className = "add-bloc-row";
+    addBlocRowCal.innerHTML = `<button class="btn" id="btn-add-bloc">+ Ajouter un créneau</button>`;
+    content.appendChild(addBlocRowCal);
     $("btn-add-bloc").addEventListener("click", ()=>ajouterBloc());
     return;
   }
@@ -1676,115 +1668,6 @@ function renderJour(){
   );
 }
 
-/* =========================================================
-   VUE "CJ" — grille façon cahier journal papier
-   ---------------------------------------------------------
-   Colonnes fixes : Créneau | Enseignant | AESH / autre adulte
-   | Autonomie. Chaque ligne correspond à une plage horaire
-   commune (même regroupement par chevauchement que la vue
-   cartes) ; les créneaux fixes sans adulte (récréation,
-   service…) sont affichés en bandeau, comme dans le cahier
-   journal papier.
-   ========================================================= */
-
-function heureCourte(hhmm){
-  if(!hhmm) return "";
-  const [h,m] = String(hhmm).split(":");
-  const hh = String(parseInt(h,10));
-  return (!m || m==="00") ? hh+"h" : hh+"h"+m;
-}
-
-function classifierGroupeCJ(g){
-  if(g.fixe && !g.adulte) return "banner";
-  const t = g.adulte && g.adulte.type;
-  if(t === "enseignant") return "ens";
-  if(t === "aesh" || t === "atsem" || t === "autre") return "aesh";
-  return "auto";
-}
-
-function renderEntreeCJ(bloc, g){
-  const eleves = (g.eleves||[]).map(id=>labelEleve(id));
-  const nomAdulte = g.adulte && g.adulte.nom ? " · " + escapeHTML(g.adulte.nom) : "";
-  const cadenas = g.modifie ? `<span class="cj-lock" title="Modifié à la main">🔒</span>` : "";
-  return `
-    <div class="cj-entry">
-      <div class="cj-entry-time">${escapeHTML(heureCourte(bloc.debut))}–${escapeHTML(heureCourte(bloc.fin))}${nomAdulte}${cadenas}</div>
-      <div class="cj-entry-titre">${escapeHTML(g.titre || "")}</div>
-      ${g.domaineCle ? `<div class="cj-entry-domaine">${escapeHTML((g.niveau?g.niveau+" · ":"")+g.domaineCle)}</div>` : ""}
-      ${eleves.length ? `<div class="cj-entry-eleves">${eleves.map(escapeHTML).join(", ")}</div>` : ""}
-      ${g.remarque ? `<div class="cj-entry-remarque">⚠ ${escapeHTML(g.remarque)}</div>` : ""}
-    </div>`;
-}
-
-function construireTableCJ(lignes, hm){
-  const table = document.createElement("table");
-  table.className = "cj-table";
-  table.innerHTML = `<thead><tr>
-    <th style="width:13%;">Créneau</th>
-    <th>Enseignant</th>
-    <th>AESH / autre adulte</th>
-    <th>Autonomie</th>
-  </tr></thead>`;
-
-  const tbody = document.createElement("tbody");
-
-  lignes.forEach(ligneBrute=>{
-    const ligne = ligneBrute.slice().sort((a,b)=>hm(a.debut)-hm(b.debut) || hm(a.fin)-hm(b.fin));
-
-    let minDebutStr = ligne[0].debut, maxFinStr = ligne[0].fin;
-    ligne.forEach(b=>{
-      if(hm(b.debut) < hm(minDebutStr)) minDebutStr = b.debut;
-      if(hm(b.fin) > hm(maxFinStr)) maxFinStr = b.fin;
-    });
-
-    const label = ligne.length === 1
-      ? (PC.libelleBloc(jour, ligne[0].debut, ligne[0].fin) || (heureCourte(ligne[0].debut) + "–" + heureCourte(ligne[0].fin)))
-      : (heureCourte(minDebutStr) + "–" + heureCourte(maxFinStr));
-
-    const cols = { ens: [], aesh: [], auto: [] };
-    const banners = [];
-
-    ligne.forEach(bloc=>{
-      (bloc.groupes || []).forEach(g=>{
-        const t = classifierGroupeCJ(g);
-        if(t === "banner"){
-          banners.push(g);
-        }else{
-          cols[t].push(renderEntreeCJ(bloc, g));
-        }
-      });
-    });
-
-    const aDuContenu = cols.ens.length || cols.aesh.length || cols.auto.length;
-    const titresBanner = [...new Set(banners.map(g=>g.titre).filter(Boolean))];
-
-    const tr = document.createElement("tr");
-
-    if(!aDuContenu && banners.length){
-      tr.className = "cj-banner-row";
-      tr.innerHTML = `
-        <td class="cj-col-creneau"><span class="cj-creneau-label">${escapeHTML(label)}</span></td>
-        <td colspan="3">${escapeHTML(titresBanner.join(" · ") || "Créneau fixe")}</td>
-      `;
-    }else{
-      const noteBanner = titresBanner.length
-        ? `<div style="margin-top:4px;font-style:italic;font-size:10.5px;color:var(--ink-soft);">${escapeHTML(titresBanner.join(" · "))}</div>`
-        : "";
-      tr.innerHTML = `
-        <td class="cj-col-creneau"><span class="cj-creneau-label">${escapeHTML(label)}</span>${noteBanner}</td>
-        <td>${cols.ens.join("") || `<span class="cj-empty">—</span>`}</td>
-        <td>${cols.aesh.join("") || `<span class="cj-empty">—</span>`}</td>
-        <td>${cols.auto.join("") || `<span class="cj-empty">—</span>`}</td>
-      `;
-    }
-
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  return table;
-}
-
 function ajouterBloc(){
   const debut = prompt("Heure de début (HH:MM)", "09:00"); if(debut===null) return;
   const fin = prompt("Heure de fin (HH:MM)", "09:30"); if(fin===null) return;
@@ -1793,6 +1676,151 @@ function ajouterBloc(){
   jour.groupes.push({ id: PC.uid("grp"), debut, fin, origine: null, modifie: true,
     adulte:{type:"enseignant",nom:""}, titre:"Nouveau groupe", domaineCle:"", niveau:"", seanceRef:null, eleves:[], remarque:"", fixe:false });
   sauver(); renderJour();
+}
+
+/* =========================================================
+   VUE "CALENDRIER"
+   ---------------------------------------------------------
+   Grille horaire avec une colonne de gauche graduée toutes
+   les 30 minutes. Chaque groupe (enseignant, AESH, etc.) est
+   positionné verticalement selon son horaire réel. Les
+   groupes qui se chevauchent dans le temps (même partiellement)
+   sont placés côte à côte, en colonnes, au lieu d'être
+   empilés — ce qui permet par exemple de voir en un coup
+   d'œil le groupe mené par l'enseignant et celui mené par
+   l'AESH sur le même créneau. Les groupes qui ne partagent
+   aucun créneau gardent toute la largeur disponible.
+   Les cartes de groupe restent éditables : cette vue réutilise
+   renderGroupeCard(), seul l'habillage/positionnement change.
+   ========================================================= */
+
+function minVersHHMM(min){
+  min = Math.max(0, Math.round(min));
+  const h = Math.floor(min/60), m = min%60;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+
+function construireVueCalendrier(groupesVisibles, hm){
+  const wrap = document.createElement("div");
+  wrap.className = "cal-wrap";
+
+  if(!groupesVisibles.length){
+    wrap.innerHTML = `<div class="empty-journal"><p>Aucun créneau à afficher.</p></div>`;
+    return wrap;
+  }
+
+  const PX_PAR_MIN = 2; // 60px par demi-heure
+
+  let debutMin = Math.min(...groupesVisibles.map(g=>hm(g.debut)));
+  let finMin   = Math.max(...groupesVisibles.map(g=>hm(g.fin)));
+  debutMin = Math.floor(debutMin/30)*30;
+  finMin   = Math.ceil(finMin/30)*30;
+  if(finMin <= debutMin) finMin = debutMin + 30;
+  const hauteurTotale = (finMin - debutMin) * PX_PAR_MIN;
+
+  /* ---- Regroupement en clusters de créneaux qui se chevauchent ---- */
+  const evenements = groupesVisibles
+    .map(g=>({ g, start:hm(g.debut), end:Math.max(hm(g.fin), hm(g.debut)+10) }))
+    .sort((a,b)=> a.start-b.start || a.end-b.end);
+
+  const clusters = [];
+  let clusterCourant = [];
+  let finCluster = -1;
+  evenements.forEach(ev=>{
+    if(clusterCourant.length && ev.start < finCluster){
+      clusterCourant.push(ev);
+      finCluster = Math.max(finCluster, ev.end);
+    }else{
+      if(clusterCourant.length) clusters.push(clusterCourant);
+      clusterCourant = [ev];
+      finCluster = ev.end;
+    }
+  });
+  if(clusterCourant.length) clusters.push(clusterCourant);
+
+  /* ---- Attribution des colonnes à l'intérieur de chaque cluster ---- */
+  clusters.forEach(cluster=>{
+    const finsColonnes = [];
+    cluster.forEach(ev=>{
+      let placee = false;
+      for(let i=0;i<finsColonnes.length;i++){
+        if(finsColonnes[i] <= ev.start){ ev.col = i; finsColonnes[i] = ev.end; placee = true; break; }
+      }
+      if(!placee){ ev.col = finsColonnes.length; finsColonnes.push(ev.end); }
+    });
+    const total = finsColonnes.length || 1;
+    cluster.forEach(ev=> ev.totalCols = total);
+  });
+
+  /* ---- Structure DOM ---- */
+  const body = document.createElement("div");
+  body.className = "cal-body";
+
+  const axis = document.createElement("div");
+  axis.className = "cal-axis";
+  axis.style.height = hauteurTotale + "px";
+  for(let t=debutMin; t<=finMin; t+=30){
+    const lab = document.createElement("div");
+    lab.className = "cal-axis-label";
+    lab.style.top = ((t - debutMin) * PX_PAR_MIN) + "px";
+    lab.textContent = minVersHHMM(t);
+    axis.appendChild(lab);
+  }
+
+  const track = document.createElement("div");
+  track.className = "cal-track";
+  track.style.height = hauteurTotale + "px";
+
+  for(let t=debutMin; t<=finMin; t+=30){
+    const line = document.createElement("div");
+    line.className = "cal-line";
+    line.style.top = ((t - debutMin) * PX_PAR_MIN) + "px";
+    track.appendChild(line);
+  }
+
+  evenements.forEach(ev=>{
+    const g = ev.g;
+    const top = (ev.start - debutMin) * PX_PAR_MIN;
+    const hauteur = Math.max((ev.end - ev.start) * PX_PAR_MIN, 34);
+    const largeur = 100 / ev.totalCols;
+    const gauche = ev.col * largeur;
+
+    const box = document.createElement("div");
+    box.className = "cal-event" + (g.fixe ? " cal-event-fixe" : "");
+    box.style.top = top + "px";
+    box.style.height = hauteur + "px";
+    box.style.left = gauche + "%";
+    box.style.width = largeur + "%";
+
+    if(g.fixe){
+      box.innerHTML = `${escapeHTML(g.titre||"")}<span class="cal-event-fixe-heure">${escapeHTML(g.debut)}–${escapeHTML(g.fin)}</span>`;
+      track.appendChild(box);
+      return;
+    }
+
+    const timeRow = document.createElement("div");
+    timeRow.className = "cal-event-time";
+    timeRow.innerHTML = `
+      <input type="time" data-role="cal-debut" value="${escapeAttr(g.debut)}" title="Début de ce groupe">
+      <span class="sep">–</span>
+      <input type="time" data-role="cal-fin" value="${escapeAttr(g.fin)}" title="Fin de ce groupe">
+    `;
+    timeRow.querySelector('[data-role=cal-debut]').addEventListener("change", e=>{
+      g.debut = e.target.value; g.modifie = true; sauver(); renderJour();
+    });
+    timeRow.querySelector('[data-role=cal-fin]').addEventListener("change", e=>{
+      g.fin = e.target.value; g.modifie = true; sauver(); renderJour();
+    });
+
+    box.appendChild(timeRow);
+    box.appendChild(renderGroupeCard(g));
+    track.appendChild(box);
+  });
+
+  body.appendChild(axis);
+  body.appendChild(track);
+  wrap.appendChild(body);
+  return wrap;
 }
 
 function renderGroupeCard(g){
@@ -1861,7 +1889,7 @@ function renderGroupeCard(g){
   return card;
 }
 
-/* ---------------- Bascule Vue cartes / Vue CJ ---------------- */
+/* ---------------- Bascule Vue cartes / Vue Calendrier ---------------- */
 document.querySelectorAll("#view-toggle [data-vue]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     vueJournal = btn.dataset.vue;
