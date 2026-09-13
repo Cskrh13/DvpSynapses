@@ -2581,7 +2581,7 @@ Les élèves sont anonymisés. Tu dois créer, uniquement si cela est pertinent,
 Élèves du jour :
 ${JSON.stringify(rosterJour.map(x=>({id:x.anon,niveau:x.niveau,objectifs:x.objectifs,capacites:x.capacites,difficultes:x.difficultes,besoins:x.besoins,adaptations:x.adaptations})),null,2)}
 
-Créneaux du jour et élèves réellement affectés à chacun :
+Créneaux du jour et élèves réellement affectés à chacun (ce sont les SEULS élèves à répartir pour ce créneau — un élève du dispositif absent de la liste "eleves" d'un créneau n'est pas présent sur ce créneau et ne doit jamais y apparaître) :
 ${JSON.stringify(payload,null,2)}
 
 Réponds UNIQUEMENT avec un tableau JSON. Un objet par créneau nécessitant une répartition :
@@ -2596,9 +2596,11 @@ Réponds UNIQUEMENT avec un tableau JSON. Un objet par créneau nécessitant une
 
 Règles :
 - Utilise exclusivement les identifiants anonymes fournis.
-- Utilise uniquement les élèves listés pour le créneau concerné.
+- Pour un créneau donné, ne répartis QUE les élèves listés dans "eleves" pour ce créneau précis dans la section précédente ; ignore tout élève du dispositif présent un autre jour ou sur un autre créneau.
 - Un élève ne peut apparaître que dans un seul des trois groupes pour un même créneau.
-- Tu peux laisser un groupe vide ou omettre un créneau si aucune répartition particulière n'est nécessaire.
+- Les créneaux fournis excluent déjà les récréations et la pause méridienne (ce ne sont jamais des créneaux à répartir).
+- Sur chaque créneau, si au moins un élève de ce créneau n'est pas affecté au groupe "enseignant", le groupe "aesh" ne doit jamais rester vide : affecte-lui au moins un de ces élèves non pris par l'enseignant. Le groupe "aesh" ne peut rester vide que si tous les élèves du créneau sont déjà dans le groupe "enseignant".
+- Tu peux laisser le groupe "autonomie" vide, ou omettre un créneau, uniquement si aucune répartition particulière n'est nécessaire.
 - N'invente aucun élève, objectif, difficulté ou créneau.`;
 }
 function refreshDispositifIa(){ const p=$("disp-ia-prompt"); if(p) p.value=genererPromptDispositif(); }
