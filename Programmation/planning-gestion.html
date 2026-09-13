@@ -261,6 +261,7 @@ table.affg .affg-aesh-toggle.masque{display:none;}
     <button class="btn primary" id="btn-coffre-ouvrir">🔓 Ouvrir le coffre</button>
     <button class="btn primary" id="btn-coffre-enregistrer" style="display:none;">💾 Enregistrer le coffre (.synapses)</button>
     <button class="btn danger" id="btn-coffre-fermer" style="display:none;">🔒 Fermer le coffre</button>
+    <button class="btn danger" id="btn-coffre-purger" title="Détruire immédiatement les données élèves de la mémoire de cet onglet">🗑 Purger</button>
     <span class="hint" id="coffre-modif-txt" style="display:none;color:var(--danger);font-weight:600;">● Modifications non enregistrées</span>
   </div>
 
@@ -792,6 +793,32 @@ $("btn-coffre-fermer").addEventListener("click", ()=>{
   renderClasses(); // les libellés "N élèves chargés" redeviennent 0
   toast("Coffre fermé — données retirées de la mémoire.");
 });
+
+// Bouton explicite « Détruire les données confidentielles » : toujours
+// visible (contrairement à "Fermer le coffre", masqué quand il est déjà
+// fermé), pour purger immédiatement les données élèves de la mémoire de cet
+// onglet — par exemple avant de laisser l'ordinateur sans surveillance —
+// sans avoir à rouvrir/refermer le coffre. Reprend le même garde-fou sur les
+// modifications non enregistrées que "Fermer le coffre".
+if($("btn-coffre-purger")){
+  $("btn-coffre-purger").addEventListener("click", ()=>{
+    if(!coffre || !coffre.ouvert){ toast("Aucune donnée élève en mémoire à purger."); return; }
+    if(coffreModifie){
+      const continuer = confirm(
+        "Des modifications (affectations d'élèves, etc.) n'ont pas été enregistrées dans le fichier .synapses et seront définitivement perdues.\n\n"+
+        "Cliquez sur « Annuler » pour revenir en arrière et utiliser d'abord « 💾 Enregistrer le coffre », ou sur « OK » pour purger sans enregistrer."
+      );
+      if(!continuer) return;
+    } else if(!confirm("Détruire immédiatement toutes les données élèves de la mémoire de cet onglet ? Cette action est irréversible.")){
+      return;
+    }
+    coffre.purger();
+    coffreModifie = false;
+    majEtatCoffre();
+    renderClasses();
+    toast("Données élèves purgées de la mémoire.");
+  });
+}
 
 /* ---------------- Enregistrement du coffre (export .synapses) ----------------
  * Le bouton "Enregistrer les élèves et leurs créneaux" (et les autres actions
