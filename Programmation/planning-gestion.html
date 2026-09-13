@@ -159,6 +159,29 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .disp-planning-jour-titre{font-size:13px;font-weight:700;margin:18px 0 4px;color:var(--navy);}
 .disp-planning-jour-titre:first-child{margin-top:0;}
 
+/* ---- Planning adulte (enseignant/AESH) : grille en lignes verticales, pas de 30 min ---- */
+.pl-timeline-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:#fff;padding:14px 14px 18px;}
+.pl-timeline{display:flex;align-items:stretch;}
+.pl-axis{flex:0 0 56px;position:relative;padding-top:34px;}
+.pl-axis-tick{position:absolute;left:0;right:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);text-align:right;transform:translateY(-6px);}
+.pl-axis-tick.heure-pleine{font-weight:700;color:var(--ink);}
+.pl-cols{display:flex;gap:3px;position:relative;padding-top:34px;}
+.pl-col{flex:0 0 34px;position:relative;}
+.pl-col-label{
+  position:absolute;top:-32px;left:50%;transform:translateX(-50%) rotate(-38deg);transform-origin:bottom left;
+  font-size:11px;font-weight:700;color:var(--navy);white-space:nowrap;letter-spacing:.01em;
+}
+.pl-col-track{position:relative;width:100%;background:repeating-linear-gradient(180deg,var(--panel-raised) 0,var(--panel-raised) 1px,transparent 1px,transparent 30px);border-left:1px solid var(--line);border-right:1px solid var(--line);}
+.pl-bar{
+  position:absolute;left:2px;right:2px;border-radius:5px;background:var(--accent-sky);color:#fff;
+  font-size:9.5px;line-height:1.25;padding:3px 4px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.15);
+  display:flex;align-items:flex-start;justify-content:center;text-align:center;
+}
+.pl-bar.disp-lieu{background:var(--ok);}
+.pl-bar span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;}
+.pl-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-top:12px;}
+.pl-legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+
 .synapses-footer {
     margin-top: 40px;
     padding: 18px 24px;
@@ -195,6 +218,7 @@ table.affg .affg-eleve-line.avec-aesh{background:#EAF2FD;}
 table.affg .affg-aesh-toggle{font-size:10px;font-weight:700;letter-spacing:.02em;padding:1px 5px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;line-height:1.4;}
 table.affg .affg-aesh-toggle.actif{background:#2563eb;border-color:#2563eb;color:#fff;}
 table.affg .affg-aesh-toggle:disabled{opacity:.35;cursor:not-allowed;}
+table.affg .affg-aesh-toggle.masque{display:none;}
 
 /* ---- Affectation dispositif (ULIS/SEGPA/RASED) ----
  * Rendue avec la même identité visuelle que la grille des classes
@@ -1752,6 +1776,35 @@ function refreshAffectationTab(){
   renderGenDispositifGrille();
 }
 
+/* Recense, à partir des données déjà enregistrées (planning individuel des
+   élèves + répartitions des dispositifs), tous les créneaux où l'AESH est
+   occupée ailleurs que dans la classe en cours d'édition (excludeClasseId).
+   Sert à ne proposer le bouton « AESH » que si elle est réellement libre à
+   ce moment-là. */
+function construireOccupationAeshPersistante(excludeClasseId){
+  const occ=[];
+  if(coffre && coffre.ouvert){
+    (coffre.listerEleves ? coffre.listerEleves() : []).forEach(e=>{
+      (Array.isArray(e.planning)?e.planning:[]).forEach(p=>{
+        if(p.typeLieu==="classe" && p.aesh===true && p.classeId!==excludeClasseId && p.debut && p.fin){
+          occ.push({jourMin:Number(p.jour), debutMin:PC.heureVersMin(p.debut), finMin:PC.heureVersMin(p.fin)});
+        }
+      });
+    });
+  }
+  Object.keys(config.dispositifGroupes||{}).forEach(cle=>{
+    const g=config.dispositifGroupes[cle];
+    if(!g || !Array.isArray(g.aesh) || !g.aesh.length) return;
+    const idx1=cle.indexOf("::"), idx2=cle.lastIndexOf("::");
+    if(idx1===-1 || idx2===idx1) return;
+    const dispId=cle.slice(0,idx1), jourStr=cle.slice(idx1+2,idx2), creneauId=cle.slice(idx2+2);
+    const c=(grilles[dispId]||[]).find(x=>x.id===creneauId);
+    if(!c) return;
+    occ.push({jourMin:Number(jourStr), debutMin:PC.heureVersMin(c.debut), finMin:PC.heureVersMin(c.fin)});
+  });
+  return occ;
+}
+
 function renderAffgGrille(){
   const wrap=$("affg-wrap"),hint=$("affg-sans-coffre");
   const classeId=$("affg-classe").value;
@@ -1772,6 +1825,37 @@ function renderAffgGrille(){
     (a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut)||PC.heureVersMin(a.fin)-PC.heureVersMin(b.fin)
   );
   if(!creneaux.length){wrap.innerHTML='<div class="empty-hint">Aucun créneau dans la grille horaire type de cette classe.</div>';return;}
+
+  // Disponibilité de l'AESH : une seule personne ne peut être affectée qu'à
+  // un seul endroit à la fois. On part de tout ce qui est déjà enregistré
+  // ailleurs (autres classes, dispositifs), auquel s'ajoutent, pendant le
+  // rendu de CETTE grille, les affectations en cours dans cette classe
+  // elle-même (affgAeshEtatEnCours, pas encore enregistrées). Le bouton
+  // « AESH » n'est visible que si elle est disponible sur ce créneau — ou
+  // si c'est justement cet élève qui l'a déjà, pour pouvoir la libérer.
+  const aeshOccupationExterne=construireOccupationAeshPersistante(classeId);
+  const aeshBoutons=[];
+  function recalculerDisponibiliteAesh(){
+    aeshBoutons.forEach(b=>{
+      const dejaAffectee=affgAeshEtatEnCours[b.cle]===true;
+      let occupeeAilleurs=false;
+      if(!dejaAffectee){
+        occupeeAilleurs = aeshOccupationExterne.some(o=>
+          o.jourMin===b.jourMin && PC.chevaucheMin(o.debutMin,o.finMin,b.debutMin,b.finMin)
+        ) || aeshBoutons.some(autre=>
+          autre.cle!==b.cle && affgAeshEtatEnCours[autre.cle]===true &&
+          autre.jourMin===b.jourMin && PC.chevaucheMin(autre.debutMin,autre.finMin,b.debutMin,b.finMin)
+        );
+      }
+      const disponible=dejaAffectee||!occupeeAilleurs;
+      b.btn.classList.toggle("masque",!disponible);
+      b.btn.title=dejaAffectee
+        ? "Retirer l'AESH de ce créneau — elle redevient aussitôt disponible pour un autre élève"
+        : (disponible
+            ? "Faire venir l'AESH auprès de cet élève en classe sur ce créneau"
+            : "AESH déjà affectée à un autre élève sur ce créneau");
+    });
+  }
 
   // Regroupement des lignes par heure de DÉBUT uniquement.
   // (Un regroupement sur debut::fin faisait perdre des créneaux dès que la
@@ -1882,15 +1966,13 @@ function renderAffgGrille(){
           btnAesh.type="button";
           btnAesh.className="affg-aesh-toggle"+(aeshCoche?" actif":"");
           btnAesh.textContent="AESH";
-          btnAesh.title=coche
-            ? "Faire venir l'AESH auprès de cet élève en classe sur ce créneau"
-            : "Cochez d'abord la présence en classe pour pouvoir y affecter l'AESH";
           btnAesh.disabled=!coche;
           btnAesh.addEventListener("click",()=>{
             const actif=!(affgAeshEtatEnCours[cle]===true);
             affgAeshEtatEnCours[cle]=actif;
             btnAesh.classList.toggle("actif",actif);
             line.classList.toggle("avec-aesh",actif);
+            recalculerDisponibiliteAesh(); // libère/occupe l'AESH pour les autres élèves, sans recharger
             $("affg-save-status").textContent="Modifications en attente d'enregistrement.";
           });
 
@@ -1905,13 +1987,22 @@ function renderAffgGrille(){
               line.classList.remove("avec-aesh");
             }
             btnAesh.disabled=!cb.checked;
-            btnAesh.title=cb.checked
-              ? "Faire venir l'AESH auprès de cet élève en classe sur ce créneau"
-              : "Cochez d'abord la présence en classe pour pouvoir y affecter l'AESH";
+            recalculerDisponibiliteAesh(); // un élève qui quitte la classe libère l'AESH pour les autres
             $("affg-save-status").textContent="Modifications en attente d'enregistrement.";
           });
 
           line.appendChild(initiale);line.appendChild(cb);line.appendChild(btnAesh);td.appendChild(line);
+
+          if(coche){
+            aeshBoutons.push({
+              cle, btn:btnAesh, line,
+              jourMin:Number(j.n),
+              debutMin:PC.heureVersMin(c.debut),
+              finMin:PC.heureVersMin(c.fin)
+            });
+          } else {
+            btnAesh.classList.add("masque");
+          }
         });
       });
       tr.appendChild(td);
@@ -1921,6 +2012,8 @@ function renderAffgGrille(){
 
   const scroll=document.createElement("div");scroll.className="affg-scroll";
   scroll.appendChild(table);wrap.appendChild(scroll);
+
+  recalculerDisponibiliteAesh(); // état initial, une fois tous les boutons connus
 }
 
 $("affg-classe").addEventListener("change",refreshAffectationTab);
@@ -2234,6 +2327,13 @@ function synchroniserAffectationsUlis(dispId){
 
         if(!existante){
           const nomActivite=PC.libelleCreneau(c);
+          // L'élève peut avoir été placé dans le groupe AESH de la
+          // répartition du dispositif (bouton « AESH », cf.
+          // sauvegarderGroupesDisp) : cette affectation nominative doit se
+          // refléter dans son planning individuel, sinon la présence de
+          // l'AESH auprès de lui n'apparaît jamais dans le coffre.
+          const groupesC=groupesExistantsDisp(dispId,c.jour,c);
+          const avecAesh=(groupesC.aesh||[]).includes(id);
           coffre.affecterCreneau(id,{
             classeId:dispId,
             classeNom:disp.nom,
@@ -2243,7 +2343,10 @@ function synchroniserAffectationsUlis(dispId){
             debut:c.debut,
             fin:c.fin,
             activite:{nom:nomActivite,domaineCle:c.domaineCle||""},
-            adulteReference:{nom:disp.enseignant||"",role:"Enseignant "+(disp.type||"ULIS")}
+            adulteReference: avecAesh
+              ? {nom:disp.enseignant||"",role:"Enseignant "+(disp.type||"ULIS"),aesh:true}
+              : {nom:disp.enseignant||"",role:"Enseignant "+(disp.type||"ULIS")},
+            aesh: avecAesh
           });
           creees++;
         }
@@ -2320,6 +2423,12 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
         return !chevauche;
       });
       const nomActivite = PC.libelleCreneau(c);
+      // Même règle que dans synchroniserAffectationsUlis : si l'élève est
+      // dans le groupe AESH de la répartition du dispositif pour ce
+      // créneau précis, l'affectation nominative doit le porter, sinon la
+      // présence de l'AESH auprès de lui n'est jamais enregistrée.
+      const groupesC = dispId ? groupesExistantsDisp(dispId, c.jour, c) : null;
+      const avecAesh = !!(groupesC && (groupesC.aesh||[]).includes(idEleve));
       coffre.affecterCreneau(idEleve, {
         classeId: dispId,
         classeNom: disp ? disp.nom : "",
@@ -2329,7 +2438,10 @@ $("btn-enregistrer-gend").addEventListener("click", ()=>{
         debut: c.debut,
         fin: c.fin,
         activite: { nom: nomActivite, domaineCle: c.domaineCle||"" },
-        adulteReference: { nom: disp && disp.enseignant || "", role: "Enseignant " + (disp && disp.type || "ULIS") }
+        adulteReference: avecAesh
+          ? { nom: disp && disp.enseignant || "", role: "Enseignant " + (disp && disp.type || "ULIS"), aesh: true }
+          : { nom: disp && disp.enseignant || "", role: "Enseignant " + (disp && disp.type || "ULIS") },
+        aesh: avecAesh
       });
     } else {
       // Décoché = renvoyé dans sa classe de référence : on retire d'abord
@@ -2615,6 +2727,18 @@ function construirePlanningAdulte(role){
   return lignes;
 }
 
+const PL_SLOT_PX = 26; // hauteur en pixels d'un créneau de 30 minutes dans la grille
+
+function plMinVersHeure(min){
+  const h=Math.floor(min/60), m=min%60;
+  return String(h).padStart(2,"0")+"h"+String(m).padStart(2,"0");
+}
+
+/* Grille en lignes verticales : chaque élève est une colonne, tracée
+   côte à côte avec les autres. La barre de chaque colonne s'étend du
+   début à la fin du créneau correspondant, sur un axe des temps calé
+   par pas de 30 minutes (une case = 30 min). Le prénom de l'élève est
+   affiché en tête de colonne, en écriture verticale. */
 function renderPlanningAdulteComplet(role, containerId){
   const body=$(containerId); if(!body) return;
   body.innerHTML="";
@@ -2624,21 +2748,85 @@ function renderPlanningAdulteComplet(role, containerId){
   const lignes=construirePlanningAdulte(role).filter(l=>Number(l.jourN)===Number(jour));
   if(!lignes.length){ body.innerHTML='<div class="empty-hint">Aucun créneau avec élève accompagné ce jour-là.</div>'; return; }
 
-  const table=document.createElement("table");
-  table.className="disp-planning-table";
-  table.innerHTML="<thead><tr><th>Heure</th><th>Lieu</th><th>Élève(s) accompagné(s)</th></tr></thead>";
-  const tbody=document.createElement("tbody");
+  // Un évènement par (créneau × élève), pour construire une colonne par élève
+  const evenements=[];
   lignes.forEach(l=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td class="horaire">${escapeHTMLTexte(l.debut)}–${escapeHTMLTexte(l.fin)}</td>
-      <td>${escapeHTMLTexte(l.lieu)}</td>
-      <td><div class="eleves-list">${l.eleves.map(n=>`<span class="eleve-chip">${escapeHTMLTexte(n)}</span>`).join("")}</div></td>
-    `;
-    tbody.appendChild(tr);
+    const debutMin=PC.heureVersMin(l.debut), finMin=PC.heureVersMin(l.fin);
+    if(!(finMin>debutMin)) return; // créneau invalide, on l'ignore par sécurité
+    l.eleves.forEach(nom=> evenements.push({ nom, debutMin, finMin, debut:l.debut, fin:l.fin, lieu:l.lieu }));
   });
-  table.appendChild(tbody);
-  body.appendChild(table);
+  if(!evenements.length){ body.innerHTML='<div class="empty-hint">Aucun créneau avec élève accompagné ce jour-là.</div>'; return; }
+
+  // Bornes de l'axe, calées sur des demi-heures pleines
+  const minBrut=Math.min(...evenements.map(e=>e.debutMin));
+  const maxBrut=Math.max(...evenements.map(e=>e.finMin));
+  const axeDebut=Math.floor(minBrut/30)*30;
+  const axeFin=Math.ceil(maxBrut/30)*30;
+  const nbSlots=Math.max(1, Math.round((axeFin-axeDebut)/30));
+  const hauteurPx=nbSlots*PL_SLOT_PX;
+
+  // Colonnes élèves, dans l'ordre de première apparition dans la journée
+  const eleves=[];
+  evenements.forEach(e=>{ if(!eleves.includes(e.nom)) eleves.push(e.nom); });
+
+  const wrap=document.createElement("div");
+  wrap.className="pl-timeline-wrap";
+  const timeline=document.createElement("div");
+  timeline.className="pl-timeline";
+
+  // Axe des heures, un repère toutes les 30 minutes
+  const axis=document.createElement("div");
+  axis.className="pl-axis";
+  axis.style.height=hauteurPx+"px";
+  for(let m=axeDebut; m<=axeFin; m+=30){
+    const tick=document.createElement("div");
+    tick.className="pl-axis-tick"+(m%60===0?" heure-pleine":"");
+    tick.style.top=(((m-axeDebut)/30)*PL_SLOT_PX)+"px";
+    tick.textContent=plMinVersHeure(m);
+    axis.appendChild(tick);
+  }
+  timeline.appendChild(axis);
+
+  // Une colonne par élève, tracées côte à côte
+  const cols=document.createElement("div");
+  cols.className="pl-cols";
+  eleves.forEach(nom=>{
+    const col=document.createElement("div");
+    col.className="pl-col";
+
+    const label=document.createElement("div");
+    label.className="pl-col-label";
+    label.textContent=nom;
+    col.appendChild(label);
+
+    const track=document.createElement("div");
+    track.className="pl-col-track";
+    track.style.height=hauteurPx+"px";
+
+    evenements.filter(e=>e.nom===nom).forEach(e=>{
+      const top=((e.debutMin-axeDebut)/30)*PL_SLOT_PX;
+      const hauteur=Math.max(((e.finMin-e.debutMin)/30)*PL_SLOT_PX, 16);
+      const bar=document.createElement("div");
+      bar.className="pl-bar";
+      bar.style.top=top+"px";
+      bar.style.height=hauteur+"px";
+      bar.title=`${nom} — ${e.lieu} (${e.debut}–${e.fin})`;
+      bar.innerHTML=`<span>${escapeHTMLTexte(e.lieu)}</span>`;
+      track.appendChild(bar);
+    });
+
+    col.appendChild(track);
+    cols.appendChild(col);
+  });
+  timeline.appendChild(cols);
+  wrap.appendChild(timeline);
+  body.appendChild(wrap);
+
+  const legende=document.createElement("div");
+  legende.className="pl-legend";
+  legende.innerHTML=`<span><span class="sw" style="background:var(--accent-sky);"></span>Créneau</span>
+    <span>Grille calée par pas de 30 minutes · une colonne par élève, du début à la fin de son créneau</span>`;
+  body.appendChild(legende);
 }
 
 function imprimerPlanningAdulte(role){
@@ -2725,6 +2913,30 @@ function sauvegarderGroupesDisp(dispId,jour,c,g,toastOui=true){
   });
   config.dispositifGroupes[cleGroupeDisp(dispId,jour,c.id)]=nettoye;
   PC.sauverConfig(config);
+
+  // Répercute immédiatement la présence (ou non) de l'AESH sur l'affectation
+  // nominative déjà enregistrée dans le coffre pour ce créneau précis, si
+  // elle existe déjà (élève déjà affecté au dispositif). Sans cela, cliquer
+  // sur « AESH » ne modifiait que la répartition (config.dispositifGroupes)
+  // sans jamais toucher le planning individuel de l'élève dans le coffre :
+  // la présence de l'AESH auprès de lui n'était donc jamais enregistrée.
+  if(coffre && coffre.ouvert){
+    let toucheCoffre=false;
+    const aeshIds=new Set(nettoye.aesh);
+    (coffre.listerEleves ? coffre.listerEleves() : []).forEach(e=>{
+      if(!Array.isArray(e.planning)) return;
+      const entree=e.planning.find(p=>p.classeId===dispId && p.typeLieu==="dispositif" && p.creneauId===c.id && Number(p.jour)===Number(jour));
+      if(!entree) return;
+      const doitAvoirAesh=aeshIds.has(e.identifiantSynapses);
+      if((entree.aesh===true)===doitAvoirAesh) return;
+      entree.aesh=doitAvoirAesh;
+      if(!entree.adulteReference || typeof entree.adulteReference!=="object") entree.adulteReference={};
+      entree.adulteReference.aesh=doitAvoirAesh;
+      toucheCoffre=true;
+    });
+    if(toucheCoffre) marquerCoffreModifie();
+  }
+
   const st=$("disp-save-status"); if(st) st.textContent="Répartition enregistrée dans le planning.";
   if(toastOui) toast("Répartition enregistrée.");
 }
