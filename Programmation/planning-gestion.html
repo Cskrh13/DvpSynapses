@@ -566,7 +566,7 @@ table.affg .affg-aesh-toggle.masque{display:none;}
           <h2 style="margin:0;">Planning de l'enseignant — journée</h2>
           <button class="btn" id="btn-imprimer-planning-ens">🖨 Imprimer</button>
         </div>
-        <p class="hint">Pour le jour sélectionné ci-dessus, tous dispositifs et toutes classes confondus : chaque créneau où l'enseignant accompagne un élève (groupe « Enseignant » d'un dispositif, ou élève présent en classe avec son enseignant titulaire), avec le lieu et l'élève accompagné.</p>
+        <p class="hint">Pour le jour sélectionné ci-dessus, tous dispositifs confondus : chaque créneau où l'enseignant référent accompagne un élève (groupe « Enseignant » de la répartition d'un dispositif), avec le lieu et l'élève accompagné. Un élève présent dans sa classe n'apparaît jamais ici : c'est son enseignant titulaire, pas l'enseignant du dispositif.</p>
         <div id="disp-adulte-body-ens"></div>
       </section>
     </div>
@@ -2665,17 +2665,25 @@ function renderDispositif(){
 /* ---------------- Planning de la semaine par adulte (Enseignant / AESH) ----------------
    Contrairement à la répartition (qui porte sur un seul dispositif et un
    seul jour à la fois), ce planning est global : il parcourt TOUTE la
-   semaine, TOUS les dispositifs et TOUTES les classes, et rassemble pour
-   chaque créneau le lieu (nom du dispositif ou de la classe) et les
-   élèves que cet adulte y accompagne réellement, à partir de deux
-   sources d'affectation :
+   semaine et TOUS les dispositifs, et rassemble pour chaque créneau le
+   lieu (nom du dispositif) et les élèves que cet adulte y accompagne
+   réellement, à partir de :
    - dispositif : le groupe "enseignant" ou "aesh" de la répartition
-     (config.dispositifGroupes, cf. groupesExistantsDisp) ;
-   - classe : le planning individuel de chaque élève (typeLieu "classe").
-     Un élève présent en classe y est par défaut avec l'enseignant
-     titulaire de cette classe ; il n'y est accompagné par l'AESH que si
-     le toggle « AESH » a été activé pour lui dans l'onglet Affectation
-     (entrée.aesh === true, cf. enregistrerElevesClasse).
+     (config.dispositifGroupes, cf. groupesExistantsDisp).
+
+   Pour l'AESH uniquement, une seconde source s'ajoute : le planning
+   individuel de chaque élève (typeLieu "classe"), quand le toggle « AESH »
+   a été activé pour lui dans l'onglet Affectation (entrée.aesh === true,
+   cf. enregistrerElevesClasse) — cas d'une AESH qui, faute d'élève à
+   accompagner sur le dispositif à ce créneau, va aider ponctuellement un
+   élève dans sa classe.
+
+   Ce second cas ne s'applique PAS à l'enseignant : chaque classe a son
+   propre enseignant titulaire, qui n'est jamais la même personne que
+   l'enseignant référent du dispositif. Le planning "enseignant" ne
+   reflète donc QUE le groupe « Enseignant » de la répartition du
+   dispositif — jamais la présence d'un élève dans une classe quelconque.
+
    Les récréations et la pause méridienne sont toujours exclues. */
 function construirePlanningAdulte(role){
   if(!coffre || !coffre.ouvert) return [];
@@ -2701,33 +2709,39 @@ function construirePlanningAdulte(role){
     });
   });
 
-  const tousLesEleves = coffre.listerEleves ? coffre.listerEleves() : [];
-  (config.classes||[]).forEach(cl=>{
-    jours.forEach(j=>{
-      const creneaux=(grilles[cl.id]||[]).filter(c=>Number(c.jour)===Number(j.n) && c.type!=="recreation" && c.type!=="pause");
-      creneaux.forEach(c=>{
-        const noms=[];
-        tousLesEleves.forEach(e=>{
-          const plan=Array.isArray(e.planning)?e.planning:[];
-          const entree=plan.find(p=>p.classeId===cl.id && p.typeLieu==="classe" && p.creneauId===c.id);
-          if(!entree) return;
-          if(role==="aesh" && entree.aesh!==true) return; // AESH : uniquement si explicitement affectée
-          const n=(e.identite&&e.identite.prenom)||e.identifiantSynapses;
-          if(n) noms.push(n);
-        });
-        if(!noms.length) return;
-        lignes.push({
-          jourN:j.n, jourNom:j.nom, debut:c.debut, fin:c.fin,
-          lieu:cl.nom,
-          eleves:noms
+  // Le passage en classe n'est comptabilisé QUE pour l'AESH (un élève
+  // présent en classe n'est jamais accompagné par l'enseignant référent
+  // du dispositif — c'est l'enseignant titulaire de SA classe, une
+  // personne différente selon la classe).
+  if(role==="aesh"){
+    const tousLesEleves = coffre.listerEleves ? coffre.listerEleves() : [];
+    (config.classes||[]).forEach(cl=>{
+      jours.forEach(j=>{
+        const creneaux=(grilles[cl.id]||[]).filter(c=>Number(c.jour)===Number(j.n) && c.type!=="recreation" && c.type!=="pause");
+        creneaux.forEach(c=>{
+          const noms=[];
+          tousLesEleves.forEach(e=>{
+            const plan=Array.isArray(e.planning)?e.planning:[];
+            const entree=plan.find(p=>p.classeId===cl.id && p.typeLieu==="classe" && p.creneauId===c.id);
+            if(!entree || entree.aesh!==true) return; // uniquement si l'AESH est explicitement affectée
+            const n=(e.identite&&e.identite.prenom)||e.identifiantSynapses;
+            if(n) noms.push(n);
+          });
+          if(!noms.length) return;
+          lignes.push({
+            jourN:j.n, jourNom:j.nom, debut:c.debut, fin:c.fin,
+            lieu:cl.nom,
+            eleves:noms
+          });
         });
       });
     });
-  });
+  }
 
   lignes.sort((a,b)=> Number(a.jourN)-Number(b.jourN) || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
   return lignes;
 }
+
 
 const PL_SLOT_PX = 26; // hauteur en pixels d'un créneau de 30 minutes dans la grille
 
