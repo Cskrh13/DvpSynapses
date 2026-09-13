@@ -78,6 +78,10 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .ia-atelier .ia-status.ok{color:var(--ok);font-weight:600;}
 .badge-type{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;color:#fff;white-space:nowrap;}
 .empty-hint{color:var(--ink-soft);font-size:13px;font-style:italic;padding:8px 0;}
+.grille-alerte{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:5px 8px;margin:2px 0;border-radius:6px;}
+.grille-alerte.chevauchement{color:#7f1d1d;background:#fee2e2;}
+.grille-alerte.trou{color:#78350f;background:#fef3c7;}
+.creneau-row.en-conflit{background:rgba(220,38,38,.08);border-radius:6px;}
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px;}
 .summary-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--panel-raised);font-size:13px;}
 .summary-item b{display:block;font-size:13.5px;margin-bottom:2px;}
@@ -228,35 +232,6 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
     <span class="hint" id="coffre-modif-txt" style="display:none;color:var(--danger);font-weight:600;">● Modifications non enregistrées</span>
   </div>
 
-  <!-- =============== IMPORT / EXPORT (juste sous l'ouverture du coffre) =============== -->
-  <section class="card">
-    <h2>Configuration (classes, jours, récréations, calendrier)</h2>
-    <p class="hint">Un fichier léger, facile à partager entre collègues ou à réutiliser d'une année sur l'autre : classes créées, jours travaillés, récréations/pauses et calendrier. Ne contient ni grilles horaires détaillées ni affectations.</p>
-    <div class="row" style="align-items:center;gap:14px;">
-      <button class="btn primary" id="btn-export-config">⬇ Exporter la configuration</button>
-      <button class="btn" id="btn-import-config-browse">📁 Importer une configuration…</button>
-      <input type="file" id="import-config-file" accept=".json,application/json" style="display:none;">
-      <span id="import-config-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>Planning complet</h2>
-    <p class="hint">
-      Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
-      et cahier journal jour par jour) dans un fichier <code>.synapses</code>. Comme il peut
-      contenir des identifiants d'élèves, <strong>le fichier est toujours chiffré et protégé
-      par un mot de passe</strong>, exactement comme le coffre élèves. Le contenu est
-      illisible hors de Synapses.
-    </p>
-    <div class="row" style="align-items:center;gap:14px;">
-      <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
-      <button class="btn" id="btn-import-json-browse">📁 Ouvrir un planning .synapses…</button>
-      <input type="file" id="import-json-file" accept=".synapses" style="display:none;">
-      <span id="import-json-status" class="hint" style="margin:0;">Aucun planning importé.</span>
-    </div>
-  </section>
-
   <div class="coffre-modal-overlay" id="coffre-modal-overlay">
     <div class="coffre-modal">
       <h3>Ouvrir le coffre</h3>
@@ -300,6 +275,35 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
 
   <!-- =============== ONGLET : CONFIGURATION GÉNÉRALE =============== -->
   <div class="tab-panel active" id="tab-general">
+
+    <!-- =============== IMPORT / EXPORT =============== -->
+    <section class="card">
+      <h2>Configuration (classes, jours, récréations, calendrier)</h2>
+      <p class="hint">Un fichier léger, facile à partager entre collègues ou à réutiliser d'une année sur l'autre : classes créées, jours travaillés, récréations/pauses et calendrier. Ne contient ni grilles horaires détaillées ni affectations.</p>
+      <div class="row" style="align-items:center;gap:14px;">
+        <button class="btn primary" id="btn-export-config">⬇ Exporter la configuration</button>
+        <button class="btn" id="btn-import-config-browse">📁 Importer une configuration…</button>
+        <input type="file" id="import-config-file" accept=".json,application/json" style="display:none;">
+        <span id="import-config-status" class="hint" style="margin:0;">Aucun fichier importé.</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Planning complet</h2>
+      <p class="hint">
+        Sauvegardez l'intégralité du planning (configuration, grilles horaires, affectations
+        et cahier journal jour par jour) dans un fichier <code>.synapses</code>. Comme il peut
+        contenir des identifiants d'élèves, <strong>le fichier est toujours chiffré et protégé
+        par un mot de passe</strong>, exactement comme le coffre élèves. Le contenu est
+        illisible hors de Synapses.
+      </p>
+      <div class="row" style="align-items:center;gap:14px;">
+        <button class="btn primary" id="btn-export-json">🔐 Exporter le planning chiffré</button>
+        <button class="btn" id="btn-import-json-browse">📁 Ouvrir un planning .synapses…</button>
+        <input type="file" id="import-json-file" accept=".synapses" style="display:none;">
+        <span id="import-json-status" class="hint" style="margin:0;">Aucun planning importé.</span>
+      </div>
+    </section>
 
     <section class="card">
       <h2>Année scolaire</h2>
@@ -354,19 +358,6 @@ table.affg .affg-vide{color:var(--ink-soft);font-size:11px;text-align:center;opa
         <div class="summary-grid" id="dispositifs-list" style="margin-top:16px;"></div>
       </div>
 
-      <div id="classe-eleves-bloc" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
-        <h3 style="font-size:14px;margin-bottom:8px;">Charger les élèves du coffre</h3>
-        <p class="hint" style="margin-top:0;">Charge en une seule fois tous les élèves du coffre, chacun dans sa classe de référence (association élève ↔ classe utilisée uniquement pour charger le roster dans cette page). Les affectations de créneaux, elles, sont enregistrées dans le planning individuel de chaque élève, dans le coffre.</p>
-        <div class="row">
-          <button class="btn primary" id="btn-charger-tous-eleves">Charger tous les élèves du coffre</button>
-        </div>
-        <div class="summary-grid" id="classe-eleves-list" style="margin-top:12px;"></div>
-
-        <div class="row" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-          <div class="field"><label>Classe</label><select id="classe-cible-eleves"></select></div>
-          <button class="btn primary" id="btn-enregistrer-eleves-config">Enregistrer les créneaux des élèves</button>
-        </div>
-      </div>
     </section>
   </div>
 
@@ -718,7 +709,6 @@ function majEtatCoffre(){
   $("btn-coffre-enregistrer").style.display = ouvert ? "" : "none";
   $("btn-coffre-fermer").style.display = ouvert ? "" : "none";
   if(!ouvert) $("coffre-modif-txt").style.display = "none";
-  $("classe-eleves-bloc").style.display = ouvert ? "" : "none";
   if(ouvert) renderClasseElevesSelect();
   if(typeof renderAffectationEleveSelect === "function"){ renderAffectationEleveSelect(); renderAffectationListe(); }
   if(typeof refreshAffectationTab === "function") refreshAffectationTab();
@@ -741,7 +731,10 @@ $("btn-coffre-confirmer").addEventListener("click", async ()=>{
     $("coffre-mdp").value = "";
     $("coffre-modal-overlay").classList.remove("open");
     majEtatCoffre();
-    toast("Coffre ouvert.");
+    const bilan = chargerTousLesEleves(true);
+    toast(bilan && bilan.totalCharges
+      ? `Coffre ouvert — ${bilan.totalCharges} élève(s) chargé(s) dans ${bilan.classesAvecEleves} classe(s).`
+      : "Coffre ouvert.");
   }catch(e){
     $("coffre-erreur").textContent = e.message || "Ouverture impossible.";
     $("coffre-erreur").style.display = "";
@@ -1100,9 +1093,13 @@ function chargerElevesPourClasse(cl){
   }));
 }
 
-$("btn-charger-tous-eleves").addEventListener("click", ()=>{
-  if(!coffre.ouvert){ toast("Ouvrez le coffre d'abord."); return; }
-  if(!config.classes.length){ toast("Créez au moins une classe d'abord."); return; }
+/* Charge en mémoire, pour chaque classe créée, les élèves du coffre dont
+ * la classe de référence correspond. Appelée automatiquement à l'ouverture
+ * du coffre (plus besoin d'un bouton dédié dans « Configuration générale »).
+ * `silencieux` évite un toast redondant lors de l'appel automatique. */
+function chargerTousLesEleves(silencieux){
+  if(!coffre || !coffre.ouvert) return;
+  if(!config.classes.length) return;
 
   let totalCharges = 0, classesAvecEleves = 0;
   config.classes.forEach(cl=>{
@@ -1112,28 +1109,13 @@ $("btn-charger-tous-eleves").addEventListener("click", ()=>{
   });
 
   renderClasses();
-  renderClasseElevesListe();
   if(typeof refreshAffectationTab === "function" && $("affg-classe") && $("affg-classe").value) refreshAffectationTab();
 
-  if(!totalCharges){
-    toast("Aucun élève du coffre ne correspond à une classe créée ici.");
-  } else {
-    toast(totalCharges + " élève(s) chargé(s) dans " + classesAvecEleves + " classe(s).");
+  if(!silencieux){
+    if(!totalCharges) toast("Aucun élève du coffre ne correspond à une classe créée ici.");
+    else toast(totalCharges + " élève(s) chargé(s) dans " + classesAvecEleves + " classe(s).");
   }
-});
-function renderClasseElevesListe(){
-  const wrap = $("classe-eleves-list");
-  wrap.innerHTML = "";
-  Object.entries(elevesParClasse).forEach(([classeId, liste])=>{
-    const cl = PC.classeById(config, classeId);
-    if(!cl || !liste.length) return;
-    liste.forEach(e=>{
-      const div = document.createElement("div");
-      div.className = "summary-item";
-      div.innerHTML = `<b>${e.nom}</b>${cl.nom}`;
-      wrap.appendChild(div);
-    });
-  });
+  return {totalCharges, classesAvecEleves};
 }
 
 /* ---------------- Grille horaire par classe ---------------- */
@@ -1213,9 +1195,42 @@ function renderGrilleBody(){
     bloc.innerHTML = `<h4>${j.nom}</h4><div class="creneaux-list" data-jour="${j.n}"></div>
       <button class="btn sm" data-add="${j.n}">+ Ajouter un créneau</button>`;
     const list = bloc.querySelector(".creneaux-list");
-    if(!creneauxJour.length) list.innerHTML = '<div class="empty-hint">Aucun créneau ce jour.</div>';
-    creneauxJour.sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut))
-      .forEach(c=>list.appendChild(renderCreneauRow(c, domaines, estDispositif)));
+    if(!creneauxJour.length){
+      list.innerHTML = '<div class="empty-hint">Aucun créneau ce jour.</div>';
+      wrap.appendChild(bloc);
+      return;
+    }
+    const tries = creneauxJour.sort((a,b)=>PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut)||PC.heureVersMin(a.fin)-PC.heureVersMin(b.fin));
+    const conflits = new Set();
+    const lignesParId = new Map();
+    let finMaxPrecedent = null; // fin la plus tardive vue jusqu'ici, pour détecter un chevauchement même si un créneau plus court est imbriqué dans un plus long
+    tries.forEach((c,i)=>{
+      const debutMin = PC.heureVersMin(c.debut), finMin = PC.heureVersMin(c.fin);
+      if(i>0){
+        const prec = tries[i-1];
+        const chevauche = debutMin < (finMaxPrecedent!=null ? finMaxPrecedent : PC.heureVersMin(prec.fin));
+        if(chevauche){
+          conflits.add(prec.id); conflits.add(c.id);
+          if(lignesParId.has(prec.id)) lignesParId.get(prec.id).classList.add("en-conflit");
+          const alerte = document.createElement("div");
+          alerte.className = "grille-alerte chevauchement";
+          alerte.textContent = `⚠️ Chevauchement : « ${PC.libelleCreneau(prec)||"créneau"} » (${prec.debut}–${prec.fin}) et « ${PC.libelleCreneau(c)||"créneau"} » (${c.debut}–${c.fin}) se recouvrent.`;
+          list.appendChild(alerte);
+        } else if(debutMin > PC.heureVersMin(prec.fin)){
+          const dureeMin = debutMin - PC.heureVersMin(prec.fin);
+          const h = Math.floor(dureeMin/60), m = dureeMin%60;
+          const dureeTxt = (h?`${h} h `:"")+(m||!h?`${m} min`:"");
+          const alerte = document.createElement("div");
+          alerte.className = "grille-alerte trou";
+          alerte.textContent = `⏳ Trou de ${dureeTxt.trim()} entre « ${PC.libelleCreneau(prec)||"créneau"} » (fin ${prec.fin}) et « ${PC.libelleCreneau(c)||"créneau"} » (début ${c.debut}).`;
+          list.appendChild(alerte);
+        }
+      }
+      finMaxPrecedent = finMaxPrecedent!=null ? Math.max(finMaxPrecedent, finMin) : finMin;
+      const ligne = renderCreneauRow(c, domaines, estDispositif, conflits.has(c.id));
+      lignesParId.set(c.id, ligne);
+      list.appendChild(ligne);
+    });
     wrap.appendChild(bloc);
   });
 
@@ -1230,9 +1245,9 @@ function renderGrilleBody(){
   });
 }
 
-function renderCreneauRow(c, domaines, estDispositif){
+function renderCreneauRow(c, domaines, estDispositif, enConflit){
   const row = document.createElement("div");
-  row.className = "creneau-row";
+  row.className = "creneau-row" + (enConflit ? " en-conflit" : "");
   const typeOpts = Object.entries(PC.TYPES_CRENEAU).map(([k,v])=>`<option value="${k}" ${c.type===k?"selected":""}>${v.label}</option>`).join("");
   const nom = c.type==="seance" ? (c.titre||"") : (c.libelle||"");
   row.innerHTML = `
@@ -1255,8 +1270,10 @@ function renderCreneauRow(c, domaines, estDispositif){
         if(input.dataset.f==="type" && c.type==="seance" && !c.domaineCle && domaines.length) c.domaineCle=domaines[0].cle;
       }
       marquerGrilleModifiee();
-      if(input.dataset.f==="type") renderGrilleBody();
-
+      // Un changement d'heure ou de type peut créer/résoudre un trou ou un
+      // chevauchement avec un créneau voisin : on refait tout l'affichage
+      // du jour (alertes comprises), pas seulement cette ligne.
+      renderGrilleBody();
     });
   });
   row.querySelector("[data-del]").addEventListener("click", ()=>{
@@ -1666,17 +1683,6 @@ function enregistrerElevesClasse(classeId, etat){
 
   return enregistres;
 }
-
-$("btn-enregistrer-eleves-config").addEventListener("click",()=>{
-  const classeId=$("classe-cible-eleves").value;
-  try{
-    const n=enregistrerElevesClasse(classeId);
-    if(n>0) marquerCoffreModifie();
-    $("affg-save-status").textContent=`${n} affectation(s) enregistrée(s) en mémoire — pensez à « 💾 Enregistrer le coffre » pour les conserver.`;
-    toast("Planning individuel initialisé : tous les créneaux sont cochés.");
-    if($("affg-classe").value===classeId) renderAffgGrille();
-  }catch(e){ toast(e.message||String(e)); }
-});
 
 function initialesEleve(ref){
   const nom=String(ref?.nom||"").trim();
@@ -2316,9 +2322,12 @@ $("import-config-file").addEventListener("change", async ()=>{
     const payload = await PC.lireFichierJSON(f);
     PC.importerConfigJSON(config, payload);
     PC.sauverConfig(config);
+    config = PC.chargerConfig();
+    grilles = PC.chargerGrilles();
     $("import-config-status").textContent = "Configuration importée (" + f.name + ").";
-    toast("Configuration importée — la page va se recharger.");
-    setTimeout(()=> location.reload(), 900);
+    renderTout();
+    if(coffre && coffre.ouvert) chargerTousLesEleves(true);
+    toast("Configuration importée : calendrier et planning mis à jour.");
   }catch(e){
     $("import-config-status").textContent = "Import impossible : " + e.message;
     toast("Import impossible : " + e.message);
@@ -2685,10 +2694,13 @@ $("btn-planning-crypto-confirmer").addEventListener("click", async ()=>{
       }
       const paquet = await PC.dechiffrerPlanningJSON(enveloppe, mdp);
       const applique = PC.appliquerPaquetPlanning(paquet);
+      config = PC.chargerConfig();
+      grilles = PC.chargerGrilles();
       $("import-json-status").textContent = "Importé (" + f.name + ") : " + applique.join(", ") + ".";
       fermerModalCryptoPlanning();
-      toast("Planning .synapses déchiffré et importé.");
-      setTimeout(()=> location.reload(), 900);
+      renderTout();
+      if(coffre && coffre.ouvert) chargerTousLesEleves(true);
+      toast("Planning .synapses déchiffré et importé : calendrier et planning mis à jour.");
     }
   }catch(e){
     $("planning-crypto-erreur").textContent = e.message || "Opération impossible.";
@@ -2720,15 +2732,20 @@ $("import-json-file").addEventListener("change", async ()=>{
    ou simplement l'ouverture normale de la page après un rechargement —
    restaient donc invisibles tant qu'aucun clic ne forçait un re-rendu,
    alors même qu'elles étaient bien enregistrées dans le stockage local. */
-renderConfig();
-renderClasses();
-renderDispositifs();
-renderGrilleTabs();
-renderSummary();
-renderDispositifSelect();
-renderDispositifTout();
-refreshDispositifIa();
-majEtatCoffre();
+function renderTout(){
+  renderConfig();
+  renderClasses();
+  renderDispositifs();
+  renderGrilleTabs();
+  renderSummary();
+  renderDispositifSelect();
+  renderDispositifTout();
+  refreshDispositifIa();
+  majEtatCoffre();
+  if(typeof refreshAffectationTab === "function") refreshAffectationTab();
+}
+
+renderTout();
 
 }
 </script>
