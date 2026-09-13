@@ -468,9 +468,9 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
   </section>
 </main>
 
-<script src="synapses-crypto.js?v=20260901d"></script>
-<script src="synapses-coffre.js?v=20260901d"></script>
-<script src="grille-analyse.js?v=20260901d"></script>
+<script src="synapses-crypto.js?v=20260913a"></script>
+<script src="synapses-coffre.js?v=20260913a"></script>
+<script src="grille-analyse.js?v=20260913a"></script>
 <!-- Export PDF des fiches élève : bibliothèques tierces, exécutées entièrement
      côté client (génération du PDF en mémoire, aucune donnée envoyée où que ce soit). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -736,7 +736,7 @@ const SYNAPSES_BUILD = {
     const inputIntervenant = document.createElement('input');
     inputIntervenant.type = 'text';
     inputIntervenant.placeholder = 'Ex. Orthophoniste — Mme Martin';
-    inputIntervenant.value = pecExistante ? (pecExistante.intervenant || '') : '';
+    inputIntervenant.value = pecExistante ? SynapsesCoffre.texteBrutChamp(pecExistante.intervenant) : '';
 
     const selJour = selectJourPec(pecExistante ? pecExistante.jour : 1);
 
@@ -751,17 +751,17 @@ const SYNAPSES_BUILD = {
     const inputLieu = document.createElement('input');
     inputLieu.type = 'text';
     inputLieu.placeholder = 'Ex. Cabinet, hôpital de jour…';
-    inputLieu.value = pecExistante ? (pecExistante.lieu || '') : '';
+    inputLieu.value = pecExistante ? SynapsesCoffre.texteBrutChamp(pecExistante.lieu) : '';
 
     const inputActivite = document.createElement('input');
     inputActivite.type = 'text';
     inputActivite.placeholder = 'Ex. Articulation, motricité fine… (optionnel)';
-    inputActivite.value = pecExistante ? (pecExistante.activite || '') : '';
+    inputActivite.value = pecExistante ? SynapsesCoffre.texteBrutChamp(pecExistante.activite) : '';
 
     const inputRemarque = document.createElement('input');
     inputRemarque.type = 'text';
     inputRemarque.placeholder = 'Remarque (optionnel)';
-    inputRemarque.value = pecExistante ? (pecExistante.remarque || '') : '';
+    inputRemarque.value = pecExistante ? SynapsesCoffre.texteBrutChamp(pecExistante.remarque) : '';
 
     form.appendChild(ligneChampPec('Intervenant', inputIntervenant));
     form.appendChild(ligneChampPec('Jour', selJour));
@@ -826,12 +826,12 @@ const SYNAPSES_BUILD = {
     }
     const tr = document.createElement('tr');
     if (p.actif === false) tr.className = 'pec-inactive';
-    const tdIntervenant = document.createElement('td'); tdIntervenant.textContent = p.intervenant || '';
+    const tdIntervenant = document.createElement('td'); tdIntervenant.textContent = SynapsesCoffre.texteBrutChamp(p.intervenant);
     const tdJour = document.createElement('td'); tdJour.textContent = JOURS_SEMAINE[(Number(p.jour) || 1) - 1] || '';
     const tdHoraire = document.createElement('td'); tdHoraire.textContent = (p.debut || '') + ' – ' + (p.fin || '');
-    const tdLieu = document.createElement('td'); tdLieu.textContent = p.lieu || '';
-    const tdActivite = document.createElement('td'); tdActivite.textContent = p.activite || '';
-    const tdRemarque = document.createElement('td'); tdRemarque.textContent = p.remarque || '';
+    const tdLieu = document.createElement('td'); tdLieu.textContent = SynapsesCoffre.texteBrutChamp(p.lieu);
+    const tdActivite = document.createElement('td'); tdActivite.textContent = SynapsesCoffre.texteBrutChamp(p.activite);
+    const tdRemarque = document.createElement('td'); tdRemarque.textContent = SynapsesCoffre.texteBrutChamp(p.remarque);
     const tdActif = document.createElement('td');
     const btnActif = document.createElement('button');
     btnActif.className = 'btn si-btn-small';
