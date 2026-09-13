@@ -2890,8 +2890,8 @@ function imprimerPlanningAdulte(role){
       const evHtml = evs.filter(e=>e.nom===nom).map(e=>{
         const top=((e.debutMin-axeDebut)/etendue)*100;
         const h=Math.max(((e.finMin-e.debutMin)/etendue)*100, 2);
-        return `<div class="tl-event" style="top:${top.toFixed(3)}%;height:${h.toFixed(3)}%;">
-          <div class="tl-trait"></div><span class="tl-txt">${escapeHTMLTexte(e.lieu)}</span>
+        return `<div class="tl-event" style="top:${top.toFixed(3)}%;height:${h.toFixed(3)}%;" title="${escapeAttr(nom)} — ${escapeAttr(e.lieu)} (${escapeAttr(e.debut)}–${escapeAttr(e.fin)})">
+          <div class="tl-trait"></div>
         </div>`;
       }).join("");
       return `<div class="tl-col"><div class="tl-label"><span>${escapeHTMLTexte(nom)}</span></div><div class="tl-track">${evHtml}</div></div>`;
@@ -2925,13 +2925,12 @@ function imprimerPlanningAdulte(role){
   .tl-label{height:11px;margin-top:-11px;font-size:4.6px;line-height:1;white-space:nowrap;overflow:hidden;text-align:center;}
   .tl-label span{display:inline-block;}
   .tl-track{position:relative;height:100%;background:repeating-linear-gradient(180deg,#f4f4f4 0,#f4f4f4 1px,transparent 1px,transparent 8.33%);}
-  .tl-event{position:absolute;left:0.5px;right:0.5px;display:flex;align-items:center;gap:1px;overflow:hidden;}
+  .tl-event{position:absolute;left:0.5px;right:0.5px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
   .tl-trait{width:2px;align-self:stretch;background:#2f6fed;border-radius:1px;flex:0 0 auto;}
-  .tl-txt{font-size:4.4px;line-height:1;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;overflow:hidden;max-height:100%;font-weight:600;}
   @media print{ .grille-jours{page-break-inside:avoid;} .jour-col{page-break-inside:avoid;} }
 </style></head><body>
 <h1>${escapeHTMLTexte(titre)}</h1>
-<div class="sous">Généré depuis Synapses le ${new Date().toLocaleDateString("fr-FR")} — document confidentiel (identité d'élèves), à ne pas laisser accessible. Chaque colonne est un élève ; chaque trait, un créneau accompagné (lieu indiqué à côté).</div>
+<div class="sous">Généré depuis Synapses le ${new Date().toLocaleDateString("fr-FR")} — document confidentiel (identité d'élèves), à ne pas laisser accessible. Chaque colonne est un élève ; chaque trait, un créneau accompagné.</div>
 <div class="grille-jours">${colonnes || "<p>Aucun créneau avec élève accompagné pour le moment.</p>"}</div>
 </body></html>`;
 
