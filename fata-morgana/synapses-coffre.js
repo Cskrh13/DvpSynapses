@@ -85,6 +85,22 @@
    * l'affichage.
    */
 
+  /** Extrait un texte affichable d'un champ dont la forme réelle peut
+   *  varier selon la version du code qui l'a enregistré (chaîne à plat de
+   *  longue date, ou objet { nom, ... } introduit plus tard) : sans ceci,
+   *  un champ qui se trouve être un objet s'affiche tel quel comme
+   *  "[object Object]" (coercition JS par défaut d'un objet en chaîne)
+   *  dès qu'il est assigné à .textContent ou concaténé. Ne modifie jamais
+   *  la donnée en mémoire ni dans le coffre : c'est une lecture tolérante,
+   *  au même esprit que formatCasePourAffichage() qui accepte déjà
+   *  plusieurs formes historiques de planning[]. */
+  function texteBrutChamp(v){
+    if (v == null) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'object') return String(v.nom || v.libelle || v.label || '').trim();
+    return String(v).trim();
+  }
+
   /** Normalise n'importe quelle case d'emploi du temps (planning[] v1/v2 ou
    *  priseEnChargeExterieure[]) en un objet d'affichage unique et stable :
    *  { lieuNom, typeLieu, activiteNom, domaineCle, adulteNom, adulteRole,
@@ -95,39 +111,43 @@
   function formatCasePourAffichage(c, origine) {
     c = c || {};
     if (origine === 'externe') {
+      const lieuTxt = texteBrutChamp(c.lieu);
+      const activiteTxt = texteBrutChamp(c.activite);
+      const remarqueTxt = texteBrutChamp(c.remarque);
+      const intervenantTxt = texteBrutChamp(c.intervenant);
       return {
-        lieuNom: (c.lieu || '').trim() || 'Prise en charge extérieure',
+        lieuNom: lieuTxt || 'Prise en charge extérieure',
         typeLieu: 'externe',
-        activiteNom: (c.activite || '').trim() || (c.remarque || '').trim(),
+        activiteNom: activiteTxt || remarqueTxt,
         domaineCle: '',
-        adulteNom: (c.intervenant || '').trim(),
+        adulteNom: intervenantTxt,
         adulteRole: 'Intervenant extérieur',
-        remarque: (c.activite || '').trim() ? (c.remarque || '').trim() : '',
+        remarque: activiteTxt ? remarqueTxt : '',
         jour: c.jour, debut: c.debut || '', fin: c.fin || ''
       };
     }
     // planning[] — accepte indifféremment la forme v2 (activite/adulteReference
     // objets) ou la forme héritée (libelle/titre/domaineCle/type à plat).
     const activiteNom = (c.activite && typeof c.activite === 'object')
-      ? (c.activite.nom || '').trim()
-      : (c.libelle || '').trim();
+      ? texteBrutChamp(c.activite.nom)
+      : texteBrutChamp(c.libelle);
     const domaineCle = (c.activite && typeof c.activite === 'object')
       ? (c.activite.domaineCle || '')
       : (c.domaineCle || '');
     const adulteNom = (c.adulteReference && typeof c.adulteReference === 'object')
-      ? (c.adulteReference.nom || '').trim()
+      ? texteBrutChamp(c.adulteReference.nom)
       : '';
     const adulteRole = (c.adulteReference && typeof c.adulteReference === 'object')
-      ? (c.adulteReference.role || '').trim()
+      ? texteBrutChamp(c.adulteReference.role)
       : '';
     return {
-      lieuNom: c.classeNom || '(lieu sans nom)',
+      lieuNom: texteBrutChamp(c.classeNom) || '(lieu sans nom)',
       typeLieu: c.typeLieu || (c.type === 'dispositif' ? 'dispositif' : 'classe'),
       activiteNom,
       domaineCle,
       adulteNom,
       adulteRole,
-      remarque: (c.remarque || (!activiteNom ? (c.titre || '').trim() : '')),
+      remarque: texteBrutChamp(c.remarque) || (!activiteNom ? texteBrutChamp(c.titre) : ''),
       jour: c.jour, debut: c.debut || '', fin: c.fin || ''
     };
   }
@@ -816,5 +836,5 @@
     }
   }
 
-  global.SynapsesCoffre = { Coffre, eleveVide, coffreVide, formatCasePourAffichage };
+  global.SynapsesCoffre = { Coffre, eleveVide, coffreVide, formatCasePourAffichage, texteBrutChamp };
 })(window);
