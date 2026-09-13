@@ -509,123 +509,96 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
   }
 
   .print-schedule{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
     width:100%;
   }
 
-  /* Chaque ligne contient les créneaux qui se chevauchent.
-     Les créneaux successifs restent donc verticalement. */
-  .print-lane{
-    display:grid;
-    grid-template-columns:repeat(var(--print-cols,1),minmax(0,1fr));
-    gap:6px;
+  .print-cj-table{
     width:100%;
-    break-inside:avoid;
-    page-break-inside:avoid;
+    border-collapse:collapse;
+    table-layout:fixed;
+    border:1.4px solid #111;
   }
 
-  .print-block{
-    min-width:0;
-    border:1px solid #999;
-    border-radius:5px;
-    background:#fff;
-    overflow:hidden;
-    break-inside:avoid;
-    page-break-inside:avoid;
+  .print-cj-table th,
+  .print-cj-table td{
+    border:1px solid #111;
+    vertical-align:top;
+    padding:4px 5px;
+    font-size:8.6pt;
   }
 
-  .print-block-head{
-    display:flex;
-    align-items:center;
-    gap:7px;
-    padding:4px 6px;
+  .print-cj-table thead th{
     background:#EAF0FA;
-    border-bottom:1px solid #B9C6E5;
     font-weight:700;
+    text-align:left;
+    font-size:8.8pt;
     color:#1E2A4A;
   }
 
-  .print-time{
+  .print-cj-table td.print-cj-col-creneau{
+    width:16%;
+    background:#F6F5F1;
     font-family:'Courier New',monospace;
-    font-size:9.5pt;
-    white-space:nowrap;
+    font-weight:700;
   }
 
-  .print-label{
-    font-size:9.5pt;
-    min-width:0;
-    overflow:hidden;
-    text-overflow:ellipsis;
+  .print-cj-table td.print-cj-empty{
+    color:#bbb;
+    text-align:center;
   }
 
-  .print-common{
-    padding:5px 6px 6px;
+  .print-cj-table tr{
     break-inside:avoid;
     page-break-inside:avoid;
   }
 
-  .print-common-title{
+  .print-cj-entry{
+    margin:0 0 5px;
+  }
+
+  .print-cj-entry:last-child{
+    margin-bottom:0;
+  }
+
+  .print-cj-entry-time{
+    font-family:'Courier New',monospace;
+    font-size:7.8pt;
     font-weight:700;
-    font-size:10.5pt;
-    margin-bottom:3px;
+    color:#2E5EAA;
   }
 
-  .print-classes{
-    display:flex;
-    flex-wrap:wrap;
-    gap:3px;
-    margin-bottom:4px;
-  }
-
-  .print-class{
-    font-size:8.5pt;
+  .print-cj-entry-titre{
     font-weight:700;
-    border:1px solid #aaa;
-    border-radius:10px;
-    padding:1px 5px;
+    font-size:8.6pt;
+    margin:1px 0 1px;
   }
 
-  .print-group{
-    padding:4px 0;
-    border-top:1px solid #ddd;
-    break-inside:avoid;
-    page-break-inside:avoid;
-  }
-
-  .print-group:first-child{
-    border-top:0;
-  }
-
-  .print-group-title{
-    font-weight:700;
-    font-size:9.5pt;
-  }
-
-  .print-group-meta{
-    font-size:8.5pt;
-    color:#333;
-    margin-top:2px;
-  }
-
-  .print-students{
-    font-size:8.2pt;
-    margin-top:3px;
-    line-height:1.25;
-  }
-
-  .print-note{
-    font-size:8.2pt;
-    margin-top:3px;
+  .print-cj-entry-domaine{
+    font-size:7.8pt;
     font-style:italic;
+    color:#444;
   }
 
-  .print-fixed{
-    padding:6px;
-    font-weight:700;
+  .print-cj-entry-eleves{
+    font-size:8pt;
+    color:#222;
+  }
+
+  .print-cj-entry-remarque{
+    font-size:7.8pt;
     font-style:italic;
+    color:#7a3a20;
+    margin-top:1px;
+  }
+
+  .print-cj-banner-row td{
     background:#f1f1f1;
+    font-style:italic;
+    font-weight:700;
+  }
+
+  .print-cj-banner-row td.print-cj-col-creneau{
+    font-style:normal;
   }
 
   .print-bottom{
@@ -659,11 +632,8 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
     white-space:pre-wrap;
   }
 
-  /* Évite qu'un bloc soit coupé entre deux pages. */
-  .print-block,
-  .print-lane,
-  .print-group,
-  .print-common,
+  /* Évite qu'une ligne soit coupée entre deux pages. */
+  .print-cj-table tr,
   .print-bottom{
     orphans:3;
     widows:3;
@@ -2156,275 +2126,114 @@ function construireVueImpression(){
   schedule.className =
     "print-schedule";
 
+  /* ---------- Aides locales, calquées sur l'ancienne vue CJ ---------- */
 
-  /* ---------- Une ligne après l'autre ---------- */
+  function heureCourteImpr(hhmm){
+    if(!hhmm) return "";
+    const [h,m] = String(hhmm).split(":");
+    const hh = String(parseInt(h,10));
+    return (!m || m==="00") ? hh+"h" : hh+"h"+m;
+  }
 
-  lignes.forEach(ligne=>{
+  function classifierGroupeImpr(g){
+    if(g.fixe && !g.adulte) return "banner";
+    const t = g.adulte && g.adulte.type;
+    if(t === "enseignant") return "ens";
+    if(t === "aesh" || t === "atsem" || t === "autre") return "aesh";
+    return "auto";
+  }
 
-    ligne.sort(
-      (a,b)=>
-        hm(a.debut)-hm(b.debut) ||
-        hm(a.fin)-hm(b.fin)
+  function renderEntreeImpr(bloc, g){
+    const eleves = (g.eleves||[]).map(id=>labelEleve(id));
+    const nomAdulte = g.adulte && g.adulte.nom ? " · " + escapeHTML(g.adulte.nom) : "";
+    return `
+      <div class="print-cj-entry">
+        <div class="print-cj-entry-time">${escapeHTML(heureCourteImpr(bloc.debut))}–${escapeHTML(heureCourteImpr(bloc.fin))}${nomAdulte}</div>
+        <div class="print-cj-entry-titre">${escapeHTML(g.titre || "")}</div>
+        ${g.domaineCle ? `<div class="print-cj-entry-domaine">${escapeHTML((g.niveau?g.niveau+" · ":"")+g.domaineCle)}</div>` : ""}
+        ${eleves.length ? `<div class="print-cj-entry-eleves">${eleves.map(escapeHTML).join(", ")}</div>` : ""}
+        ${g.remarque ? `<div class="print-cj-entry-remarque">⚠ ${escapeHTML(g.remarque)}</div>` : ""}
+      </div>`;
+  }
+
+  const table =
+    document.createElement("table");
+
+  table.className =
+    "print-cj-table";
+
+  table.innerHTML = `<thead><tr>
+    <th class="print-cj-col-creneau">Créneau</th>
+    <th>Enseignant</th>
+    <th>AESH / autre adulte</th>
+    <th>Autonomie</th>
+  </tr></thead>`;
+
+  const tbody =
+    document.createElement("tbody");
+
+  lignes.forEach(ligneBrute=>{
+
+    const ligne = ligneBrute.slice().sort(
+      (a,b)=>hm(a.debut)-hm(b.debut) || hm(a.fin)-hm(b.fin)
     );
 
-
-    const lane =
-      document.createElement("div");
-
-    lane.className =
-      "print-lane";
-
-    lane.style.setProperty(
-      "--print-cols",
-      String(ligne.length)
-    );
-
-
-    ligne.forEach(bloc=>{
-
-      const block =
-        document.createElement("article");
-
-      block.className =
-        "print-block";
-
-
-      const head =
-        document.createElement("div");
-
-      head.className =
-        "print-block-head";
-
-      const label =
-        PC.libelleBloc(
-          jour,
-          bloc.debut,
-          bloc.fin
-        ) || "";
-
-      head.innerHTML = `
-        <span class="print-time">
-          ${escapeHTML(bloc.debut)}
-          – ${escapeHTML(bloc.fin)}
-        </span>
-        <span class="print-label">
-          ${escapeHTML(label)}
-        </span>
-      `;
-
-      block.appendChild(head);
-
-
-      const tousFixes =
-        bloc.groupes.every(
-          g=>g.fixe
-        );
-
-
-      /* ---------- Brique commune ---------- */
-
-      const common =
-        document.createElement("div");
-
-      common.className =
-        "print-common";
-
-
-      const classes =
-        [...new Set(
-          bloc.groupes
-            .map(
-              g =>
-                g.niveau ||
-                g.classeId ||
-                "Classe"
-            )
-            .filter(Boolean)
-        )];
-
-
-      const titre =
-        bloc.groupes[0].titre ||
-        (tousFixes
-          ? "Créneau fixe"
-          : "Créneau commun");
-
-
-      common.innerHTML = `
-        <div class="print-common-title">
-          ${escapeHTML(titre)}
-        </div>
-
-        <div class="print-classes">
-          ${
-            classes.map(
-              c =>
-                `<span class="print-class">
-                  ${escapeHTML(c)}
-                </span>`
-            ).join("")
-          }
-        </div>
-      `;
-
-
-      /* ---------- Récréation / pause ---------- */
-
-      if(tousFixes){
-
-        common.classList.add(
-          "print-fixed"
-        );
-
-        block.appendChild(
-          common
-        );
-
-      }
-
-
-      /* ---------- Groupes indépendants ---------- */
-
-      else{
-
-        const hasDetails =
-          bloc.groupes.some(
-            g =>
-              g.adulte &&
-              (
-                g.adulte.type ||
-                g.adulte.nom
-              )
-          ) ||
-          bloc.groupes.some(
-            g =>
-              (g.eleves || []).length
-          ) ||
-          bloc.groupes.some(
-            g =>
-              String(g.remarque || "")
-                .trim()
-          );
-
-
-        /* Si plusieurs groupes partagent le contenu,
-           la liste des classes est suffisante en tête.
-           On détaille ensuite chaque groupe uniquement
-           lorsque cela apporte une information utile. */
-
-        const body =
-          document.createElement("div");
-
-        body.className =
-          "print-common";
-
-
-        body.innerHTML =
-          common.innerHTML;
-
-
-        bloc.groupes.forEach(g=>{
-
-          const group =
-            document.createElement("div");
-
-          group.className =
-            "print-group";
-
-
-          const classe =
-            g.niveau ||
-            g.classeId ||
-            "";
-
-
-          const adulte =
-            g.adulte
-              ? [
-                  g.adulte.type || "",
-                  g.adulte.nom || ""
-                ]
-                .filter(Boolean)
-                .join(" · ")
-              : "";
-
-
-          const eleves =
-            (g.eleves || [])
-              .map(id=>labelEleve(id))
-              .filter(Boolean)
-              .join(" · ");
-
-
-          group.innerHTML = `
-            <div class="print-group-title">
-              ${escapeHTML(
-                classe
-                  ? classe + " — "
-                  : ""
-              )}
-              ${escapeHTML(
-                g.titre || ""
-              )}
-            </div>
-
-            ${
-              adulte
-                ? `<div class="print-group-meta">
-                     ${escapeHTML(adulte)}
-                   </div>`
-                : ""
-            }
-
-            ${
-              eleves
-                ? `<div class="print-students">
-                     Élèves : ${escapeHTML(eleves)}
-                   </div>`
-                : ""
-            }
-
-            ${
-              String(g.remarque || "").trim()
-                ? `<div class="print-note">
-                     ${escapeHTML(g.remarque)}
-                   </div>`
-                : ""
-            }
-          `;
-
-
-          body.appendChild(
-            group
-          );
-
-        });
-
-
-        block.appendChild(
-          body
-        );
-
-      }
-
-
-      schedule.appendChild(
-        lane
-      );
-
-      lane.appendChild(
-        block
-      );
-
+    let minDebutStr = ligne[0].debut, maxFinStr = ligne[0].fin;
+    ligne.forEach(b=>{
+      if(hm(b.debut) < hm(minDebutStr)) minDebutStr = b.debut;
+      if(hm(b.fin) > hm(maxFinStr)) maxFinStr = b.fin;
     });
 
+    const label = ligne.length === 1
+      ? (PC.libelleBloc(jour, ligne[0].debut, ligne[0].fin) || (heureCourteImpr(ligne[0].debut) + "–" + heureCourteImpr(ligne[0].fin)))
+      : (heureCourteImpr(minDebutStr) + "–" + heureCourteImpr(maxFinStr));
+
+    const cols = { ens: [], aesh: [], auto: [] };
+    const banners = [];
+
+    ligne.forEach(bloc=>{
+      (bloc.groupes || []).forEach(g=>{
+        const t = classifierGroupeImpr(g);
+        if(t === "banner"){
+          banners.push(g);
+        }else{
+          cols[t].push(renderEntreeImpr(bloc, g));
+        }
+      });
+    });
+
+    const aDuContenu = cols.ens.length || cols.aesh.length || cols.auto.length;
+    const titresBanner = [...new Set(banners.map(g=>g.titre).filter(Boolean))];
+
+    const tr = document.createElement("tr");
+
+    if(!aDuContenu && banners.length){
+      tr.className = "print-cj-banner-row";
+      tr.innerHTML = `
+        <td class="print-cj-col-creneau">${escapeHTML(label)}</td>
+        <td colspan="3">${escapeHTML(titresBanner.join(" · ") || "Créneau fixe")}</td>
+      `;
+    }else{
+      const noteBanner = titresBanner.length
+        ? `<div style="margin-top:3px;font-style:italic;font-size:7.6pt;color:#555;">${escapeHTML(titresBanner.join(" · "))}</div>`
+        : "";
+      tr.innerHTML = `
+        <td class="print-cj-col-creneau">${escapeHTML(label)}${noteBanner}</td>
+        <td>${cols.ens.join("") || `<span class="print-cj-empty">—</span>`}</td>
+        <td>${cols.aesh.join("") || `<span class="print-cj-empty">—</span>`}</td>
+        <td>${cols.auto.join("") || `<span class="print-cj-empty">—</span>`}</td>
+      `;
+    }
+
+    tbody.appendChild(tr);
   });
 
+  table.appendChild(tbody);
+  schedule.appendChild(table);
 
   root.appendChild(
     schedule
   );
-
 
   /* ---------- Remarque / devoirs ---------- */
 
