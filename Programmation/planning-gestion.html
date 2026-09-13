@@ -156,6 +156,8 @@ table.vac td{padding:6px 8px;border-top:1px solid var(--line);}
 .disp-planning-table .eleves-list{display:flex;flex-wrap:wrap;gap:5px;}
 .disp-planning-table .eleve-chip{background:var(--panel-raised);border-radius:14px;padding:3px 9px;font-size:11.5px;}
 .disp-planning-table tr.vide td{color:var(--ink-soft);}
+.disp-planning-jour-titre{font-size:13px;font-weight:700;margin:18px 0 4px;color:var(--navy);}
+.disp-planning-jour-titre:first-child{margin-top:0;}
 
 .synapses-footer {
     margin-top: 40px;
@@ -534,16 +536,22 @@ table.affg .affg-aesh-toggle:disabled{opacity:.35;cursor:not-allowed;}
 
     <div class="disp-subpanel" id="disp-sub-enseignant">
       <section class="card">
-        <h2>Planning de l'enseignant — journée</h2>
-        <p class="hint">Pour le jour sélectionné ci-dessus : chaque créneau du dispositif, avec le lieu/activité, l'horaire, et les élèves que l'enseignant accompagne (groupe « Enseignant » de la répartition).</p>
+        <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;">
+          <h2 style="margin:0;">Planning de l'enseignant — journée</h2>
+          <button class="btn" id="btn-imprimer-planning-ens">🖨 Imprimer</button>
+        </div>
+        <p class="hint">Pour le jour sélectionné ci-dessus, tous dispositifs et toutes classes confondus : chaque créneau où l'enseignant accompagne un élève (groupe « Enseignant » d'un dispositif, ou élève présent en classe avec son enseignant titulaire), avec le lieu et l'élève accompagné.</p>
         <div id="disp-adulte-body-ens"></div>
       </section>
     </div>
 
     <div class="disp-subpanel" id="disp-sub-aesh">
       <section class="card">
-        <h2>Planning de l'AESH — journée</h2>
-        <p class="hint">Pour le jour sélectionné ci-dessus : chaque créneau du dispositif, avec le lieu/activité, l'horaire, et les élèves que l'AESH accompagne (groupe « AESH » de la répartition).</p>
+        <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;">
+          <h2 style="margin:0;">Planning de l'AESH — journée</h2>
+          <button class="btn" id="btn-imprimer-planning-aesh">🖨 Imprimer</button>
+        </div>
+        <p class="hint">Pour le jour sélectionné ci-dessus, tous dispositifs et toutes classes confondus : chaque créneau où l'AESH accompagne un élève (groupe « AESH » d'un dispositif, ou élève affecté à l'AESH en classe dans l'onglet Affectation), avec le lieu et l'élève accompagné.</p>
         <div id="disp-adulte-body-aesh"></div>
       </section>
     </div>
@@ -1114,6 +1122,12 @@ function chargerTousLesEleves(silencieux){
 
   renderClasses();
   if(typeof refreshAffectationTab === "function" && $("affg-classe") && $("affg-classe").value) refreshAffectationTab();
+  // Planning du/des dispositif(s) (ULIS) : dépend lui aussi du coffre
+  // ouvert (roster via elevesSurDispositif) — on le recharge dans la
+  // foulée pour ne pas laisser l'onglet Dispositif vide/obsolète.
+  if(typeof renderDispositifSelect === "function") renderDispositifSelect();
+  if(typeof renderDispositifTout === "function") renderDispositifTout();
+  if(typeof refreshDispositifIa === "function") refreshDispositifIa();
 
   if(!silencieux){
     if(!totalCharges) toast("Aucun élève du coffre ne correspond à une classe créée ici.");
@@ -2534,43 +2548,92 @@ function renderDispositif(){
   });
 }
 
-/* ---------------- Planning journalier par adulte (Enseignant / AESH) ----------------
-   Réutilise le dispositif et le jour actuellement sélectionnés
-   (dispositifIdCourant / dispositifJourCourant) ainsi que les groupes déjà
-   enregistrés par la répartition (groupesExistantsDisp) : pour chaque
-   créneau du jour, on affiche l'horaire, le lieu/activité (libellé du
-   créneau — il n'existe pas de champ « lieu » dédié dans la grille) et les
-   élèves du groupe demandé ("enseignant" ou "aesh"). */
-function renderDispositifAdultePlanning(role, containerId){
+/* ---------------- Planning de la semaine par adulte (Enseignant / AESH) ----------------
+   Contrairement à la répartition (qui porte sur un seul dispositif et un
+   seul jour à la fois), ce planning est global : il parcourt TOUTE la
+   semaine, TOUS les dispositifs et TOUTES les classes, et rassemble pour
+   chaque créneau le lieu (nom du dispositif ou de la classe) et les
+   élèves que cet adulte y accompagne réellement, à partir de deux
+   sources d'affectation :
+   - dispositif : le groupe "enseignant" ou "aesh" de la répartition
+     (config.dispositifGroupes, cf. groupesExistantsDisp) ;
+   - classe : le planning individuel de chaque élève (typeLieu "classe").
+     Un élève présent en classe y est par défaut avec l'enseignant
+     titulaire de cette classe ; il n'y est accompagné par l'AESH que si
+     le toggle « AESH » a été activé pour lui dans l'onglet Affectation
+     (entrée.aesh === true, cf. enregistrerElevesClasse).
+   Les récréations et la pause méridienne sont toujours exclues. */
+function construirePlanningAdulte(role){
+  if(!coffre || !coffre.ouvert) return [];
+  const jours = joursActifsDispositif();
+  const lignes = [];
+
+  (config.dispositifs||[]).forEach(disp=>{
+    jours.forEach(j=>{
+      creneauxDispJour(disp.id, j.n).forEach(c=>{
+        const groupes = groupesExistantsDisp(disp.id, j.n, c);
+        const ids = groupes[role]||[];
+        const noms = ids.map(idE=>{
+          const e=coffreEleveById(idE);
+          return e ? ((e.identite&&e.identite.prenom)||e.identifiantSynapses) : null;
+        }).filter(Boolean);
+        if(!noms.length) return;
+        lignes.push({
+          jourN:j.n, jourNom:j.nom, debut:c.debut, fin:c.fin,
+          lieu:`${disp.nom} (${disp.type||"dispositif"})`,
+          eleves:noms
+        });
+      });
+    });
+  });
+
+  const tousLesEleves = coffre.listerEleves ? coffre.listerEleves() : [];
+  (config.classes||[]).forEach(cl=>{
+    jours.forEach(j=>{
+      const creneaux=(grilles[cl.id]||[]).filter(c=>Number(c.jour)===Number(j.n) && c.type!=="recreation" && c.type!=="pause");
+      creneaux.forEach(c=>{
+        const noms=[];
+        tousLesEleves.forEach(e=>{
+          const plan=Array.isArray(e.planning)?e.planning:[];
+          const entree=plan.find(p=>p.classeId===cl.id && p.typeLieu==="classe" && p.creneauId===c.id);
+          if(!entree) return;
+          if(role==="aesh" && entree.aesh!==true) return; // AESH : uniquement si explicitement affectée
+          const n=(e.identite&&e.identite.prenom)||e.identifiantSynapses;
+          if(n) noms.push(n);
+        });
+        if(!noms.length) return;
+        lignes.push({
+          jourN:j.n, jourNom:j.nom, debut:c.debut, fin:c.fin,
+          lieu:cl.nom,
+          eleves:noms
+        });
+      });
+    });
+  });
+
+  lignes.sort((a,b)=> Number(a.jourN)-Number(b.jourN) || PC.heureVersMin(a.debut)-PC.heureVersMin(b.debut));
+  return lignes;
+}
+
+function renderPlanningAdulteComplet(role, containerId){
   const body=$(containerId); if(!body) return;
-  const id=dispositifIdCourant;
   body.innerHTML="";
-  if(!id){ body.innerHTML='<div class="empty-hint">Créez d’abord un dispositif dans « Configuration générale ».</div>'; return; }
   if(!coffre || !coffre.ouvert){ body.innerHTML='<div class="empty-hint">Ouvrez le coffre pour afficher ce planning.</div>'; return; }
-  const roster=elevesSurDispositif(id);
-  if(!roster.length){ body.innerHTML='<div class="empty-hint">Aucun élève n’est actuellement affecté à ce dispositif.</div>'; return; }
   const jour=dispositifJourCourant;
   if(!jour){ body.innerHTML='<div class="empty-hint">Sélectionnez un jour ci-dessus.</div>'; return; }
-  const creneaux=creneauxDispJour(id,jour);
-  if(!creneaux.length){ body.innerHTML='<div class="empty-hint">Aucun créneau pédagogique ce jour dans la grille du dispositif.</div>'; return; }
+  const lignes=construirePlanningAdulte(role).filter(l=>Number(l.jourN)===Number(jour));
+  if(!lignes.length){ body.innerHTML='<div class="empty-hint">Aucun créneau avec élève accompagné ce jour-là.</div>'; return; }
 
   const table=document.createElement("table");
   table.className="disp-planning-table";
-  table.innerHTML="<thead><tr><th>Heure</th><th>Lieu / activité</th><th>Élèves accompagnés</th></tr></thead>";
+  table.innerHTML="<thead><tr><th>Heure</th><th>Lieu</th><th>Élève(s) accompagné(s)</th></tr></thead>";
   const tbody=document.createElement("tbody");
-  creneaux.forEach(c=>{
-    const groupes=groupesExistantsDisp(id,jour,c);
-    const ids=groupes[role]||[];
-    const noms=ids.map(idE=>{
-      const e=coffreEleveById(idE);
-      return e ? ((e.identite&&e.identite.prenom)||e.identifiantSynapses) : null;
-    }).filter(Boolean);
+  lignes.forEach(l=>{
     const tr=document.createElement("tr");
-    if(!noms.length) tr.classList.add("vide");
     tr.innerHTML=`
-      <td class="horaire">${escapeHTMLTexte(c.debut)}–${escapeHTMLTexte(c.fin)}</td>
-      <td>${escapeHTMLTexte(PC.libelleCreneau(c)||"Créneau")}</td>
-      <td>${noms.length ? `<div class="eleves-list">${noms.map(n=>`<span class="eleve-chip">${escapeHTMLTexte(n)}</span>`).join("")}</div>` : '<span class="disp-empty">Aucun élève accompagné</span>'}
+      <td class="horaire">${escapeHTMLTexte(l.debut)}–${escapeHTMLTexte(l.fin)}</td>
+      <td>${escapeHTMLTexte(l.lieu)}</td>
+      <td><div class="eleves-list">${l.eleves.map(n=>`<span class="eleve-chip">${escapeHTMLTexte(n)}</span>`).join("")}</div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -2578,13 +2641,74 @@ function renderDispositifAdultePlanning(role, containerId){
   body.appendChild(table);
 }
 
-/* Rafraîchit la répartition ET les deux plannings par adulte : les trois
-   vues partagent le même dispositif/jour, donc tout changement de l'un
-   (sélection, groupes) doit se répercuter sur les deux autres. */
+function imprimerPlanningAdulte(role){
+  if(!coffre || !coffre.ouvert){ toast("Ouvrez le coffre pour imprimer ce planning."); return; }
+  const lignes=construirePlanningAdulte(role); // tous les jours, pas seulement celui affiché à l'écran
+  const titre = role==="aesh" ? "Planning de l'AESH" : "Planning de l'enseignant";
+
+  const parJour=new Map();
+  lignes.forEach(l=>{
+    if(!parJour.has(l.jourN)) parJour.set(l.jourN,{nom:l.jourNom,lignes:[]});
+    parJour.get(l.jourN).lignes.push(l);
+  });
+  const jours=joursActifsDispositif();
+  const colonnes = jours.map(j=>{
+    const grp = parJour.get(j.n);
+    const lignesHtml = (grp && grp.lignes.length)
+      ? grp.lignes.map(l=>`
+        <tr>
+          <td class="h">${escapeHTMLTexte(l.debut)}–${escapeHTMLTexte(l.fin)}</td>
+          <td>${escapeHTMLTexte(l.lieu)}</td>
+          <td>${l.eleves.map(escapeHTMLTexte).join(", ")}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="3" class="vide">—</td></tr>`;
+    return `<div class="jour-col">
+      <h2>${escapeHTMLTexte(j.nom)}</h2>
+      <table>
+        <thead><tr><th>Heure</th><th>Lieu</th><th>Élève(s)</th></tr></thead>
+        <tbody>${lignesHtml}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${escapeHTMLTexte(titre)}</title>
+<style>
+  @page{ size:A4 landscape; margin:8mm; }
+  *{box-sizing:border-box;}
+  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;}
+  h1{font-size:15px;margin:0 0 2px;}
+  .sous{color:#555;font-size:8.5px;margin-bottom:8px;}
+  .grille-jours{display:flex;gap:5px;align-items:flex-start;}
+  .jour-col{flex:1 1 0;min-width:0;}
+  .jour-col h2{font-size:10.5px;margin:0 0 3px;border-bottom:1.5px solid #111;padding-bottom:2px;white-space:nowrap;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th,td{border:1px solid #999;padding:2px 3px;font-size:7.3px;line-height:1.25;text-align:left;vertical-align:top;overflow-wrap:break-word;}
+  th{background:#eee;font-size:7px;text-transform:uppercase;}
+  td.h{white-space:nowrap;font-weight:700;}
+  td.vide{color:#999;text-align:center;font-style:italic;}
+  @media print{ .grille-jours{page-break-inside:avoid;} tr{page-break-inside:avoid;} }
+</style></head><body>
+<h1>${escapeHTMLTexte(titre)}</h1>
+<div class="sous">Généré depuis Synapses le ${new Date().toLocaleDateString("fr-FR")} — document confidentiel (identité d'élèves), à ne pas laisser accessible.</div>
+<div class="grille-jours">${colonnes || "<p>Aucun créneau avec élève accompagné pour le moment.</p>"}</div>
+</body></html>`;
+
+  const w=window.open("", "_blank");
+  if(!w){ toast("Autorisez les fenêtres pop-up pour imprimer ce planning."); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  w.focus();
+  setTimeout(()=>{ w.print(); }, 300);
+}
+
+$("btn-imprimer-planning-ens").addEventListener("click", ()=>imprimerPlanningAdulte("enseignant"));
+$("btn-imprimer-planning-aesh").addEventListener("click", ()=>imprimerPlanningAdulte("aesh"));
+
+/* Rafraîchit la répartition ET les deux plannings par adulte (jour
+   actuellement sélectionné, tous dispositifs/classes confondus). */
 function renderDispositifTout(){
   renderDispositif();
-  renderDispositifAdultePlanning("enseignant","disp-adulte-body-ens");
-  renderDispositifAdultePlanning("aesh","disp-adulte-body-aesh");
+  renderPlanningAdulteComplet("enseignant","disp-adulte-body-ens");
+  renderPlanningAdulteComplet("aesh","disp-adulte-body-aesh");
 }
 
 function sauvegarderGroupesDisp(dispId,jour,c,g,toastOui=true){
