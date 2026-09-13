@@ -227,11 +227,16 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
   .print-only{display:block;}
   #edtImpressionLegende{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--ink-soft);align-items:center;}
   #edtImpressionPied{display:flex;margin-top:14px;padding-top:8px;border-top:1px solid var(--line);font-size:10px;color:var(--ink-soft);justify-content:space-between;}
+  /* La grille écran (échelle adaptée à la lecture au clavier/souris) n'est
+     jamais imprimée : seule la grille dédiée à l'impression, reconstruite
+     à une échelle qui tient sur une seule page (voir construireGrilleEdt
+     + le gestionnaire de #edtBtnImprimer), doit apparaître sur le papier. */
+  #edtGrilleWrap{display:none !important;}
   .edt-btn-editer{display:none !important;}
-  .edt-planning{min-width:0;width:100%;--edt-px-30:42px;box-shadow:none;}
-  .edt-planning-head,.edt-planning-body{grid-template-columns:54px repeat(5,minmax(0,1fr));}
+  .edt-planning{min-width:0;width:100%;box-shadow:none;}
+  .edt-planning-head,.edt-planning-body{grid-template-columns:50px repeat(5,minmax(0,1fr));}
   .edt-axe-temps,.edt-jour-col{height:var(--edt-hauteur);}
-  .edt-bloc{left:3px;right:3px;padding:3px 5px;box-shadow:none;}
+  .edt-bloc{left:3px;right:3px;padding:2px 4px;box-shadow:none;}
   .edt-bloc .edt-classe{font-size:10.5px;}
   .edt-bloc .edt-nom{font-size:10px;}
   .edt-bloc .edt-titre,.edt-bloc .edt-adulte{font-size:9px;}
@@ -432,6 +437,7 @@ th{color:var(--ink-soft);font-weight:600;font-size:12px;text-transform:uppercase
     <div id="edtZoneImpression">
       <div id="edtEnteteImpression" class="print-only"></div>
       <div id="edtGrilleWrap"></div>
+      <div id="edtGrilleWrapImpression" class="print-only"></div>
       <div id="edtImpressionLegende" class="print-only"></div>
       <div id="edtImpressionPied" class="print-only"></div>
     </div>
@@ -1203,6 +1209,157 @@ const SYNAPSES_BUILD = {
     return segments;
   }
 
+  // Mémorise les données de la dernière grille affichée à l'écran, pour
+  // pouvoir reconstruire une seconde grille — mise à l'échelle pour
+  // l'impression — sans tout recalculer au clic sur "Imprimer".
+  let edtDernierValides = null;
+  let edtDernierMinDebut = null;
+  let edtDernierMaxFin = null;
+  let edtDernierNomDispositif = null;
+  let edtDernierIdentifiant = null;
+
+  /** Construit le DOM de la grille (en-tête + colonnes de jours + blocs)
+   *  dans `wrapCible`, à l'échelle `px30` (pixels par tranche de 30 min).
+   *  Utilisée à la fois pour l'affichage écran (échelle adaptative, cf.
+   *  afficherEmploiDuTemps) et pour l'impression (échelle recalculée pour
+   *  tenir sur une seule page, cf. bouton "Imprimer l'emploi du temps"). */
+  function construireGrilleEdt(valides, minDebut, maxFin, px30, nomDispositif, identifiantSynapses, wrapCible){
+    const hauteur = ((maxFin - minDebut) / 30) * px30;
+
+    const planningEl = document.createElement('div');
+    planningEl.className = 'edt-planning';
+    planningEl.style.setProperty('--edt-hauteur', hauteur + 'px');
+    planningEl.style.setProperty('--edt-px-30', px30 + 'px');
+
+    const head = document.createElement('div');
+    head.className = 'edt-planning-head';
+    head.appendChild(document.createElement('div'));
+    JOURS_SEMAINE.slice(0,5).forEach(jour => {
+      const cell = document.createElement('div');
+      cell.textContent = jour;
+      head.appendChild(cell);
+    });
+    planningEl.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'edt-planning-body';
+
+    const axe = document.createElement('div');
+    axe.className = 'edt-axe-temps';
+    axe.style.setProperty('--edt-hauteur', hauteur + 'px');
+    for(let m=minDebut; m<=maxFin; m+=30){
+      const repere = document.createElement('div');
+      repere.className = 'edt-heure-repere';
+      repere.style.top = (((m-minDebut)/30)*px30) + 'px';
+      const label = document.createElement('span');
+      label.className = 'edt-heure-label';
+      label.textContent = minutesVersHeureEdt(m);
+      repere.appendChild(label);
+      axe.appendChild(repere);
+    }
+    body.appendChild(axe);
+
+    for(let jour=1; jour<=5; jour++){
+      const col = document.createElement('div');
+      col.className = 'edt-jour-col';
+      col.style.setProperty('--edt-hauteur', hauteur + 'px');
+
+      // Repère à mi-heure (15 min) très discret pour aider à lire les petits
+      // créneaux sans multiplier les horaires dans la colonne de gauche.
+      for(let m=minDebut+15; m<maxFin; m+=30){
+        const demi = document.createElement('div');
+        demi.className = 'edt-ligne-demi';
+        demi.style.top = (((m-minDebut)/30)*px30) + 'px';
+        col.appendChild(demi);
+      }
+
+      // Résolution par priorité (PEC > classe/récréation > ULIS) + fusion
+      // continue + comblement des trous (voir resoudreJourneeContinue) :
+      // un seul bloc, pleine largeur, par intervalle de temps final.
+      const itemsJour = valides.filter(x => Number(x.f.jour) === jour);
+      const segments = resoudreJourneeContinue(itemsJour, jour, nomDispositif);
+
+      segments.forEach(seg => {
+        const f = seg.f;
+        const bloc = document.createElement('div');
+        const duree = seg.finMin - seg.debutMin;
+        const hauteurBlocPx = Math.max(12, (duree/30)*px30 - 2);
+        bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu + (seg.synthese ? ' edt-bloc-deduit' : '');
+        if(hauteurBlocPx < 46) bloc.classList.add('edt-duree-courte');
+        if(hauteurBlocPx < 26) bloc.classList.add('edt-duree-tres-courte');
+        bloc.style.top = (((seg.debutMin-minDebut)/30)*px30) + 'px';
+        bloc.style.height = hauteurBlocPx + 'px';
+        bloc.style.left = '4px';
+        bloc.style.width = 'calc(100% - 8px)';
+        bloc.style.right = 'auto';
+        const libelleDeduit = 'Créneau ULIS déduit (aucune affectation enregistrée à cet horaire)';
+        bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') +
+          (f.activiteNom || (seg.synthese ? libelleDeduit : typeSeanceCreneau(seg.c || {}))) +
+          ' · ' + f.debut + '–' + f.fin;
+
+        const lieuEl = document.createElement('div');
+        lieuEl.className = 'edt-classe';
+        lieuEl.textContent = f.lieuNom;
+        bloc.appendChild(lieuEl);
+
+        const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
+        const nomEl = document.createElement('div');
+        nomEl.className = 'edt-nom';
+        nomEl.textContent = activiteAffichee || (seg.synthese ? 'Créneau déduit' : (f.typeLieu === 'externe' ? 'Prise en charge extérieure' : typeSeanceCreneau(seg.c || {})));
+        bloc.appendChild(nomEl);
+
+        if (f.adulteNom) {
+          const adulteEl = document.createElement('div');
+          adulteEl.className = 'edt-adulte';
+          adulteEl.textContent = f.adulteNom + (f.adulteRole ? ' — ' + f.adulteRole : '');
+          bloc.appendChild(adulteEl);
+        }
+
+        if (f.remarque && f.remarque.toLowerCase() !== (activiteAffichee || '').toLowerCase()) {
+          const remarqueEl = document.createElement('div');
+          remarqueEl.className = 'edt-titre';
+          remarqueEl.textContent = f.remarque;
+          bloc.appendChild(remarqueEl);
+        }
+
+        const horaire = document.createElement('div');
+        horaire.className = 'edt-horaire';
+        horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
+        bloc.appendChild(horaire);
+
+        if (seg.synthese) {
+          // Un créneau déduit n'existe pas réellement dans le coffre : rien
+          // à éditer ici, seulement un repère visuel discret pour le
+          // distinguer d'un créneau réellement enregistré (voir aussi le
+          // style .edt-bloc-deduit, en pointillés).
+          const badge = document.createElement('div');
+          badge.className = 'edt-badge-deduit';
+          badge.textContent = 'déduit';
+          bloc.appendChild(badge);
+        } else if (seg.c && seg.c._origine !== 'recreation-fixe') {
+          const btnEditer = document.createElement('button');
+          btnEditer.type = 'button';
+          btnEditer.className = 'edt-btn-editer';
+          btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
+          btnEditer.textContent = '✎';
+          btnEditer.addEventListener('click', () => {
+            ouvrirEditionCase(identifiantSynapses, seg.c._brut || seg.c, seg.c._origine, f);
+          });
+          bloc.appendChild(btnEditer);
+        }
+
+        col.appendChild(bloc);
+      });
+      body.appendChild(col);
+    }
+
+    planningEl.appendChild(body);
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'edt-table-wrap';
+    tableWrap.appendChild(planningEl);
+    wrapCible.appendChild(tableWrap);
+  }
+
   function afficherEmploiDuTemps(identifiantSynapses){
     const wrap = $('edtGrilleWrap');
     wrap.innerHTML = '';
@@ -1303,145 +1460,21 @@ const SYNAPSES_BUILD = {
     }
     px30 = Math.max(56, Math.min(112, px30));
 
-    const hauteur = ((maxFin - minDebut) / 30) * px30;
-
-    const planningEl = document.createElement('div');
-    planningEl.className = 'edt-planning';
-    planningEl.style.setProperty('--edt-hauteur', hauteur + 'px');
-    planningEl.style.setProperty('--edt-px-30', px30 + 'px');
-
-    const head = document.createElement('div');
-    head.className = 'edt-planning-head';
-    head.appendChild(document.createElement('div'));
-    JOURS_SEMAINE.slice(0,5).forEach(jour => {
-      const cell = document.createElement('div');
-      cell.textContent = jour;
-      head.appendChild(cell);
-    });
-    planningEl.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'edt-planning-body';
-
-    const axe = document.createElement('div');
-    axe.className = 'edt-axe-temps';
-    axe.style.setProperty('--edt-hauteur', hauteur + 'px');
-    for(let m=minDebut; m<=maxFin; m+=30){
-      const repere = document.createElement('div');
-      repere.className = 'edt-heure-repere';
-      repere.style.top = (((m-minDebut)/30)*px30) + 'px';
-      const label = document.createElement('span');
-      label.className = 'edt-heure-label';
-      label.textContent = minutesVersHeureEdt(m);
-      repere.appendChild(label);
-      axe.appendChild(repere);
-    }
-    body.appendChild(axe);
-
     // Nom du dispositif ULIS de cet établissement (renseigné à la création
     // du coffre) : utilisé pour libeller les créneaux ULIS déduits d'un
     // trou d'emploi du temps, à défaut de nom générique "Ulis".
     const nomDispositif = (coffre.donnees && coffre.donnees.dispositif) || 'Ulis';
 
-    for(let jour=1; jour<=5; jour++){
-      const col = document.createElement('div');
-      col.className = 'edt-jour-col';
-      col.style.setProperty('--edt-hauteur', hauteur + 'px');
+    construireGrilleEdt(valides, minDebut, maxFin, px30, nomDispositif, identifiantSynapses, wrap);
 
-      // Repère à mi-heure (15 min) très discret pour aider à lire les petits
-      // créneaux sans multiplier les horaires dans la colonne de gauche.
-      for(let m=minDebut+15; m<maxFin; m+=30){
-        const demi = document.createElement('div');
-        demi.className = 'edt-ligne-demi';
-        demi.style.top = (((m-minDebut)/30)*px30) + 'px';
-        col.appendChild(demi);
-      }
-
-      // Résolution par priorité (PEC > classe/récréation > ULIS) + fusion
-      // continue + comblement des trous (voir resoudreJourneeContinue) :
-      // un seul bloc, pleine largeur, par intervalle de temps final.
-      const itemsJour = valides.filter(x => Number(x.f.jour) === jour);
-      const segments = resoudreJourneeContinue(itemsJour, jour, nomDispositif);
-
-      segments.forEach(seg => {
-        const f = seg.f;
-        const bloc = document.createElement('div');
-        const duree = seg.finMin - seg.debutMin;
-        const hauteurBlocPx = Math.max(12, (duree/30)*px30 - 2);
-        bloc.className = 'edt-bloc edt-bloc-' + f.typeLieu + (seg.synthese ? ' edt-bloc-deduit' : '');
-        if(hauteurBlocPx < 46) bloc.classList.add('edt-duree-courte');
-        if(hauteurBlocPx < 26) bloc.classList.add('edt-duree-tres-courte');
-        bloc.style.top = (((seg.debutMin-minDebut)/30)*px30) + 'px';
-        bloc.style.height = hauteurBlocPx + 'px';
-        bloc.style.left = '4px';
-        bloc.style.width = 'calc(100% - 8px)';
-        bloc.style.right = 'auto';
-        const libelleDeduit = 'Créneau ULIS déduit (aucune affectation enregistrée à cet horaire)';
-        bloc.title = (f.lieuNom ? f.lieuNom + ' — ' : '') +
-          (f.activiteNom || (seg.synthese ? libelleDeduit : typeSeanceCreneau(seg.c || {}))) +
-          ' · ' + f.debut + '–' + f.fin;
-
-        const lieuEl = document.createElement('div');
-        lieuEl.className = 'edt-classe';
-        lieuEl.textContent = f.lieuNom;
-        bloc.appendChild(lieuEl);
-
-        const activiteAffichee = f.activiteNom || domaineLisible(f.domaineCle);
-        const nomEl = document.createElement('div');
-        nomEl.className = 'edt-nom';
-        nomEl.textContent = activiteAffichee || (seg.synthese ? 'Créneau déduit' : (f.typeLieu === 'externe' ? 'Prise en charge extérieure' : typeSeanceCreneau(seg.c || {})));
-        bloc.appendChild(nomEl);
-
-        if (f.adulteNom) {
-          const adulteEl = document.createElement('div');
-          adulteEl.className = 'edt-adulte';
-          adulteEl.textContent = f.adulteNom + (f.adulteRole ? ' — ' + f.adulteRole : '');
-          bloc.appendChild(adulteEl);
-        }
-
-        if (f.remarque && f.remarque.toLowerCase() !== (activiteAffichee || '').toLowerCase()) {
-          const remarqueEl = document.createElement('div');
-          remarqueEl.className = 'edt-titre';
-          remarqueEl.textContent = f.remarque;
-          bloc.appendChild(remarqueEl);
-        }
-
-        const horaire = document.createElement('div');
-        horaire.className = 'edt-horaire';
-        horaire.textContent = (f.debut || '') + (f.fin ? ' – ' + f.fin : '');
-        bloc.appendChild(horaire);
-
-        if (seg.synthese) {
-          // Un créneau déduit n'existe pas réellement dans le coffre : rien
-          // à éditer ici, seulement un repère visuel discret pour le
-          // distinguer d'un créneau réellement enregistré (voir aussi le
-          // style .edt-bloc-deduit, en pointillés).
-          const badge = document.createElement('div');
-          badge.className = 'edt-badge-deduit';
-          badge.textContent = 'déduit';
-          bloc.appendChild(badge);
-        } else if (seg.c && seg.c._origine !== 'recreation-fixe') {
-          const btnEditer = document.createElement('button');
-          btnEditer.type = 'button';
-          btnEditer.className = 'edt-btn-editer';
-          btnEditer.title = 'Préciser l\'activité / l\'adulte de référence';
-          btnEditer.textContent = '✎';
-          btnEditer.addEventListener('click', () => {
-            ouvrirEditionCase(identifiantSynapses, seg.c._brut || seg.c, seg.c._origine, f);
-          });
-          bloc.appendChild(btnEditer);
-        }
-
-        col.appendChild(bloc);
-      });
-      body.appendChild(col);
-    }
-
-    planningEl.appendChild(body);
-    const tableWrap = document.createElement('div');
-    tableWrap.className = 'edt-table-wrap';
-    tableWrap.appendChild(planningEl);
-    wrap.appendChild(tableWrap);
+    // On mémorise tout ce qu'il faut pour reconstruire, au moment de
+    // l'impression, une grille recalculée à une échelle qui tient sur une
+    // seule page — voir le bouton "Imprimer l'emploi du temps" plus bas.
+    edtDernierValides = valides;
+    edtDernierMinDebut = minDebut;
+    edtDernierMaxFin = maxFin;
+    edtDernierNomDispositif = nomDispositif;
+    edtDernierIdentifiant = identifiantSynapses;
 
     } catch(err) {
       console.error('Erreur lors de l\'affichage de l\'emploi du temps :', err);
@@ -1543,6 +1576,26 @@ const SYNAPSES_BUILD = {
     source.textContent = 'Généré depuis le coffre Synapses (.synapses), hors ligne.';
     pied.appendChild(confidentiel);
     pied.appendChild(source);
+
+    // Reconstruit la grille à une échelle dédiée à l'impression : l'échelle
+    // écran (adaptative, jusqu'à 112px/30min pour rester lisible au clic)
+    // dépasse presque toujours la hauteur d'une page A4 paysage. On vise ici
+    // une hauteur totale de grille qui, ajoutée à l'en-tête/légende/pied,
+    // tient sur une seule page, quel que soit le nombre de tranches de la
+    // journée de l'élève (journée courte ou très amplitude horaire).
+    const wrapImpression = $('edtGrilleWrapImpression');
+    wrapImpression.innerHTML = '';
+    if (edtDernierValides && edtDernierValides.length) {
+      const totalTranches = Math.max(1, (edtDernierMaxFin - edtDernierMinDebut) / 30);
+      const HAUTEUR_GRILLE_IMPRESSION_PX = 600; // budget visé pour la grille seule sur la page
+      let px30Impression = Math.floor(HAUTEUR_GRILLE_IMPRESSION_PX / totalTranches);
+      px30Impression = Math.max(14, Math.min(48, px30Impression));
+      construireGrilleEdt(
+        edtDernierValides, edtDernierMinDebut, edtDernierMaxFin,
+        px30Impression, edtDernierNomDispositif, edtDernierIdentifiant,
+        wrapImpression
+      );
+    }
 
     window.print();
   });
