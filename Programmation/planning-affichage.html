@@ -544,10 +544,14 @@ table.deroule td{padding:8px;border-top:1px solid var(--line);vertical-align:top
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
 
-<script src="planning-core.js">
+<script src="planning-core.js"></script>
+<script>
 /* Nettoyage du localStorage à la fermeture de la page.
  * Ces pages sont des outils de travail temporaires : aucune donnée ne doit
- * rester persistée côté navigateur après leur fermeture. */
+ * rester persistée côté navigateur après leur fermeture.
+ * BUG CORRIGÉ : ce code était auparavant placé à l'intérieur d'une balise
+ * <script src="..."> ; le contenu inline d'une telle balise n'est jamais
+ * exécuté par le navigateur, donc ce nettoyage ne se déclenchait jamais. */
 (function(){
   let nettoye = false;
   function nettoyerLocalStorage(){
