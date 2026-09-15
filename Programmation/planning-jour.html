@@ -343,6 +343,15 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .groupe-card input.adulte-nom{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12.5px;flex:1;min-width:60px;}
 .groupe-card input.groupe-titre{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px;font-weight:600;margin-bottom:6px;background:#fff;}
 .groupe-card .domaine-tag{font-size:10.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:block;}
+.groupe-card .seance-lien-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.groupe-card .seance-badge{display:inline-flex;align-items:center;background:#EFF4FB;border:1px solid #C9D8F0;color:var(--accent-sky);border-radius:14px;padding:3px 9px;font-size:11px;font-weight:600;max-width:100%;}
+.groupe-card .btn-delier-seance{border:none;background:var(--panel-raised);border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;color:var(--danger);flex-shrink:0;}
+.groupe-card select.lier-seance{flex:1 1 100%;border:1px dashed var(--line);border-radius:6px;padding:4px 6px;font-size:11.5px;background:#fff;color:var(--ink-soft);}
+.groupe-card .seance-vide{flex:1 1 100%;display:flex;flex-direction:column;gap:5px;border:1px dashed var(--line);border-radius:6px;padding:7px 8px;background:var(--panel-raised);}
+.groupe-card .seance-vide .seance-vide-note{font-size:10.5px;color:var(--ink-soft);}
+.groupe-card .seance-vide input.seance-manuelle{width:100%;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:11.5px;background:#fff;}
+.groupe-card .seance-vide .btn-generer-seance{align-self:flex-start;font-size:11px;font-weight:600;color:var(--accent-sky);text-decoration:none;border:1px solid #C9D8F0;background:#EFF4FB;border-radius:6px;padding:4px 8px;}
+.groupe-card .seance-vide .btn-generer-seance:hover{background:#E2EBF9;}
 .eleves-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;}
 .eleve-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:2px 4px 2px 10px;font-size:11.5px;}
 .eleve-chip button{border:none;background:var(--panel-raised);border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;color:var(--danger);}
@@ -824,6 +833,87 @@ let grilles = PC.chargerGrilles();
 let affectations = PC.chargerAffectations();
 let iso = (new URLSearchParams(location.search).get("date")) || PC.dateISO(new Date());
 let jour = null;
+// Banque de séquences/séances (index.json du dépôt + banque locale créée
+// dans sequences.html). Chargée une fois de façon asynchrone : tant qu'elle
+// n'est pas prête, les sélecteurs "Lier une séance" des cartes de groupe
+// restent vides, mais tout le reste de la page (dont un seanceRef déjà
+// enregistré) continue de fonctionner normalement — cette banque ne sert
+// qu'à PROPOSER un lien, jamais à valider ou effacer un lien existant.
+let banque = {};
+let banqueChargee = false;
+async function chargerBanquePage(){
+  try{ banque = await PC.chargerBanque(); }
+  catch(e){ banque = {}; }
+  banqueChargee = true;
+  if(sessionActive()) renderJour();
+}
+
+// Liste plate de tous les items (séances) de la banque, tous niveaux et
+// domaines confondus, pour alimenter le sélecteur de chaque carte de
+// groupe. Chaque entrée porte son niveau et son domaine d'origine (perdus
+// dans la structure imbriquée renvoyée par PC.chargerBanque()).
+function seancesPlates(){
+  const out = [];
+  Object.keys(banque).forEach(niveau=>{
+    const parDomaine = banque[niveau] || {};
+    Object.keys(parDomaine).forEach(domaineCle=>{
+      const bucket = parDomaine[domaineCle];
+      (bucket.items||[]).forEach(item=>{
+        out.push(Object.assign({niveau, domaineLabel:bucket.label}, item));
+      });
+    });
+  });
+  return out;
+}
+
+function itemSeanceParId(id){
+  return seancesPlates().find(it=>it.id===id) || null;
+}
+
+// Libellé compact pour le badge affiché sur une carte déjà liée à une
+// séance : "Séquence — n°Numéro Titre". Si la séance n'est plus trouvée
+// dans la banque actuellement chargée (banque pas encore chargée, ou
+// séance retirée de la bibliothèque depuis), on retombe sur les bribes
+// d'information déjà connues sans jamais effacer le lien enregistré.
+function seanceLabelDe(ref){
+  if(!ref) return "";
+  if(ref.source === "manuel") return ref.titre || "Séance (saisie libre)";
+  const item = itemSeanceParId(ref.id);
+  if(item){
+    const num = item.numero ? "n°"+item.numero+" " : "";
+    return (item.seqTitre ? item.seqTitre+" — " : "") + num + (item.titre || item.type || "Séance");
+  }
+  return banqueChargee ? "Séance liée (introuvable dans la banque)" : "Séance liée…";
+}
+
+// Options du sélecteur "Lier une séance", regroupées par niveau puis
+// domaine puis séquence, dans l'ordre pédagogique (PC.NIVEAUX) plutôt
+// qu'alphabétique.
+function optionsSeances(g){
+  const items = seancesPlates();
+  if(!items.length) return "";
+  const rangNiveau = n => { const i = PC.NIVEAUX.indexOf(n); return i===-1 ? 999 : i; };
+  const groupes = new Map();
+  items.forEach(it=>{
+    const gKey = it.niveau + "|" + it.domaineLabel + "|" + (it.seqTitre||"");
+    if(!groupes.has(gKey)) groupes.set(gKey, { niveau:it.niveau, domaineLabel:it.domaineLabel, seqTitre:it.seqTitre, items:[] });
+    groupes.get(gKey).items.push(it);
+  });
+  const ordre = Array.from(groupes.values()).sort((a,b)=>
+    rangNiveau(a.niveau)-rangNiveau(b.niveau) ||
+    a.domaineLabel.localeCompare(b.domaineLabel) ||
+    (a.items[0].ordreSeq||0)-(b.items[0].ordreSeq||0)
+  );
+  return ordre.map(grp=>{
+    const label = grp.niveau + " · " + grp.domaineLabel + (grp.seqTitre ? " — " + grp.seqTitre : "");
+    const opts = grp.items.map(it=>{
+      const num = it.numero ? "n°"+it.numero+" — " : "";
+      return `<option value="${escapeAttr(it.id)}" ${g.seanceRef && g.seanceRef.id===it.id ? "selected":""}>${escapeHTML(num + (it.titre || it.type || "Séance"))}</option>`;
+    }).join("");
+    return `<optgroup label="${escapeAttr(label)}">${opts}</optgroup>`;
+  }).join("");
+}
+
 // Filtre d'affichage du cahier journal (onglet "Journée") : il n'existe
 // volontairement PAS d'option "Toutes les classes" — on affiche toujours
 // une seule classe (ou le dispositif ULIS / un autre dispositif) à la
@@ -1622,6 +1712,32 @@ function ajouterBloc(){
   sauver(); renderJour();
 }
 
+// Bloc "lier une séance" d'une carte de groupe. Deux cas :
+//  - la banque contient au moins une séance : sélecteur habituel, groupé
+//    par niveau/domaine/séquence ;
+//  - la banque est chargée mais totalement vide : plutôt qu'un sélecteur
+//    inutile, on propose une saisie libre du nom de la séance/séquence
+//    (enregistrée comme un lien "manuel", sans id de banque) ainsi qu'un
+//    lien direct vers l'outil de génération de séquences.
+function blocLienSeance(g){
+  if(!banqueChargee){
+    return `<select class="lier-seance" data-role="lier-seance"><option value="">Chargement de la banque de séances…</option></select>`;
+  }
+  if(seancesPlates().length){
+    return `<select class="lier-seance" data-role="lier-seance">
+      <option value="">${g.seanceRef ? "🔗 Changer la séance liée…" : "🔗 Lier une séance / séquence…"}</option>
+      ${optionsSeances(g)}
+    </select>`;
+  }
+  const titreManuel = (g.seanceRef && g.seanceRef.source==="manuel") ? g.seanceRef.titre||"" : "";
+  return `
+    <div class="seance-vide" data-role="seance-vide">
+      <span class="seance-vide-note">Aucune séance/séquence dans la banque pour l'instant.</span>
+      <input type="text" class="seance-manuelle" data-role="seance-manuelle" placeholder="Nom de la séance/séquence (saisie libre)" value="${escapeAttr(titreManuel)}">
+      <a class="btn-generer-seance" href="generateur-sequences-projet.html" target="_blank" rel="noopener">🧩 Générer une séance/séquence</a>
+    </div>`;
+}
+
 // `siblings` (optionnel) = les autres groupes déjà présents sur le même
 // créneau (même brique). Quand il y en a, chaque puce élève affiche un
 // petit sélecteur « ⇄ » permettant de réaffecter directement l'élève vers
@@ -1644,6 +1760,10 @@ function renderGroupeCard(g, siblings){
     <input class="groupe-titre" value="${escapeAttr(g.titre)}" placeholder="Titre du groupe / séance">
     ${cadenas}
     ${g.domaineCle ? `<span class="domaine-tag">${escapeHTML(g.niveau||"")} · ${escapeHTML(g.domaineCle)}</span>` : ""}
+    <div class="seance-lien-row" data-role="seance-lien-row">
+      ${g.seanceRef ? `<span class="seance-badge" data-role="seance-badge" title="${escapeAttr(seanceLabelDe(g.seanceRef))}">🔗 ${escapeHTML(seanceLabelDe(g.seanceRef))}</span><button type="button" class="btn-delier-seance" data-role="delier-seance" title="Détacher cette séance (le titre reste modifiable à la main)">✕</button>` : ""}
+      ${blocLienSeance(g)}
+    </div>
     <div class="row1">
       <select class="adulte-type">${typesOptions}</select>
       <input class="adulte-nom" placeholder="Nom (ex. Vincent, Yasmina…)" value="${escapeAttr(g.adulte ? g.adulte.nom : "")}">
@@ -1704,6 +1824,41 @@ function renderGroupeCard(g, siblings){
   function marquerPersonnalise(){ g.modifie = true; if(g.repartitionAuto) g.personnalise = true; }
 
   card.querySelector(".groupe-titre").addEventListener("change",e=>{g.titre=e.target.value;marquerPersonnalise();sauver();renderJour();});
+  const selectLierSeance = card.querySelector('[data-role=lier-seance]');
+  if(selectLierSeance){
+    selectLierSeance.addEventListener("change",e=>{
+      const id=e.target.value; if(!id) return;
+      const item=itemSeanceParId(id); if(!item) return;
+      g.seanceRef={id:item.id, source:item.source, fichier:item.fichier||null};
+      // On propose le titre et le domaine de la séance choisie comme point de
+      // départ, mais le champ "Titre du groupe / séance" et le domaineCle
+      // restent des champs libres, modifiables à la main ensuite : lier une
+      // séance ne verrouille jamais rien sur la carte.
+      g.titre = item.titre || item.type || g.titre;
+      g.domaineCle = item.domaineCle || g.domaineCle;
+      marquerPersonnalise();
+      sauver(); renderJour();
+    });
+  }
+  const inputSeanceManuelle = card.querySelector('[data-role=seance-manuelle]');
+  if(inputSeanceManuelle){
+    inputSeanceManuelle.addEventListener("change",e=>{
+      const titre = e.target.value.trim();
+      // Saisie libre en l'absence de banque : le lien enregistré n'a pas
+      // d'id (rien à retrouver dans une banque), seulement le texte tapé.
+      // Si la banque se remplit plus tard (ex. séance générée via l'outil
+      // dédié), ce lien manuel peut être remplacé en le liant proprement.
+      g.seanceRef = titre ? {id:null, source:"manuel", titre} : null;
+      marquerPersonnalise();
+      sauver(); renderJour();
+    });
+  }
+  const btnDelier = card.querySelector('[data-role=delier-seance]');
+  if(btnDelier){
+    btnDelier.addEventListener("click",()=>{
+      g.seanceRef=null; marquerPersonnalise(); sauver(); renderJour();
+    });
+  }
   card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
@@ -2178,6 +2333,7 @@ window.addEventListener("storage", (e)=>{
   updateCoffreWidget();
   afficherEtatSelonSession();
   if(sessionActive()) rafraichirEtat();
+  chargerBanquePage();
 })();
 </script>
 
