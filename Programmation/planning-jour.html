@@ -101,24 +101,6 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 #import-gate .gate-note{margin-top:20px;font-size:12px;color:var(--ink-soft);}
 
 /* -------- Tableau cahier journal -------- */
-.view-toggle{display:flex;gap:6px;margin:0 0 14px;}
-.view-toggle button{border:1px solid var(--line);background:var(--panel-raised);color:var(--ink-soft);padding:7px 14px;border-radius:20px;font-weight:700;font-size:12.5px;}
-.view-toggle button.active{background:var(--navy);color:#fff;border-color:var(--navy);}
-
-/* -------- Vue "Calendrier" (grille horaire 30mn, groupes en colonnes s'ils se chevauchent) -------- */
-.cal-wrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow-x:auto;}
-.cal-body{display:flex;min-width:640px;}
-.cal-axis{position:relative;width:56px;flex-shrink:0;border-right:1px solid var(--line);background:var(--panel-raised);}
-.cal-axis-label{position:absolute;left:0;right:6px;transform:translateY(-50%);font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);text-align:right;}
-.cal-track{position:relative;flex:1;}
-.cal-line{position:absolute;left:0;right:0;border-top:1px solid var(--line);}
-.cal-event{position:absolute;box-sizing:border-box;padding:3px;overflow:auto;}
-.cal-event .groupe-card{height:calc(100% - 24px);margin:0;overflow:auto;}
-.cal-event-time{display:flex;align-items:center;gap:4px;margin-bottom:3px;}
-.cal-event-time input[type=time]{font-family:'IBM Plex Mono',monospace;font-size:10px;border:1px solid var(--line);border-radius:5px;padding:1px 3px;width:56px;}
-.cal-event-fixe{position:absolute;box-sizing:border-box;background:#F2F0E8;border:1px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:var(--ink-soft);padding:2px 4px;}
-.cal-event-fixe-heure{font-family:'IBM Plex Mono',monospace;font-size:10px;display:block;}
-@media(max-width:900px){.cal-axis{width:46px;}}
 
 .journal-table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
 .journal-table > tbody > tr > td{border-top:1px solid var(--line);vertical-align:top;padding:0;}
@@ -364,6 +346,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 .eleves-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;}
 .eleve-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:2px 4px 2px 10px;font-size:11.5px;}
 .eleve-chip button{border:none;background:var(--panel-raised);border-radius:50%;width:16px;height:16px;font-size:10px;line-height:1;color:var(--danger);}
+.eleve-chip select[data-role=reaffecter]{border:1px solid var(--line);border-radius:10px;font-size:10.5px;padding:1px 3px;background:var(--panel-raised);color:var(--accent-sky);max-width:90px;}
 .groupe-card select.add-eleve{width:100%;border:1px dashed var(--line);border-radius:6px;padding:4px 6px;font-size:12px;background:#fff;color:var(--ink-soft);margin-bottom:6px;}
 .groupe-card textarea.remarque{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12px;resize:vertical;min-height:32px;}
 .groupe-card .card-foot{display:flex;justify-content:flex-end;margin-top:6px;}
@@ -767,10 +750,6 @@ main{max-width:1400px;margin:0 auto;padding:24px 24px 90px;}
 
   <section class="journal-tab-panel active" id="tab-journee">
     <div class="classe-filter-bar" id="classe-filter-bar"></div>
-    <div class="view-toggle" id="view-toggle">
-      <button type="button" data-vue="cartes">🗂 Vue cartes</button>
-      <button type="button" data-vue="calendrier">🗓 Vue Calendrier</button>
-    </div>
     <div class="day-summary" id="day-summary"></div>
     <div id="content"></div>
 
@@ -853,9 +832,6 @@ let jour = null;
 // N'affecte que le RENDU — jour.groupes (donnée réellement enregistrée)
 // n'est jamais tronqué par ce filtre.
 let classeFiltreCourante = null;
-const VUE_JOURNAL_KEY = "synapses_planning_vue_journal";
-let vueJournal = localStorage.getItem(VUE_JOURNAL_KEY) === "calendrier" ? "calendrier" : "cartes";
-// Préférence d'affichage uniquement (aucune donnée élève) : peut vivre en localStorage.
 
 /* ---------------- Portail d'import ----------------
    Cette page ne doit plus jamais afficher automatiquement d'anciennes
@@ -1040,10 +1016,18 @@ function labelEleve(id){
   return id;
 }
 
-function optionsElevesDisponibles(groupe){
+// `siblings` = les autres groupes du même créneau (même brique), le cas
+// échéant. On exclut de la liste tout élève déjà présent dans CE groupe
+// OU dans un groupe voisin du même créneau : un élève ne doit jamais se
+// retrouver affecté à deux groupes en même temps. Pour déplacer un élève
+// d'un groupe voisin vers celui-ci, on passe par le contrôle de
+// réaffectation de la puce (voir renderGroupeCard), pas par cette liste.
+function optionsElevesDisponibles(groupe, siblings){
   if(!coffreOuvert()) return "";
+  const dejaPlaces = new Set(groupe.eleves||[]);
+  (siblings||[]).forEach(s=>(s.eleves||[]).forEach(id=>dejaPlaces.add(id)));
   return coffre.listerEleves()
-    .filter(e=> !(groupe.eleves||[]).includes(e.identifiantSynapses))
+    .filter(e=> !dejaPlaces.has(e.identifiantSynapses))
     .map(e=>`<option value="${escapeAttr(e.identifiantSynapses)}">${escapeHTML(eleveLabel(e))}</option>`).join("");
 }
 
@@ -1130,9 +1114,6 @@ function renderJour(){
 
   renderClasseFilterBar();
   renderDaySummary(jour.groupes.filter(matchFiltreClasse));
-  document.querySelectorAll("#view-toggle [data-vue]").forEach(b=>{
-    b.classList.toggle("active", b.dataset.vue===vueJournal);
-  });
 
   if(!jour.groupes.length){
     content.innerHTML = `
@@ -1290,17 +1271,6 @@ function renderJour(){
 
   if(ligneCourante.length){
     lignes.push(ligneCourante);
-  }
-
-  if(vueJournal === "calendrier"){
-    content.appendChild(construireVueCalendrier(groupesVisibles, hm));
-
-    const addBlocRowCal = document.createElement("div");
-    addBlocRowCal.className = "add-bloc-row";
-    addBlocRowCal.innerHTML = `<button class="btn" id="btn-add-bloc">+ Ajouter un créneau</button>`;
-    content.appendChild(addBlocRowCal);
-    $("btn-add-bloc").addEventListener("click", ()=>ajouterBloc());
-    return;
   }
 
   const table = document.createElement("table");
@@ -1511,7 +1481,7 @@ function renderJour(){
 
           bloc.groupes.forEach(g=>{
             communBody.appendChild(
-              renderGroupeCard(g)
+              renderGroupeCard(g, bloc.groupes.filter(x=>x!==g))
             );
           });
 
@@ -1652,152 +1622,12 @@ function ajouterBloc(){
   sauver(); renderJour();
 }
 
-/* =========================================================
-   VUE "CALENDRIER"
-   ---------------------------------------------------------
-   Grille horaire avec une colonne de gauche graduée toutes
-   les 30 minutes. Chaque groupe (enseignant, AESH, etc.) est
-   positionné verticalement selon son horaire réel. Les
-   groupes qui se chevauchent dans le temps (même partiellement)
-   sont placés côte à côte, en colonnes, au lieu d'être
-   empilés — ce qui permet par exemple de voir en un coup
-   d'œil le groupe mené par l'enseignant et celui mené par
-   l'AESH sur le même créneau. Les groupes qui ne partagent
-   aucun créneau gardent toute la largeur disponible.
-   Les cartes de groupe restent éditables : cette vue réutilise
-   renderGroupeCard(), seul l'habillage/positionnement change.
-   ========================================================= */
-
-function minVersHHMM(min){
-  min = Math.max(0, Math.round(min));
-  const h = Math.floor(min/60), m = min%60;
-  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
-}
-
-function construireVueCalendrier(groupesVisibles, hm){
-  const wrap = document.createElement("div");
-  wrap.className = "cal-wrap";
-
-  if(!groupesVisibles.length){
-    wrap.innerHTML = `<div class="empty-journal"><p>Aucun créneau à afficher.</p></div>`;
-    return wrap;
-  }
-
-  const PX_PAR_MIN = 2; // 60px par demi-heure
-
-  let debutMin = Math.min(...groupesVisibles.map(g=>hm(g.debut)));
-  let finMin   = Math.max(...groupesVisibles.map(g=>hm(g.fin)));
-  debutMin = Math.floor(debutMin/30)*30;
-  finMin   = Math.ceil(finMin/30)*30;
-  if(finMin <= debutMin) finMin = debutMin + 30;
-  const hauteurTotale = (finMin - debutMin) * PX_PAR_MIN;
-
-  /* ---- Regroupement en clusters de créneaux qui se chevauchent ---- */
-  const evenements = groupesVisibles
-    .map(g=>({ g, start:hm(g.debut), end:Math.max(hm(g.fin), hm(g.debut)+10) }))
-    .sort((a,b)=> a.start-b.start || a.end-b.end);
-
-  const clusters = [];
-  let clusterCourant = [];
-  let finCluster = -1;
-  evenements.forEach(ev=>{
-    if(clusterCourant.length && ev.start < finCluster){
-      clusterCourant.push(ev);
-      finCluster = Math.max(finCluster, ev.end);
-    }else{
-      if(clusterCourant.length) clusters.push(clusterCourant);
-      clusterCourant = [ev];
-      finCluster = ev.end;
-    }
-  });
-  if(clusterCourant.length) clusters.push(clusterCourant);
-
-  /* ---- Attribution des colonnes à l'intérieur de chaque cluster ---- */
-  clusters.forEach(cluster=>{
-    const finsColonnes = [];
-    cluster.forEach(ev=>{
-      let placee = false;
-      for(let i=0;i<finsColonnes.length;i++){
-        if(finsColonnes[i] <= ev.start){ ev.col = i; finsColonnes[i] = ev.end; placee = true; break; }
-      }
-      if(!placee){ ev.col = finsColonnes.length; finsColonnes.push(ev.end); }
-    });
-    const total = finsColonnes.length || 1;
-    cluster.forEach(ev=> ev.totalCols = total);
-  });
-
-  /* ---- Structure DOM ---- */
-  const body = document.createElement("div");
-  body.className = "cal-body";
-
-  const axis = document.createElement("div");
-  axis.className = "cal-axis";
-  axis.style.height = hauteurTotale + "px";
-  for(let t=debutMin; t<=finMin; t+=30){
-    const lab = document.createElement("div");
-    lab.className = "cal-axis-label";
-    lab.style.top = ((t - debutMin) * PX_PAR_MIN) + "px";
-    lab.textContent = minVersHHMM(t);
-    axis.appendChild(lab);
-  }
-
-  const track = document.createElement("div");
-  track.className = "cal-track";
-  track.style.height = hauteurTotale + "px";
-
-  for(let t=debutMin; t<=finMin; t+=30){
-    const line = document.createElement("div");
-    line.className = "cal-line";
-    line.style.top = ((t - debutMin) * PX_PAR_MIN) + "px";
-    track.appendChild(line);
-  }
-
-  evenements.forEach(ev=>{
-    const g = ev.g;
-    const top = (ev.start - debutMin) * PX_PAR_MIN;
-    const hauteur = Math.max((ev.end - ev.start) * PX_PAR_MIN, 34);
-    const largeur = 100 / ev.totalCols;
-    const gauche = ev.col * largeur;
-
-    const box = document.createElement("div");
-    box.className = "cal-event" + (g.fixe ? " cal-event-fixe" : "");
-    box.style.top = top + "px";
-    box.style.height = hauteur + "px";
-    box.style.left = gauche + "%";
-    box.style.width = largeur + "%";
-
-    if(g.fixe){
-      box.innerHTML = `${escapeHTML(g.titre||"")}<span class="cal-event-fixe-heure">${escapeHTML(g.debut)}–${escapeHTML(g.fin)}</span>`;
-      track.appendChild(box);
-      return;
-    }
-
-    const timeRow = document.createElement("div");
-    timeRow.className = "cal-event-time";
-    timeRow.innerHTML = `
-      <input type="time" data-role="cal-debut" value="${escapeAttr(g.debut)}" title="Début de ce groupe">
-      <span class="sep">–</span>
-      <input type="time" data-role="cal-fin" value="${escapeAttr(g.fin)}" title="Fin de ce groupe">
-    `;
-    timeRow.querySelector('[data-role=cal-debut]').addEventListener("change", e=>{
-      g.debut = e.target.value; g.modifie = true; sauver(); renderJour();
-    });
-    timeRow.querySelector('[data-role=cal-fin]').addEventListener("change", e=>{
-      g.fin = e.target.value; g.modifie = true; sauver(); renderJour();
-    });
-
-    box.appendChild(timeRow);
-    box.appendChild(renderGroupeCard(g));
-    track.appendChild(box);
-  });
-
-  body.appendChild(axis);
-  body.appendChild(track);
-  wrap.appendChild(body);
-  return wrap;
-}
-
-function renderGroupeCard(g){
+// `siblings` (optionnel) = les autres groupes déjà présents sur le même
+// créneau (même brique). Quand il y en a, chaque puce élève affiche un
+// petit sélecteur « ⇄ » permettant de réaffecter directement l'élève vers
+// un de ces groupes voisins, sans repasser par une suppression manuelle.
+function renderGroupeCard(g, siblings){
+  siblings = siblings || [];
   const card = document.createElement("div");
   card.className = "groupe-card" + (g.fixe ? " fixe" : "");
 
@@ -1819,9 +1649,13 @@ function renderGroupeCard(g){
       <input class="adulte-nom" placeholder="Nom (ex. Vincent, Yasmina…)" value="${escapeAttr(g.adulte ? g.adulte.nom : "")}">
     </div>
     <div class="eleves-chips" data-role="chips"></div>
-    <select class="add-eleve" data-role="add-eleve"><option value="">${coffreOuvert() ? "+ Ajouter un élève…" : "Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}</select>
+    <select class="add-eleve" data-role="add-eleve"><option value="">${coffreOuvert() ? "+ Ajouter un élève…" : "Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g, siblings)}</select>
     <textarea class="remarque" placeholder="Point de vigilance / remarque…">${escapeHTML(g.remarque||"")}</textarea>
     <div class="card-foot"><button data-role="del-groupe">✕ Supprimer ce groupe</button></div>`;
+
+  function rafraichirAddEleve(){
+    card.querySelector('[data-role=add-eleve]').innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g, siblings)}`;
+  }
 
   function renderChips(){
     const chips=card.querySelector('[data-role=chips]');
@@ -1829,10 +1663,31 @@ function renderGroupeCard(g){
     (g.eleves||[]).forEach(id=>{
       const chip=document.createElement("span");
       chip.className="eleve-chip";
-      chip.innerHTML=`${escapeHTML(labelEleve(id))} <button title="Retirer">✕</button>`;
+
+      const reaffectOptions = siblings.map((s,i)=>
+        `<option value="${i}">→ ${escapeHTML(s.titre || "Groupe "+(i+2))}</option>`
+      ).join("");
+
+      chip.innerHTML=`${escapeHTML(labelEleve(id))} ${
+        siblings.length ? `<select title="Réaffecter vers un autre groupe de ce créneau" data-role="reaffecter"><option value="">⇄</option>${reaffectOptions}</select>` : ""
+      } <button title="Retirer">✕</button>`;
+
+      if(siblings.length){
+        chip.querySelector('[data-role=reaffecter]').addEventListener("change",e=>{
+          const idx=e.target.value; if(idx==="") return;
+          const cible=siblings[Number(idx)]; if(!cible) return;
+          g.eleves=(g.eleves||[]).filter(x=>x!==id);
+          cible.eleves=cible.eleves||[];
+          if(!cible.eleves.includes(id)) cible.eleves.push(id);
+          marquerPersonnalise();
+          cible.modifie=true; if(cible.repartitionAuto) cible.personnalise=true;
+          sauver(); renderJour();
+        });
+      }
+
       chip.querySelector("button").addEventListener("click",()=>{
         g.eleves=g.eleves.filter(x=>x!==id); marquerPersonnalise(); sauver(); renderChips();
-        card.querySelector('[data-role=add-eleve]').innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
+        rafraichirAddEleve();
       });
       chips.appendChild(chip);
     });
@@ -1854,7 +1709,7 @@ function renderGroupeCard(g){
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
   card.querySelector('[data-role=add-eleve]').addEventListener("change",e=>{
     const id=e.target.value;if(!id)return;g.eleves=g.eleves||[];if(!g.eleves.includes(id))g.eleves.push(id);marquerPersonnalise();sauver();renderChips();
-    e.target.innerHTML=`<option value="">${coffreOuvert()?"+ Ajouter un élève…":"Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g)}`;
+    rafraichirAddEleve();
   });
   card.querySelector('[data-role=del-groupe]').addEventListener("click",()=>{
     if(g.origine) jour.exclusions.push(g.origine);
@@ -1862,15 +1717,6 @@ function renderGroupeCard(g){
   });
   return card;
 }
-
-/* ---------------- Bascule Vue cartes / Vue Calendrier ---------------- */
-document.querySelectorAll("#view-toggle [data-vue]").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    vueJournal = btn.dataset.vue;
-    localStorage.setItem(VUE_JOURNAL_KEY, vueJournal);
-    renderJour();
-  });
-});
 
 /* ---------------- Onglets cahier journal ---------------- */
 document.querySelectorAll("[data-journal-tab]").forEach(btn=>{
