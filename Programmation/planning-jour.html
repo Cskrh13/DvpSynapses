@@ -1712,28 +1712,49 @@ function ajouterBloc(){
   sauver(); renderJour();
 }
 
-// Bloc "lier une séance" d'une carte de groupe. Deux cas :
-//  - la banque contient au moins une séance : sélecteur habituel, groupé
-//    par niveau/domaine/séquence ;
-//  - la banque est chargée mais totalement vide : plutôt qu'un sélecteur
-//    inutile, on propose une saisie libre du nom de la séance/séquence
-//    (enregistrée comme un lien "manuel", sans id de banque) ainsi qu'un
-//    lien direct vers l'outil de génération de séquences.
+// Bloc "lier une séance" d'une carte de groupe.
+// La séquence/séance d'un créneau n'est pas forcément déjà rédigée : tant
+// qu'aucune VRAIE séance de la banque n'est liée, la saisie libre reste
+// donc toujours affichée (pense-bête pour se souvenir de quoi il s'agit),
+// que la banque soit vide ou non. Dès que la banque contient au moins une
+// séance, le sélecteur apparaît juste à côté pour faire correspondre ce
+// pense-bête à la vraie séance dès qu'elle existe — sans jamais perdre le
+// texte tant que ce choix n'a pas été fait. Une fois une vraie séance liée,
+// seul le sélecteur reste affiché (pour en changer) ; la saisie libre n'a
+// alors plus lieu d'être, le badge + « ✕ Détacher » couvrant ce cas.
 function blocLienSeance(g){
-  if(!banqueChargee){
-    return `<select class="lier-seance" data-role="lier-seance"><option value="">Chargement de la banque de séances…</option></select>`;
-  }
-  if(seancesPlates().length){
+  const estLieReel = g.seanceRef && g.seanceRef.source !== "manuel";
+
+  if(estLieReel){
+    if(!banqueChargee){
+      return `<select class="lier-seance" data-role="lier-seance"><option value="">Chargement de la banque de séances…</option></select>`;
+    }
     return `<select class="lier-seance" data-role="lier-seance">
-      <option value="">${g.seanceRef ? "🔗 Changer la séance liée…" : "🔗 Lier une séance / séquence…"}</option>
+      <option value="">🔗 Changer la séance liée…</option>
       ${optionsSeances(g)}
     </select>`;
   }
+
   const titreManuel = (g.seanceRef && g.seanceRef.source==="manuel") ? g.seanceRef.titre||"" : "";
+  const saisieLibre = `<input type="text" class="seance-manuelle" data-role="seance-manuelle" placeholder="Nom de la séance/séquence (pense-bête, pas encore rédigée)" value="${escapeAttr(titreManuel)}">`;
+
+  if(!banqueChargee){
+    return `<div class="seance-vide" data-role="seance-vide">${saisieLibre}</div>`;
+  }
+  if(seancesPlates().length){
+    return `
+      <div class="seance-vide" data-role="seance-vide">
+        ${saisieLibre}
+        <select class="lier-seance" data-role="lier-seance">
+          <option value="">🔗 Faire correspondre à une séance déjà rédigée…</option>
+          ${optionsSeances(g)}
+        </select>
+      </div>`;
+  }
   return `
     <div class="seance-vide" data-role="seance-vide">
-      <span class="seance-vide-note">Aucune séance/séquence dans la banque pour l'instant.</span>
-      <input type="text" class="seance-manuelle" data-role="seance-manuelle" placeholder="Nom de la séance/séquence (saisie libre)" value="${escapeAttr(titreManuel)}">
+      ${saisieLibre}
+      <span class="seance-vide-note">Aucune séance/séquence dans la banque pour l'instant — ce pense-bête reste ici pour la retrouver dès qu'elle sera rédigée.</span>
       <a class="btn-generer-seance" href="generateur-sequences-projet.html" target="_blank" rel="noopener">🧩 Générer une séance/séquence</a>
     </div>`;
 }
@@ -1753,7 +1774,8 @@ function renderGroupeCard(g, siblings){
     return card;
   }
 
-  const typesOptions = PC.TYPES_ADULTE.map(t=>`<option value="${t.id}" ${g.adulte && g.adulte.type===t.id?'selected':''}>${t.label}</option>`).join("");
+  const typeAdulteActuel = g.adulte ? g.adulte.type : "autonomie";
+  const typesOptions = PC.TYPES_ADULTE.map(t=>`<option value="${t.id}" ${t.id===typeAdulteActuel?'selected':''}>${t.label}</option>`).join("");
   const cadenas = g.modifie ? `<span title="Modifié à la main" style="float:right;font-size:11px;color:var(--ink-soft);">🔒</span>` : "";
 
   card.innerHTML = `
@@ -1766,7 +1788,7 @@ function renderGroupeCard(g, siblings){
     </div>
     <div class="row1">
       <select class="adulte-type">${typesOptions}</select>
-      <input class="adulte-nom" placeholder="Nom (ex. Vincent, Yasmina…)" value="${escapeAttr(g.adulte ? g.adulte.nom : "")}">
+      <input class="adulte-nom" placeholder="Nom (ex. Vincent, Yasmina…)" value="${escapeAttr(g.adulte ? g.adulte.nom : "")}" ${g.adulte ? "" : "disabled"}>
     </div>
     <div class="eleves-chips" data-role="chips"></div>
     <select class="add-eleve" data-role="add-eleve"><option value="">${coffreOuvert() ? "+ Ajouter un élève…" : "Ouvrez le coffre pour ajouter des élèves"}</option>${optionsElevesDisponibles(g, siblings)}</select>
@@ -1844,10 +1866,10 @@ function renderGroupeCard(g, siblings){
   if(inputSeanceManuelle){
     inputSeanceManuelle.addEventListener("change",e=>{
       const titre = e.target.value.trim();
-      // Saisie libre en l'absence de banque : le lien enregistré n'a pas
-      // d'id (rien à retrouver dans une banque), seulement le texte tapé.
-      // Si la banque se remplit plus tard (ex. séance générée via l'outil
-      // dédié), ce lien manuel peut être remplacé en le liant proprement.
+      // Pense-bête : pas d'id de banque, seulement le texte tapé. Reste en
+      // place tant qu'aucune vraie séance n'est choisie dans le sélecteur ;
+      // le choisir remplacera ce lien "manuel" par le vrai lien (et fera
+      // disparaître ce champ, la séance étant alors désignée sans ambiguïté).
       g.seanceRef = titre ? {id:null, source:"manuel", titre} : null;
       marquerPersonnalise();
       sauver(); renderJour();
@@ -1859,7 +1881,18 @@ function renderGroupeCard(g, siblings){
       g.seanceRef=null; marquerPersonnalise(); sauver(); renderJour();
     });
   }
-  card.querySelector(".adulte-type").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.type=e.target.value;marquerPersonnalise();sauver();});
+  card.querySelector(".adulte-type").addEventListener("change",e=>{
+    const val=e.target.value;
+    const nomInput=card.querySelector(".adulte-nom");
+    if(val==="autonomie"){
+      g.adulte=null;
+      if(nomInput){ nomInput.value=""; nomInput.disabled=true; }
+    }else{
+      g.adulte=g.adulte||{}; g.adulte.type=val; if(g.adulte.nom===undefined) g.adulte.nom="";
+      if(nomInput) nomInput.disabled=false;
+    }
+    marquerPersonnalise();sauver();
+  });
   card.querySelector(".adulte-nom").addEventListener("change",e=>{g.adulte=g.adulte||{};g.adulte.nom=e.target.value;marquerPersonnalise();sauver();});
   card.querySelector(".remarque").addEventListener("change",e=>{g.remarque=e.target.value;sauver();});
   card.querySelector('[data-role=add-eleve]').addEventListener("change",e=>{

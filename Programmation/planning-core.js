@@ -189,7 +189,11 @@
     { id: "enseignant", label: "Enseignant" },
     { id: "aesh", label: "AESH" },
     { id: "atsem", label: "ATSEM" },
-    { id: "autre", label: "Autre" }
+    { id: "autre", label: "Autre" },
+    // Pas un « adulte » au sens propre : ce choix correspond à adulte:null
+    // (convention déjà utilisée par ex. pour les groupes d'autonomie de la
+    // répartition automatique et dans la vue impression du cahier journal).
+    { id: "autonomie", label: "Autonomie (sans adulte)" }
   ];
 
 
@@ -929,9 +933,14 @@
     seas.forEach(
       sea => {
 
+        // sequence_id est le champ canonique (voir sequences.html) ; on
+        // accepte sequenceId en repli défensif au cas où une séance aurait
+        // été écrite dans planif_seances par un autre chemin que le
+        // formulaire normal, pour ne pas la faire retomber silencieusement
+        // dans le domaine par défaut ci-dessous.
         const seq =
           seqById.get(
-            sea.sequence_id
+            sea.sequence_id || sea.sequenceId
           );
 
 
@@ -1993,11 +2002,81 @@
           ? ((c.libelle && c.libelle.trim()) ? c.libelle.trim() : ((TYPES_CRENEAU[c.type] || {}).label || c.type))
           : ((c.titre && c.titre.trim()) ? c.titre.trim() : disp.nom);
 
-        if (existant) {
-          existant.debut = c.debut; existant.fin = c.fin; existant.titre = titre;
-          existant.domaineCle = c.domaineCle || ""; existant.niveau = ""; existant.classeId = "";
-          existant.dispositifId = disp.id; existant.dispositifType = disp.type || "ULIS";
-          existant.eleves = idsPlanning.slice(); existant.fixe = estFixe;
+        // --------------------------------------------------------------
+        // Répartition Enseignant / AESH / Autonomie (onglet « Répartition
+        // des élèves » de Planning — Gestion, config.dispositifGroupes) :
+        // quand une répartition a été enregistrée pour ce créneau, le
+        // cahier journal affiche directement un groupe par profil
+        // réellement utilisé (seul avec l'enseignant / avec l'AESH / en
+        // autonomie), au lieu d'un groupe fusionné unique, pour que
+        // l'organisation décidée dans la répartition soit visible et
+        // ajustable ici. Un groupe déjà retouché à la main (modifie:true)
+        // n'est jamais recalculé.
+        // --------------------------------------------------------------
+        const cleRepartition = disp.id + "::" + jourSemaine + "::" + c.id;
+        const repartition = !estFixe ? (config.dispositifGroupes || {})[cleRepartition] : null;
+        const profilsRepartis = repartition
+          ? ["enseignant", "aesh", "autonomie"].filter(k => Array.isArray(repartition[k]) && repartition[k].length)
+          : [];
+
+        if (profilsRepartis.length) {
+          // Ne jamais laisser coexister l'ancien groupe fusionné (créé par
+          // une génération antérieure, ou restauré tel quel par un import
+          // de planning) avec les nouveaux groupes de répartition : sur un
+          // créneau déjà réparti, le groupe fusionné est toujours retiré,
+          // sauf s'il a été retouché à la main, auquel cas ce choix de
+          // l'enseignant prime et la répartition n'est pas appliquée ici.
+          const groupeFusion = jour.groupes.find(g => g.origine === origine && !g.profilRepartitionDisp && !g.groupeBesoin);
+          if (groupeFusion) {
+            if (groupeFusion.modifie) return;
+            jour.groupes = jour.groupes.filter(g => g !== groupeFusion);
+          }
+
+          const dispoIds = new Set(idsPlanning);
+          const PROFILS = {
+            enseignant: { suffixe: "Enseignant", adulte: { type: "enseignant", nom: "" } },
+            aesh: { suffixe: "AESH", adulte: { type: "aesh", nom: "" } },
+            autonomie: { suffixe: "Autonome", adulte: null }
+          };
+          Object.keys(PROFILS).forEach(profil => {
+            const ids = (Array.isArray(repartition[profil]) ? repartition[profil] : []).filter(id => dispoIds.has(id));
+            const groupeExistant = jour.groupes.find(g => g.origine === origine && g.profilRepartitionDisp === profil);
+            if (groupeExistant && groupeExistant.modifie) return; // retouché à la main : on n'y touche plus
+            if (!ids.length) {
+              if (groupeExistant) jour.groupes = jour.groupes.filter(g => g !== groupeExistant);
+              return;
+            }
+            if (groupeExistant) {
+              groupeExistant.debut = c.debut; groupeExistant.fin = c.fin;
+              groupeExistant.titre = titre + " — " + PROFILS[profil].suffixe;
+              groupeExistant.domaineCle = c.domaineCle || "";
+              groupeExistant.eleves = ids;
+            } else {
+              jour.groupes.push({
+                id: uid("grp"), debut: c.debut, fin: c.fin, origine, modifie: false,
+                adulte: PROFILS[profil].adulte, titre: titre + " — " + PROFILS[profil].suffixe,
+                domaineCle: c.domaineCle || "", niveau: "", classeId: "",
+                dispositifId: disp.id, dispositifType: disp.type || "ULIS", seanceRef: null,
+                eleves: ids, remarque: "", fixe: false,
+                repartitionAuto: true, profilRepartitionDisp: profil
+              });
+            }
+          });
+          return; // la répartition fait foi : pas de groupe fusionné en plus
+        }
+
+        // Aucune répartition (ou plus aucune) enregistrée pour ce créneau :
+        // on retire d'éventuels groupes de répartition devenus obsolets et
+        // jamais retouchés à la main, puis on retombe sur le groupe
+        // fusionné habituel (comportement historique).
+        jour.groupes = jour.groupes.filter(g => !(g.origine === origine && g.profilRepartitionDisp && !g.modifie));
+        const groupeFusion = jour.groupes.find(g => g.origine === origine);
+
+        if (groupeFusion) {
+          groupeFusion.debut = c.debut; groupeFusion.fin = c.fin; groupeFusion.titre = titre;
+          groupeFusion.domaineCle = c.domaineCle || ""; groupeFusion.niveau = ""; groupeFusion.classeId = "";
+          groupeFusion.dispositifId = disp.id; groupeFusion.dispositifType = disp.type || "ULIS";
+          groupeFusion.eleves = idsPlanning.slice(); groupeFusion.fixe = estFixe;
         } else {
           jour.groupes.push({
             id: uid("grp"), debut: c.debut, fin: c.fin, origine, modifie: false,
